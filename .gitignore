@@ -1,0 +1,5 @@
+/target/
+/.toolchain/
+/tmp/
+data/*.bin
+data/*.gz

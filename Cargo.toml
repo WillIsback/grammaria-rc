@@ -1,0 +1,31 @@
+[package]
+name = "grammaria"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "A state-of-the-art, blazingly fast French grammar and spelling checker in Rust (LanguageTool/Grammalecte compatible rules)"
+license = "MPL-2.0"
+repository = "https://example.invalid/grammaria"
+readme = "README.md"
+keywords = ["grammar", "french", "spellcheck", "nlp", "languagetool"]
+categories = ["text-processing", "command-line-utilities"]
+
+[[bin]]
+name = "grammaria"
+path = "src/main.rs"
+
+[lib]
+name = "grammaria"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.bench]
+inherits = "release"
+
+[dependencies]
