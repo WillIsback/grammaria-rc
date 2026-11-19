@@ -437,14 +437,15 @@ impl Disambiguation {
                 }) {
                     continue;
                 }
+                // LanguageTool applies disambiguation actions to the *marked*
+                // span only (`getOriginalPosition(firstMatchToken +
+                // correctedStPos)`), and to the whole match when no marker is
+                // given.
                 let (lo, hi) = if r.has_marker && m.per_elem.len() > r.marker_start {
                     let start = m.per_elem[r.marker_start];
-                    let end = m
-                        .per_elem
-                        .get(r.marker_start + r.marker_len - 1)
-                        .map(|&e| e + 1)
-                        .unwrap_or(start + 1);
-                    (start.max(m.token_start), end.min(m.token_end))
+                    let last = (r.marker_start + r.marker_len - 1).min(m.per_elem.len() - 1);
+                    let end = m.per_elem[last] + 1;
+                    (start.max(m.token_start), end.min(m.token_end).max(start + 1))
                 } else {
                     (m.token_start, m.token_end)
                 };
@@ -559,14 +560,13 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
         marker_len: 0,
     };
     if let Some(p) = node.first_child("pattern") {
-        r.pattern = convert_pattern(p);
-        // locate the marker span (element indices)
-        let mut before = Vec::new();
+        let mut elems = Vec::new();
         let mut marked = Vec::new();
-        marker_layout(p, false, &mut before, &mut marked);
-        if !marked.is_empty() {
+        convert_children_marked(p, &mut elems, &mut marked, false);
+        r.pattern = Pattern { elems };
+        if let Some(&first) = marked.first() {
             r.has_marker = true;
-            r.marker_start = before.len();
+            r.marker_start = first;
             r.marker_len = marked.len();
         }
     }
@@ -607,6 +607,28 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
         }
     }
     r
+}
+
+/// Convert pattern children, recording which produced element indices are
+/// inside a `<marker>` group. This keeps marker indices in sync with the
+/// element list by construction.
+pub fn convert_children_marked(node: &XmlNode, out: &mut Vec<PatternElem>, marked: &mut Vec<usize>, in_marker: bool) {
+    for c in &node.children {
+        let DomItem::Node(n) = c else { continue };
+        match n.name.as_str() {
+            "marker" => convert_children_marked(n, out, marked, true),
+            "token" => {
+                if in_marker {
+                    marked.push(out.len());
+                }
+                out.push(PatternElem::Token(convert_token(n)));
+            }
+            "and" | "or" | "unify" | "unify-ignore" | "match" => {
+                convert_children_marked(n, out, marked, in_marker);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Public wrapper used by the grammar rule loader.
@@ -784,6 +806,10 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
 
 
 /// Count pattern elements before/inside the `<marker>` group.
+///
+/// The count must mirror exactly the element list produced by
+/// `convert_children`, because `marker_start` is used as an index into
+/// `Match::per_elem`.
 fn marker_layout(node: &XmlNode, in_marker: bool, before: &mut Vec<()>, marked: &mut Vec<()>) {
     for c in &node.children {
         let DomItem::Node(n) = c else { continue };
