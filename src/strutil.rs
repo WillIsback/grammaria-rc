@@ -28,6 +28,11 @@ pub fn decapitalize(s: &str) -> String {
     }
 }
 
+/// Exact (case-sensitive) comparison.
+pub fn eq_ignore_case_cs(a: &str, b: &str) -> bool {
+    a == b
+}
+
 pub fn eq_ignore_case(a: &str, b: &str) -> bool {
     if a.chars().count() != b.chars().count() {
         return false;

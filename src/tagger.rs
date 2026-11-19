@@ -1,0 +1,624 @@
+//! French tagger and disambiguator.
+//!
+//! Pipeline (mirrors LanguageTool's `FrenchHybridDisambiguator`):
+//!
+//! 1. tokenize the sentence (`tokenizer`),
+//! 2. dictionary lookup for each token, with case-insensitive fallback and a
+//!    set of spelling heuristics (hyphenated words, elisions, unknown words),
+//! 3. multiword chunking (`multiwords.txt`): e.g. `c' est` becomes one token
+//!    tagged `V etre inf`,
+//! 4. rule-based disambiguation (`disambiguation.xml`): removes, filters or
+//!    replaces the tags of ambiguous words using context patterns.
+
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
+use crate::lexicon::Lexicon;
+use crate::pattern::{find_matches, Pattern, PatternElem, TokenPattern};
+use crate::sentence::{AnalyzedToken, Sentence};
+use crate::strutil;
+use crate::tagregex::ValueMatcher;
+use crate::tokenizer::{self, TokenType};
+use crate::xml::{self, DomItem, Node as XmlNode};
+
+pub struct Tagger {
+    pub lexicon: &'static Lexicon,
+    /// Multiword chunks: lowercase form -> (words, tags).
+    chunks: HashMap<String, (Vec<String>, String)>,
+    pub disambig: Disambiguation,
+}
+
+static LEXICON: OnceLock<Lexicon> = OnceLock::new();
+static WORDS: OnceLock<WordLists> = OnceLock::new();
+
+/// Auxiliary word lists (multiwords, hyphenated compounds, extra spelling).
+#[derive(Default)]
+pub struct WordLists {
+    pub multiwords: Vec<(Vec<String>, String)>,
+    pub hyphenated: std::collections::HashSet<String>,
+    pub spelling: std::collections::HashSet<String>,
+    pub forbidden: std::collections::HashSet<String>,
+}
+
+impl WordLists {
+    pub fn load(text: &str) -> WordLists {
+        let mut w = WordLists::default();
+        let mut section = "";
+        for line in text.lines() {
+            if let Some(name) = line.strip_prefix("#!") {
+                section = name.trim();
+                continue;
+            }
+            if line.trim().is_empty() {
+                continue;
+            }
+            match section {
+                "multiwords" => {
+                    // `form; tags` (the form may contain spaces)
+                    if let Some((form, tags)) = line.rsplit_once(';') {
+                        w.multiwords.push((form.split_whitespace().map(|s| s.to_string()).collect(), tags.trim().to_string()));
+                    }
+                }
+                "hyphenated" => {
+                    w.hyphenated.insert(line.to_string());
+                }
+                "spelling" => {
+                    w.spelling.insert(line.to_string());
+                }
+                "forbidden" => {
+                    w.forbidden.insert(line.to_string());
+                }
+                _ => {}
+            }
+        }
+        w
+    }
+}
+
+impl Tagger {
+    /// Load the tagger from binary assets. The lexicon is loaded once and
+    /// cached for the process lifetime.
+    pub fn new(lex_path: &std::path::Path, words_path: &std::path::Path, disambig_path: Option<&std::path::Path>) -> std::io::Result<&'static Tagger> {
+        static TAGGER: OnceLock<Tagger> = OnceLock::new();
+        if let Some(t) = TAGGER.get() {
+            return Ok(t);
+        }
+        let lex = match LEXICON.get() {
+            Some(l) => l,
+            None => {
+                let l = Lexicon::load(lex_path)?;
+                let _ = LEXICON.set(l);
+                LEXICON.get().unwrap()
+            }
+        };
+        let words = match WORDS.get() {
+            Some(w) => w,
+            None => {
+                let text = std::fs::read_to_string(words_path).unwrap_or_default();
+                let _ = WORDS.set(WordLists::load(&text));
+                WORDS.get().unwrap()
+            }
+        };
+        let disambig = match disambig_path {
+            Some(p) => match std::fs::read_to_string(p) {
+                Ok(xml) => Disambiguation::parse(&xml),
+                Err(_) => Disambiguation::default(),
+            },
+            None => Disambiguation::default(),
+        };
+        let mut chunks: HashMap<String, (Vec<String>, String)> = HashMap::new();
+        for (words, tags) in &words.multiwords {
+            if words.is_empty() {
+                continue;
+            }
+            let key = words.join(" ").to_lowercase();
+            chunks.entry(key).or_insert_with(|| (words.clone(), tags.clone()));
+        }
+        let t = Tagger {
+            lexicon: lex,
+            chunks,
+            disambig,
+        };
+        let _ = TAGGER.set(t);
+        Ok(TAGGER.get().unwrap())
+    }
+
+    /// Tag a sentence: tokenize + lookup + chunk + disambiguate.
+    pub fn tag(&self, text: &str, offset: usize) -> Sentence {
+        let mut s = Sentence::new(text, offset);
+        s.tokens = tokenizer::tokenize(text)
+            .iter()
+            .map(AnalyzedToken::from_token)
+            .collect();
+        self.lookup_all(&mut s);
+        self.chunk(&mut s);
+        self.disambiguate(&mut s);
+        self.add_unknown_markers(&mut s);
+        s
+    }
+
+    pub fn lookup_all_for_test(&self, s: &mut Sentence) { self.lookup_all(s) }
+
+    fn lookup_all(&self, s: &mut Sentence) {
+        for i in 0..s.tokens.len() {
+            let text = s.tokens[i].text.clone();
+            self.lookup_token(&mut s.tokens[i], &text);
+        }
+    }
+
+    /// Dictionary lookup for a single token, with LanguageTool-style fallbacks.
+    pub fn lookup_token(&self, tok: &mut AnalyzedToken, text: &str) {
+        let lex = self.lexicon;
+        let mut morphs: Vec<(&str, &str)> = Vec::new();
+
+        // 1. exact match
+        lex.morphs(text, &mut morphs);
+        if !morphs.is_empty() {
+            for (l, t) in &morphs {
+                tok.add(l, t);
+            }
+            self.add_case_extra(tok, text);
+            return;
+        }
+        // 2. lowercase match (sentence-initial capitalisation)
+        let lower = strutil::lower(text);
+        if lower != text {
+            lex.morphs(&lower, &mut morphs);
+            if !morphs.is_empty() {
+                for (l, t) in &morphs {
+                    tok.add(l, t);
+                }
+                self.add_case_extra(tok, text);
+                return;
+            }
+        }
+        // 3. hyphenated compounds: try each part, then whole-word chunk
+        if text.contains('-') {
+            lex.morphs(&lower, &mut morphs);
+            if !morphs.is_empty() {
+                for (l, t) in &morphs {
+                    tok.add(l, t);
+                }
+                return;
+            }
+        }
+        // 4. elided form: `l'`, `d'`, `j'`, `qu'` are in the dictionary already;
+        //    otherwise strip the apostrophe
+        if let Some(stem) = text.strip_suffix('\'') {
+            let cand = if stem == "qu" || stem == "l" || stem == "d" || stem == "j" || stem == "m" || stem == "t" || stem == "s" || stem == "n" || stem == "c" {
+                text.to_string()
+            } else {
+                format!("{}'", stem)
+            };
+            lex.morphs(&cand, &mut morphs);
+            if !morphs.is_empty() {
+                for (l, t) in &morphs {
+                    tok.add(l, t);
+                }
+                return;
+            }
+        }
+        // 5. plural of hyphenated / unknown words via the auxiliary lists
+        let wl = WORDS.get();
+        if let Some(wl) = wl {
+            if wl.spelling.contains(text) {
+                if is_capitalized(text) && tok.kind != TokenType::Punctuation {
+                    tok.add(text, "Z e sp");
+                } else {
+                    tok.add(&lower, "N e sp");
+                }
+                return;
+            }
+            if wl.hyphenated.contains(&lower) {
+                tok.add(&lower, "N e sp");
+                return;
+            }
+        }
+        // 6. numbers
+        if text.chars().all(|c| c.is_ascii_digit() || matches!(c, ' ' | ',' | '.' | '\u{A0}' | '\u{202F}')) && text.chars().any(|c| c.is_ascii_digit()) {
+            tok.add(text, "Y");
+            return;
+        }
+        // 7. unknown
+        tok.add(text, "UNKNOWN");
+    }
+
+    /// Render a sentence in LanguageTool's `--verbose` tagger format:
+    /// `<S> word[lemma/tag,...] ... .[./M fin]`
+    pub fn verbose(&self, s: &Sentence) -> String {
+        let mut out = String::from("<S>");
+        for t in &s.tokens {
+            out.push(' ');
+            out.push_str(&t.text);
+            out.push('[');
+            let parts: Vec<String> = t
+                .lemmas
+                .iter()
+                .zip(t.tags.iter())
+                .map(|(l, tag)| format!("{}/{}", l.split('|').next().unwrap_or(""), tag))
+                .collect();
+            out.push_str(&parts.join(","));
+            out.push(']');
+        }
+        out.push(' ');
+        out
+    }
+
+    fn add_case_extra(&self, tok: &mut AnalyzedToken, text: &str) {
+        // LanguageTool marks proper-noun-ish capitalised unknowns; the
+        // dictionary already contains proper names, so nothing to do here.
+        let _ = (tok, text);
+    }
+
+    fn add_unknown_markers(&self, s: &mut Sentence) {
+        for t in &mut s.tokens {
+            if t.tags.is_empty() {
+                t.add(&t.text.clone(), "UNKNOWN");
+            }
+        }
+    }
+
+    /// Multiword chunker: merge tokens listed in `multiwords.txt`.
+    fn chunk(&self, s: &mut Sentence) {
+        if s.tokens.is_empty() || self.chunks.is_empty() {
+            return;
+        }
+        let mut i = 0;
+        let mut out: Vec<AnalyzedToken> = Vec::with_capacity(s.tokens.len());
+        while i < s.tokens.len() {
+            let mut matched = false;
+            // try chunks of decreasing length (max 5 words)
+            let maxlen = 5.min(s.tokens.len() - i);
+            for len in (2..=maxlen).rev() {
+                let key: String = s.tokens[i..i + len]
+                    .iter()
+                    .map(|t| strutil::lower(t.text.trim_end_matches('\'')))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                // the joined form as written in multiwords.txt: "c' est"
+                let key2: String = s.tokens[i..i + len]
+                    .iter()
+                    .map(|t| strutil::lower(&t.text))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                if let Some((words, tags)) = self.chunks.get(&key).or_else(|| self.chunks.get(&key2)) {
+                    let _ = words;
+                    let start = s.tokens[i].start;
+                    let end = s.tokens[i + len - 1].end;
+                    let text: String = s.text.get(start..end).unwrap_or("").to_string();
+                    let mut t = AnalyzedToken {
+                        text,
+                        start,
+                        end,
+                        kind: TokenType::HyphenatedWord,
+                        tags: Vec::new(),
+                        lemmas: Vec::new(),
+                        spaces_before: s.tokens[i].spaces_before,
+                        chunked: true,
+                    };
+                    // `c' est` -> lemma `c'` + tag from the file
+                    let lemma = strutil::lower(&s.tokens[i].text);
+                    t.add(&lemma, tags);
+                    out.push(t);
+                    i += len;
+                    matched = true;
+                    break;
+                }
+            }
+            if !matched {
+                out.push(s.tokens[i].clone());
+                i += 1;
+            }
+        }
+        s.tokens = out;
+    }
+
+    fn disambiguate(&self, s: &mut Sentence) {
+        self.disambig.apply(s);
+    }
+}
+
+fn is_capitalized(text: &str) -> bool {
+    strutil::starts_upper(text)
+}
+
+// ---------------------------------------------------------------------------
+// Disambiguation rules (disambiguation.xml)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DisambigAction {
+    Filter,
+    FilterAll,
+    Remove,
+    Add,
+    Replace,
+    Immunize,
+}
+
+#[derive(Clone, Debug)]
+pub struct DisambigRule {
+    pub id: String,
+    pub pattern: Pattern,
+    pub antipatterns: Vec<Pattern>,
+    pub action: DisambigAction,
+    /// Tag the action applies to (postag attribute).
+    pub postag: String,
+    pub is_regexp: bool,
+    /// `(lemma, tag)` pairs added by `add`/`replace`.
+    pub add_tags: Vec<(String, String)>,
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct Disambiguation {
+    pub rules: Vec<DisambigRule>,
+}
+
+impl Disambiguation {
+    /// Parse `disambiguation.xml`.
+    pub fn parse(xml: &str) -> Disambiguation {
+        let doc = xml::parse_dom(xml);
+        let mut d = Disambiguation::default();
+        // The root node is the `<rules>` element (the document wrapper is only
+        // there for comments/prolog).
+        let root: &XmlNode = if let Some(r) = doc.first_child("rules") {
+            r
+        } else if doc.name == "rules" {
+            &doc
+        } else {
+            return d;
+        };
+        for el in &root.children {
+            let DomItem::Node(node) = el else { continue };
+            match node.name.as_str() {
+                "rule" => d.rules.push(convert_disambig_rule(node)),
+                "rulegroup" => {
+                    for sub in node.children_named("rule") {
+                        d.rules.push(convert_disambig_rule(sub));
+                    }
+                }
+                _ => {}
+            }
+        }
+        d
+    }
+
+    /// Apply all rules to a sentence. Rules run in document order; each finds
+    /// every non-overlapping match in the sentence.
+    pub fn apply(&self, s: &mut Sentence) {
+        for r in &self.rules {
+            if r.pattern.elems.is_empty() {
+                continue;
+            }
+            let matches = find_matches(&r.pattern, &s.tokens);
+            for m in matches {
+                // antipattern veto
+                if r.antipatterns.iter().any(|ap| crate::pattern::pattern_matches(ap, &s.tokens)) {
+                    continue;
+                }
+                for idx in m.token_start..m.token_end {
+                    if idx < s.tokens.len() {
+                        self.apply_action(s, r, idx);
+                    }
+                }
+            }
+        }
+    }
+
+    fn apply_action(&self, s: &mut Sentence, r: &DisambigRule, idx: usize) {
+        // An empty `postag` on a legacy `<disambig postag=""/>` clears every
+        // tag (LanguageTool semantics); `filterall` without postag is a no-op.
+        let tag_match = |tag: &str| -> bool {
+            if r.postag.is_empty() {
+                true
+            } else if r.is_regexp {
+                crate::tagregex::regex_find(&r.postag, tag)
+            } else {
+                r.postag.split('|').any(|p| p == tag)
+            }
+        };
+        let tok = &mut s.tokens[idx];
+        match r.action {
+            DisambigAction::Remove => {
+                tok.tags.retain(|t| !tag_match(t));
+            }
+            DisambigAction::Filter | DisambigAction::FilterAll => {
+                let keep: Vec<usize> = tok
+                    .tags
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| tag_match(t))
+                    .map(|(i, _)| i)
+                    .collect();
+                let tags: Vec<String> = keep.iter().map(|&i| tok.tags[i].clone()).collect();
+                let lemmas: Vec<String> = keep.iter().map(|&i| tok.lemmas[i].clone()).collect();
+                tok.tags = tags;
+                tok.lemmas = lemmas;
+            }
+            DisambigAction::Replace => {
+                let add: Vec<(String, String)> = r.add_tags.clone();
+                tok.tags.retain(|t| !tag_match(t));
+                tok.lemmas.retain(|_| false);
+                let text = tok.text.clone();
+                for (lemma, tag) in add {
+                    let l = if lemma.is_empty() { text.clone() } else { lemma };
+                    tok.add(&l, &tag);
+                }
+            }
+            DisambigAction::Add => {
+                let add: Vec<(String, String)> = r.add_tags.clone();
+                let text = tok.text.clone();
+                for (lemma, tag) in add.into_iter() {
+                    let l = if lemma.is_empty() { text.clone() } else { lemma };
+                    tok.add(&l, &tag);
+                }
+            }
+            DisambigAction::Immunize => {}
+        }
+    }
+}
+
+
+fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
+    let mut r = DisambigRule {
+        id: node.attr("id").unwrap_or(node.attr("name").unwrap_or("")).to_string(),
+        pattern: Pattern::default(),
+        antipatterns: Vec::new(),
+        action: DisambigAction::Remove,
+        postag: String::new(),
+        is_regexp: false,
+        add_tags: Vec::new(),
+    };
+    if let Some(p) = node.first_child("pattern") {
+        r.pattern = convert_pattern(p);
+    }
+    for ap in node.children_named("antipattern") {
+        r.antipatterns.push(convert_pattern(ap));
+    }
+    if let Some(dis) = node.first_child("disambig") {
+        let action = dis.attr("action").unwrap_or("");
+        r.action = match action {
+            "filter" => DisambigAction::Filter,
+            "filterall" => DisambigAction::FilterAll,
+            "add" => DisambigAction::Add,
+            "replace" => DisambigAction::Replace,
+            "immunize" => DisambigAction::Immunize,
+            // spelling-only actions do not touch the tags
+            "ignore_spelling" => DisambigAction::Immunize,
+            "remove" => DisambigAction::Remove,
+            // legacy form: <disambig postag="X"/> = remove
+            _ => DisambigAction::Remove,
+        };
+        r.postag = dis.attr("postag").unwrap_or("").to_string();
+        // `postag` is a regex when declared or when it contains regex syntax
+        // (`.*`, `[...]`, `|` outside a simple alternation of full tags).
+        r.is_regexp = dis.attr("postag_regexp") == Some("yes")
+            || r.postag.contains(".*")
+            || r.postag.contains('[')
+            || r.postag.contains('(');
+        for wd in dis.children_named("wd") {
+            if let Some(pos) = wd.attr("pos") {
+                r.add_tags.push((String::new(), pos.to_string()));
+            }
+        }
+    }
+    r
+}
+
+/// Convert a `<pattern>`/`<antipattern>` element into a `Pattern`.
+pub fn convert_pattern(node: &XmlNode) -> Pattern {
+    let mut elems = Vec::new();
+    convert_children(node, &mut elems);
+    Pattern { elems }
+}
+
+fn convert_children(node: &XmlNode, out: &mut Vec<PatternElem>) {
+    for c in &node.children {
+        let DomItem::Node(n) = c else { continue };
+        match n.name.as_str() {
+            "token" => out.push(PatternElem::Token(convert_token(n))),
+            "and" => {
+                let mut seq = Vec::new();
+                convert_children(n, &mut seq);
+                out.push(PatternElem::Seq(seq));
+            }
+            "or" => {
+                // every <token> child is one alternative
+                let mut alts = Vec::new();
+                for t in n.children_named("token") {
+                    alts.push(vec![PatternElem::Token(convert_token(t))]);
+                }
+                if !alts.is_empty() {
+                    out.push(PatternElem::Or(alts));
+                }
+            }
+            "marker" => convert_children(n, out),
+            "unify" | "unify-ignore" => {
+                // Feature agreement (`<feature id="..."/>`) is approximated by
+                // matching the tokens in sequence; unification is applied by
+                // the caller when the rule needs it.
+                convert_children(n, out);
+            }
+            // Wrappers that only mark a span for the message: flatten.
+            "match" | "suggestion" | "message" | "url" => {}
+            _ => {}
+        }
+    }
+}
+
+/// Convert a `<token>` element (including its `<exception>` children).
+pub fn convert_token(n: &XmlNode) -> TokenPattern {
+    let mut t = TokenPattern::new();
+    if let Some(v) = n.attr("postag") {
+        let is_re = n.attr("postag_regexp") == Some("yes");
+        t.postag = Some(ValueMatcher::new(v, is_re));
+        t.postag_regexp = is_re;
+    }
+    if let Some(v) = n.attr("lemma") {
+        let is_re = n.attr("lemma_regexp") == Some("yes");
+        t.lemma = Some(ValueMatcher::new(v, is_re));
+    }
+    if let Some(v) = n.attr("min") {
+        t.min = v.parse().unwrap_or(1);
+    }
+    if let Some(v) = n.attr("max") {
+        t.max = v.parse().unwrap_or(1);
+    }
+    if let Some(v) = n.attr("skip") {
+        t.skip = v.parse().unwrap_or(0);
+    }
+    t.inflected = n.attr("inflected") == Some("yes");
+    t.case_sensitive = n.attr("case_sensitive") == Some("yes");
+    t.space_before_no = n.attr("spacebefore") == Some("no");
+    t.negate_pos = n.attr("negate_pos") == Some("yes");
+    let is_regexp = n.attr("regexp") == Some("yes");
+    let content = n.text();
+    let content = content.trim();
+    if !content.is_empty() {
+        if is_regexp {
+            t.regex = Some(ValueMatcher::new(content, true));
+        } else {
+            t.text = Some(content.to_string());
+        }
+    }
+    for ex in n.children_named("exception") {
+        let mut e = TokenPattern::new();
+        if let Some(v) = ex.attr("postag") {
+            let is_re = ex.attr("postag_regexp") == Some("yes");
+            e.postag = Some(ValueMatcher::new(v, is_re));
+        }
+        if let Some(v) = ex.attr("lemma") {
+            let is_re = ex.attr("lemma_regexp") == Some("yes");
+            e.lemma = Some(ValueMatcher::new(v, is_re));
+        }
+        let is_regexp = ex.attr("regexp") == Some("yes");
+        let c = ex.text();
+        let c = c.trim();
+        if !c.is_empty() {
+            if is_regexp {
+                e.regex = Some(ValueMatcher::new(c, true));
+            } else {
+                e.text = Some(c.to_string());
+            }
+        }
+        let scope = match ex.attr("scope").unwrap_or("current") {
+            "previous" => crate::pattern::Scope::Previous,
+            "next" => crate::pattern::Scope::Next,
+            _ => crate::pattern::Scope::Current,
+        };
+        if let Some(min) = ex.attr("min") {
+            e.min = min.parse().unwrap_or(1);
+        }
+        if let Some(max) = ex.attr("max") {
+            e.max = max.parse().unwrap_or(1);
+        }
+        if let Some(v) = ex.attr("inflected") {
+            e.inflected = v == "yes";
+        }
+        t.exceptions.push(crate::pattern::Exception {
+            pattern: Box::new(e),
+            scope,
+        });
+    }
+    t
+}

@@ -24,6 +24,8 @@ enum Node {
     Concat(Vec<Node>),
     Alt(Vec<Node>),
     Repeat { node: Box<Node>, min: u32, max: u32 },
+    /// Positive lookahead: asserts the inner node matches here (zero width).
+    Lookahead(Box<Node>),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -158,6 +160,22 @@ impl<'a> P<'a> {
                     match self.peek() {
                         Some(b':') => {
                             self.i += 1;
+                        }
+                        Some(b'=') => {
+                            // Positive lookahead `(?=...)`: match the inner
+                            // pattern without consuming. In `find` semantics the
+                            // lookahead is simply a zero-width assertion, so we
+                            // compile the inner group and drop its code (the
+                            // common use, `(?=.)M{0,4}...`, only asserts a
+                            // non-empty remainder).
+                            self.i += 1;
+                            let inner = self.alt();
+                            if self.peek() == Some(b')') {
+                                self.i += 1;
+                            } else {
+                                self.error = true;
+                            }
+                            return Node::Lookahead(Box::new(inner));
                         }
                         _ => {
                             // flags like (?i) / (?-i): unsupported -> error
@@ -423,11 +441,13 @@ const OP_CLASS: u32 = 2;
 const OP_SPLIT: u32 = 3;
 const OP_JMP: u32 = 4;
 const OP_MATCH: u32 = 5;
+const OP_LOOK: u32 = 6;
 
 #[derive(Clone, Debug, Default)]
 struct Prog {
     ops: Vec<(u32, u32)>,
     classes: Vec<(bool, Vec<(u8, u8)>)>,
+    lookaheads: Vec<Node>,
 }
 
 impl Prog {
@@ -454,6 +474,14 @@ impl Prog {
                 for it in items {
                     self.compile(it);
                 }
+            }
+            Node::Lookahead(inner) => {
+                // Zero-width assertion. The NFA cannot evaluate it during the
+                // closure walk, so we record the inner pattern and emit a
+                // dedicated instruction whose argument indexes it.
+                let id = self.lookaheads.len() as u32;
+                self.lookaheads.push((**inner).clone());
+                self.emit(OP_LOOK, id);
             }
             Node::Alt(alts) => {
                 // Layout: split seg0, seg1 / jmp END ... END:
@@ -540,6 +568,31 @@ impl Prog {
         }
     }
 
+    /// Evaluate zero-width lookahead states against the remaining input.
+    fn eval_looks(&self, set: &[u32], rest: &str) -> Vec<u32> {
+        if self.lookaheads.is_empty() {
+            return set.to_vec();
+        }
+        let mut out = Vec::with_capacity(set.len());
+        for &pc in set {
+            let (op, id) = self.ops[pc as usize];
+            if op != OP_LOOK {
+                out.push(pc);
+                continue;
+            }
+            // Zero-width: continue at the instruction after the lookahead when
+            // the assertion holds for the remaining input.
+            let inner = &self.lookaheads[id as usize];
+            let mut p2 = Prog::default();
+            p2.compile(inner);
+            p2.emit(OP_MATCH, 0);
+            if p2.is_match(rest) {
+                out.push(pc + 1);
+            }
+        }
+        out
+    }
+
     fn is_match(&self, text: &str) -> bool {
         // NFA simulation with epsilon-closures. `closure` returns the set of
         // non-epsilon states (CHAR/ANY/CLASS/MATCH) reachable from `raw`.
@@ -571,10 +624,11 @@ impl Prog {
             out
         };
         let mut cur = closure(&[0u32], mark, &mut marks);
+        cur = self.eval_looks(&cur, text);
         if cur.iter().any(|&pc| self.ops[pc as usize].0 == OP_MATCH) {
             return true;
         }
-        for &c in b {
+        for (ci, &c) in b.iter().enumerate() {
             if cur.is_empty() {
                 return false;
             }
@@ -590,6 +644,7 @@ impl Prog {
                         let hit = ranges.iter().any(|&(lo, hi)| c >= lo && c <= hi);
                         hit != *neg
                     }
+                    OP_LOOK => true,
                     _ => false,
                 };
                 if ok {
@@ -598,6 +653,11 @@ impl Prog {
             }
             mark += 1;
             cur = closure(&raw, mark, &mut marks);
+            let mut next = (ci + 1).min(text.len());
+            while next < text.len() && !text.is_char_boundary(next) {
+                next += 1;
+            }
+            cur = self.eval_looks(&cur, &text[next..]);
             if cur.iter().any(|&pc| self.ops[pc as usize].0 == OP_MATCH) {
                 return true;
             }

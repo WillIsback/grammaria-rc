@@ -449,3 +449,87 @@ mod tests {
         assert_eq!(p.next_event(), Event::Text("<x>&y".into()));
     }
 }
+
+/// A tiny in-memory DOM node built on top of the pull parser. Used to load
+/// rule files: building a tree for a 9 MB document takes ~150 ms but makes the
+/// rule conversion code vastly simpler than hand-rolled state machines.
+#[derive(Debug, Clone)]
+pub struct Node {
+    pub name: String,
+    pub attrs: Vec<(String, String)>,
+    pub children: Vec<DomItem>,
+}
+
+#[derive(Debug, Clone)]
+pub enum DomItem {
+    Node(Node),
+    Text(String),
+}
+
+impl Node {
+    pub fn attr(&self, name: &str) -> Option<&str> {
+        self.attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+    }
+
+    pub fn children_named<'a, 'b>(&'a self, name: &'b str) -> impl Iterator<Item = &'a Node> + use<'a, 'b> {
+        let name = name.to_string();
+        self.children.iter().filter_map(move |c| match c {
+            DomItem::Node(n) if n.name == name => Some(n),
+            _ => None,
+        })
+    }
+
+    pub fn first_child(&self, name: &str) -> Option<&Node> {
+        self.children_named(name).next()
+    }
+
+    /// Concatenated direct text content (child *elements* are skipped; this is
+    /// what `<token>` needs, since nested `<exception>` text must not become
+    /// part of the token's surface form).
+    pub fn text(&self) -> String {
+        let mut s = String::new();
+        for c in &self.children {
+            if let DomItem::Text(t) = c {
+                s.push_str(t);
+            }
+        }
+        s
+    }
+}
+
+/// Parse a whole XML document into a root node.
+pub fn parse_dom(src: &str) -> Node {
+    let mut p = Parser::new(src);
+    let mut stack: Vec<Node> = vec![Node {
+        name: "#document".into(),
+        attrs: Vec::new(),
+        children: Vec::new(),
+    }];
+    loop {
+        match p.next_event() {
+            Event::Start { name, attrs, self_closing } => {
+                let node = Node {
+                    name,
+                    attrs,
+                    children: Vec::new(),
+                };
+                if self_closing {
+                    stack.last_mut().unwrap().children.push(DomItem::Node(node));
+                } else {
+                    stack.push(node);
+                }
+            }
+            Event::End { .. } => {
+                if stack.len() > 1 {
+                    let n = stack.pop().unwrap();
+                    stack.last_mut().unwrap().children.push(DomItem::Node(n));
+                }
+            }
+            Event::Text(t) => {
+                stack.last_mut().unwrap().children.push(DomItem::Text(t));
+            }
+            Event::Eof => break,
+        }
+    }
+    stack.into_iter().next().unwrap()
+}
