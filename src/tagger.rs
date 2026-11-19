@@ -341,12 +341,23 @@ pub struct DisambigRule {
     pub id: String,
     pub pattern: Pattern,
     pub antipatterns: Vec<Pattern>,
+    /// True when the pattern contains a `<marker>` group. Disambiguation
+    /// actions then only apply to the marked tokens.
+    pub has_marker: bool,
+    /// Number of pattern elements that precede the marked group.
+    pub marker_start: usize,
+    /// Number of elements inside the marked group.
+    pub marker_len: usize,
     pub action: DisambigAction,
     /// Tag the action applies to (postag attribute).
     pub postag: String,
     pub is_regexp: bool,
     /// `(lemma, tag)` pairs added by `add`/`replace`.
     pub add_tags: Vec<(String, String)>,
+    /// `<match no="N" postag="..."/>`: the action applies to the tag that
+    /// group N carries (when `postag` is empty).
+    pub match_group: Option<usize>,
+    pub match_postag: Option<String>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -392,14 +403,58 @@ impl Disambiguation {
             }
             let matches = find_matches(&r.pattern, &s.tokens);
             for m in matches {
-                // antipattern veto
-                if r.antipatterns.iter().any(|ap| crate::pattern::pattern_matches(ap, &s.tokens)) {
+                // antipattern veto: any match of an antipattern vetoes this one
+                if r.antipatterns.iter().any(|ap| {
+                    let am = find_matches(ap, &s.tokens);
+                    am.iter().any(|a| a.token_start < m.token_end && a.token_end > m.token_start)
+                }) {
                     continue;
                 }
-                for idx in m.token_start..m.token_end {
-                    if idx < s.tokens.len() {
-                        self.apply_action(s, r, idx);
+                let (lo, hi) = if r.has_marker && m.per_elem.len() > r.marker_start {
+                    let start = m.per_elem[r.marker_start];
+                    let end = m
+                        .per_elem
+                        .get(r.marker_start + r.marker_len - 1)
+                        .map(|&e| e + 1)
+                        .unwrap_or(start + 1);
+                    (start.max(m.token_start), end.min(m.token_end))
+                } else {
+                    (m.token_start, m.token_end)
+                };
+                for idx in lo..hi {
+                    if idx >= s.tokens.len() {
+                        continue;
                     }
+                    if let Some(group) = r.match_group {
+                        // `<match no="N" postag="P"/>`: the action applies to
+                        // the token of group N (the marked span) and keeps
+                        // only the tags matching `P`.
+                        let gidx = idx;
+                        let _ = group;
+                        if let Some(pat) = &r.match_postag {
+                            let is_re = pat.contains(".*") || pat.contains('[');
+                            let tok = &mut s.tokens[gidx];
+                            let keep: Vec<usize> = tok
+                                .tags
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, t)| {
+                                    if is_re {
+                                        crate::tagregex::regex_full_match(pat, t)
+                                    } else {
+                                        pat.split('|').any(|p| p == *t)
+                                    }
+                                })
+                                .map(|(i, _)| i)
+                                .collect();
+                            let tags: Vec<String> = keep.iter().map(|&i| tok.tags[i].clone()).collect();
+                            let lemmas: Vec<String> = keep.iter().map(|&i| tok.lemmas[i].clone()).collect();
+                            tok.tags = tags;
+                            tok.lemmas = lemmas;
+                        }
+                        continue;
+                    }
+                    self.apply_action(s, r, idx);
                 }
             }
         }
@@ -412,7 +467,9 @@ impl Disambiguation {
             if r.postag.is_empty() {
                 true
             } else if r.is_regexp {
-                crate::tagregex::regex_find(&r.postag, tag)
+                // LanguageTool matches disambiguation postags with
+                // `Pattern.matcher(tag).matches()` (whole-tag match).
+                crate::tagregex::regex_full_match(&r.postag, tag)
             } else {
                 r.postag.split('|').any(|p| p == tag)
             }
@@ -468,9 +525,23 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
         postag: String::new(),
         is_regexp: false,
         add_tags: Vec::new(),
+        match_group: None,
+        match_postag: None,
+        has_marker: false,
+        marker_start: 0,
+        marker_len: 0,
     };
     if let Some(p) = node.first_child("pattern") {
         r.pattern = convert_pattern(p);
+        // locate the marker span (element indices)
+        let mut before = Vec::new();
+        let mut marked = Vec::new();
+        marker_layout(p, false, &mut before, &mut marked);
+        if !marked.is_empty() {
+            r.has_marker = true;
+            r.marker_start = before.len();
+            r.marker_len = marked.len();
+        }
     }
     for ap in node.children_named("antipattern") {
         r.antipatterns.push(convert_pattern(ap));
@@ -501,6 +572,12 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
                 r.add_tags.push((String::new(), pos.to_string()));
             }
         }
+        for m in dis.children_named("match") {
+            if let Some(no) = m.attr("no") {
+                r.match_group = no.parse().ok();
+            }
+            r.match_postag = m.attr("postag").map(|s| s.to_string());
+        }
     }
     r
 }
@@ -511,6 +588,7 @@ pub fn convert_pattern(node: &XmlNode) -> Pattern {
     convert_children(node, &mut elems);
     Pattern { elems }
 }
+
 
 fn convert_children(node: &XmlNode, out: &mut Vec<PatternElem>) {
     for c in &node.children {
@@ -621,4 +699,32 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
         });
     }
     t
+}
+
+
+/// Count pattern elements before/inside the `<marker>` group.
+fn marker_layout(node: &XmlNode, in_marker: bool, before: &mut Vec<()>, marked: &mut Vec<()>) {
+    for c in &node.children {
+        let DomItem::Node(n) = c else { continue };
+        match n.name.as_str() {
+            "marker" => marker_layout(n, true, before, marked),
+            "token" => {
+                if in_marker {
+                    marked.push(());
+                } else {
+                    before.push(());
+                }
+            }
+            "and" | "unify" | "unify-ignore" => marker_layout(n, in_marker, before, marked),
+            "or" => {
+                // count each alternative as one element (matches convert_children)
+                if in_marker {
+                    marked.push(());
+                } else {
+                    before.push(());
+                }
+            }
+            _ => {}
+        }
+    }
 }

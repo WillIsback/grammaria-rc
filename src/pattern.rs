@@ -189,6 +189,9 @@ pub struct Match {
     pub token_start: usize,
     /// Token index after the last matched token.
     pub token_end: usize,
+    /// Start token index of every pattern element (0 for elements that did not
+    /// consume tokens).
+    pub per_elem: Vec<usize>,
 }
 
 impl Match {
@@ -239,7 +242,7 @@ pub fn find_matches(pat: &Pattern, toks: &[AnalyzedToken]) -> Vec<Match> {
     let slots = expand(pat);
     let mut start_tok = 0usize;
     while start_tok < n {
-        if let Some((end_tok, groups)) = match_from(&slots, toks, start_tok) {
+        if let Some((end_tok, groups, per_elem)) = match_from(&slots, toks, start_tok) {
             let start = toks.get(start_tok).map(|t| t.start).unwrap_or(0);
             let end = if end_tok > start_tok {
                 toks[end_tok - 1].end
@@ -261,6 +264,7 @@ pub fn find_matches(pat: &Pattern, toks: &[AnalyzedToken]) -> Vec<Match> {
                 spans,
                 token_start: start_tok,
                 token_end: end_tok,
+                per_elem,
             });
             // advance past at least one token to guarantee progress
             start_tok = end_tok.max(start_tok + 1);
@@ -311,11 +315,16 @@ struct Slot<'a> {
 
 /// Attempt to match starting at `start`; greedily (and with backtracking)
 /// returns the end token index and capture ranges.
-fn match_from(slots: &[Slot], toks: &[AnalyzedToken], start: usize) -> Option<(usize, Vec<(usize, usize)>)> {
+fn match_from(
+    slots: &[Slot],
+    toks: &[AnalyzedToken],
+    start: usize,
+) -> Option<(usize, Vec<(usize, usize)>, Vec<usize>)> {
     let mut budget = 200_000u32;
     let mut groups = Vec::new();
-    let end = match_slot(slots, 0, toks, start, &mut groups, &mut budget)?;
-    Some((end, groups))
+    let mut per_elem = Vec::new();
+    let end = match_slot(slots, 0, toks, start, &mut groups, &mut per_elem, &mut budget)?;
+    Some((end, groups, per_elem))
 }
 
 fn match_slot(
@@ -324,6 +333,7 @@ fn match_slot(
     toks: &[AnalyzedToken],
     pos: usize,
     groups: &mut Vec<(usize, usize)>,
+    per_elem: &mut Vec<usize>,
     budget: &mut u32,
 ) -> Option<usize> {
     if *budget == 0 {
@@ -378,18 +388,28 @@ fn match_slot(
                 }
             }
             let before = groups.len();
+            let before_elems = per_elem.len();
+            if per_elem.len() <= si {
+                per_elem.resize(si + 1, 0);
+            }
+            per_elem[si] = skip_pos;
             if k > 0 {
                 groups.push((skip_pos, skip_pos + k as usize));
             }
-            if let Some(end) = match_slot(slots, si + 1, toks, skip_pos + k as usize, groups, budget) {
+            if let Some(end) = match_slot(slots, si + 1, toks, skip_pos + k as usize, groups, per_elem, budget) {
                 return Some(end);
             }
             groups.truncate(before);
+            per_elem.truncate(before_elems);
         }
     }
     // Optional slots can be skipped entirely.
     if slot.min == 0 {
-        return match_slot(slots, si + 1, toks, pos, groups, budget);
+        if per_elem.len() <= si {
+            per_elem.resize(si + 1, 0);
+        }
+        per_elem[si] = pos;
+        return match_slot(slots, si + 1, toks, pos, groups, per_elem, budget);
     }
     None
 }

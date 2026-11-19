@@ -26,8 +26,11 @@ def parse_lt(s):
             k = body.find(']', j)
             if k < 0:
                 break
-            tags = [t.split('/')[-1] for t in body[j + 1:k].split(',') if t.strip()]
-            out.append((word, tags))
+            inner = body[j + 1:k].replace('</S>', '').strip()
+            tags = [t.split('/')[-1] for t in inner.split(',') if t.strip() and '/' in t]
+            tags = [t for t in tags if not t.startswith('_GN_')]
+            if tags:
+                out.append((word, tags))
             i = k + 1
     return out
 

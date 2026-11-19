@@ -35,6 +35,7 @@ struct Regex {
     anchored_start: bool,
     anchored_end: bool,
     matches_empty: bool,
+    ignore_case: bool,
 }
 
 struct P<'a> {
@@ -44,6 +45,9 @@ struct P<'a> {
     anchored_end: bool,
     error: bool,
     depth: u32,
+    /// Set by an inline `(?i)` flag: the whole pattern then matches case
+    /// insensitively (we lower-case both the pattern and the input).
+    ignore_case: bool,
 }
 
 impl<'a> P<'a> {
@@ -178,14 +182,25 @@ impl<'a> P<'a> {
                             return Node::Lookahead(Box::new(inner));
                         }
                         _ => {
-                            // flags like (?i) / (?-i): unsupported -> error
-                            self.i = copy;
-                            self.error = true;
-                            // skip to ')'
+                            // Inline flags: `(?i)` enables case-insensitive
+                            // matching for the whole pattern; `(?-i)` disables
+                            // an outer one. Other flags are ignored.
+                            let flag_start = copy;
+                            let mut content = Vec::new();
                             while let Some(c) = self.peek() {
                                 self.i += 1;
                                 if c == b')' {
                                     break;
+                                }
+                                content.push(c);
+                            }
+                            let _ = flag_start;
+                            let flags: String = content.iter().map(|&c| c as char).collect();
+                            if flags.contains('i') {
+                                if flags.starts_with('-') {
+                                    // (?-i): case sensitivity is the default
+                                } else {
+                                    self.ignore_case = true;
                                 }
                             }
                             return Node::Concat(Vec::new());
@@ -346,6 +361,7 @@ impl Regex {
                 anchored_start: false,
                 anchored_end: false,
                 matches_empty: true,
+                ignore_case: false,
             };
         }
         // Fast path: a plain literal string (no metacharacters) is by far the
@@ -354,10 +370,11 @@ impl Regex {
         if !src.bytes().any(meta) {
             return Regex {
                 prog: None,
-                literal: Some(src.as_bytes().to_vec()),
+                literal: Some(src.to_lowercase().as_bytes().to_vec()),
                 anchored_start: false,
                 anchored_end: false,
                 matches_empty: src.is_empty(),
+                ignore_case: true,
             };
         }
         let mut p = P {
@@ -367,6 +384,7 @@ impl Regex {
             anchored_end: false,
             error: false,
             depth: 0,
+            ignore_case: false,
         };
         let mut root = p.parse();
         if p.anchored_end {
@@ -384,11 +402,37 @@ impl Regex {
             anchored_start: p.anchored_start,
             anchored_end: p.anchored_end,
             matches_empty: false,
+            ignore_case: p.ignore_case,
         }
     }
 
     /// Java `Matcher.find()` semantics: does the regex match anywhere?
+    /// Full match (`Java Matcher.matches()`): the whole string must match.
+    fn is_full_match(&self, text: &str) -> bool {
+        if self.ignore_case {
+            let lowered = text.to_lowercase();
+            let mut r = self.clone();
+            r.ignore_case = false;
+            return r.is_full_match(&lowered);
+        }
+        if let Some(lit) = &self.literal {
+            return lit.as_slice() == text.as_bytes();
+        }
+        if let Some(prog) = &self.prog {
+            // anchor by attempting every prefix end position: only accept when
+            // the match consumes the whole string.
+            return prog.full_match(text);
+        }
+        false
+    }
+
     fn is_match(&self, text: &str) -> bool {
+        if self.ignore_case {
+            let lowered = text.to_lowercase();
+            let mut r = self.clone();
+            r.ignore_case = false;
+            return r.is_match(&lowered);
+        }
         if let Some(lit) = &self.literal {
             if lit.is_empty() {
                 return true;
@@ -593,6 +637,69 @@ impl Prog {
         out
     }
 
+    /// Does the program accept the *entire* input?
+    fn full_match(&self, text: &str) -> bool {
+        let b = text.as_bytes();
+        let n = self.ops.len();
+        if n == 0 {
+            return false;
+        }
+        let mut marks = vec![0u32; n];
+        let mut mark = 1u32;
+        let closure = |raw: &[u32], mark: u32, marks: &mut Vec<u32>| -> Vec<u32> {
+            let mut out = Vec::with_capacity(raw.len() * 2);
+            let mut stack: Vec<u32> = raw.to_vec();
+            while let Some(p) = stack.pop() {
+                let idx = p as usize;
+                if idx >= n || marks[idx] == mark {
+                    continue;
+                }
+                marks[idx] = mark;
+                match self.ops[idx].0 {
+                    OP_JMP => stack.push(self.ops[idx].1),
+                    OP_SPLIT => {
+                        stack.push(self.ops[idx].1);
+                        stack.push(p + 1);
+                    }
+                    _ => out.push(p),
+                }
+            }
+            out
+        };
+        let mut cur = closure(&[0u32], mark, &mut marks);
+        for (ci, &c) in b.iter().enumerate() {
+            if cur.is_empty() {
+                return false;
+            }
+            let mut raw = Vec::with_capacity(cur.len() * 2);
+            for &pc in &cur {
+                let (op, arg) = self.ops[pc as usize];
+                let ok = match op {
+                    OP_CHAR => arg as u8 == c,
+                    OP_ANY => true,
+                    OP_CLASS => {
+                        let (neg, ranges) = &self.classes[arg as usize];
+                        let hit = ranges.iter().any(|&(lo, hi)| c >= lo && c <= hi);
+                        hit != *neg
+                    }
+                    _ => false,
+                };
+                if ok {
+                    raw.push(pc + 1);
+                }
+            }
+            mark += 1;
+            cur = closure(&raw, mark, &mut marks);
+            let mut next = (ci + 1).min(text.len());
+            while next < text.len() && !text.is_char_boundary(next) {
+                next += 1;
+            }
+            cur = self.eval_looks(&cur, &text[next..]);
+        }
+        // accept only if MATCH is in the final state set
+        cur.iter().any(|&pc| self.ops[pc as usize].0 == OP_MATCH)
+    }
+
     fn is_match(&self, text: &str) -> bool {
         // NFA simulation with epsilon-closures. `closure` returns the set of
         // non-epsilon states (CHAR/ANY/CLASS/MATCH) reachable from `raw`.
@@ -718,6 +825,15 @@ impl ValueMatcher {
         }
     }
 
+    /// Full-match semantics (`Java Matcher.matches()`); used for `postag`
+    /// wherever LanguageTool uses `matches()` (disambiguation rules).
+    pub fn is_full_match(&self, text: &str) -> bool {
+        match self {
+            ValueMatcher::Exact(s) => s == text,
+            ValueMatcher::Regex(r) => r.is_full_match(text),
+        }
+    }
+
     /// Like `is_match` but ignores letter case.
     pub fn is_match_ignore_case(&self, text: &str) -> bool {
         match self {
@@ -741,6 +857,11 @@ impl ValueMatcher {
 /// Test helper: exact "find anywhere" semantics for a raw regex source.
 pub fn regex_find(pattern: &str, text: &str) -> bool {
     RegexCache::global().get(pattern).is_match(text)
+}
+
+/// Whole-string match (`Java Matcher.matches()`).
+pub fn regex_full_match(pattern: &str, text: &str) -> bool {
+    RegexCache::global().get(pattern).is_full_match(text)
 }
 
 #[cfg(test)]
