@@ -82,7 +82,15 @@ impl TokenPattern {
             crate::tokenizer::TokenType::SentenceStart | crate::tokenizer::TokenType::SentenceEnd
         );
         if structural {
-            return self.postag.is_some();
+            // A structural token is matched only when the `postag` constraint
+            // names its type (`SENT_START` / `SENT_END`).
+            return match &self.postag {
+                Some(pm) => {
+                    let hit = tok.tags.iter().any(|t| pm.is_full_match(t));
+                    hit != self.negate_pos
+                }
+                None => false,
+            };
         }
         if !tok.kind.is_matchable() {
             return false;

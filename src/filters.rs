@@ -59,15 +59,30 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
     let word = &s.tokens[word_idx];
 
     // determiners: (P.)?D .* | J .* | V.* ppa .*
+    // The determiner reading must be a determiner/adjective/past-participle
+    // tag (LanguageTool's `(P.)?D .*|J .*|V.* ppa .*`).
     let det_tag = det
         .tags
         .iter()
-        .find(|t| t.starts_with("D ") || t.starts_with("P+D ") || t.contains("D ") || t.starts_with("J ") || t.contains("V ") && t.contains("ppa"))
+        .find(|t| {
+            !t.starts_with("_GN_")
+                && (t.starts_with("D ")
+                    || t.starts_with("P+D ")
+                    || t.starts_with("PD ")
+                    || t.starts_with("J ")
+                    || (t.starts_with("V") && t.contains("ppa")))
+        })
         .cloned();
     let word_tag = word
         .tags
         .iter()
-        .find(|t| t.starts_with("N") || t.starts_with("Z") || t.starts_with("J") || (t.starts_with("V") && t.contains("ppa")))
+        .find(|t| {
+            !t.starts_with("_GN_")
+                && (t.starts_with("N")
+                    || t.starts_with("Z")
+                    || t.starts_with("J")
+                    || (t.starts_with("V") && t.contains("ppa")))
+        })
         .cloned();
     let (Some(dt), Some(wt)) = (det_tag, word_tag) else {
         return FilterOutcome::keep();
@@ -123,10 +138,15 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
             }
         }
     }
-    // Disagreement: a genuine error; report it with the corrected forms.
+    // Disagreement between determiner and noun. LanguageTool only reports the
+    // match when it can synthesise a corrected form; do the same (a match with
+    // no suggestion is usually a tagging artefact, e.g. "Tout coule").
+    if suggestions.is_empty() {
+        return FilterOutcome::reject();
+    }
     FilterOutcome {
         is_error: true,
-        has_suggestions: !suggestions.is_empty(),
+        has_suggestions: true,
         suggestions,
     }
 }
@@ -198,9 +218,15 @@ pub struct FilterArgs {
 }
 
 impl FilterArgs {
+    /// Parse `args="k:v,k2:v2"` or `args="k:v k2:v2"` (both separators occur
+    /// in the French rule files).
     pub fn parse(s: &str) -> FilterArgs {
         let mut map = std::collections::HashMap::new();
-        for part in s.split(',') {
+        for part in s.split(|c: char| c == ',' || c.is_whitespace()) {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
             if let Some((k, v)) = part.split_once(':') {
                 map.insert(k.trim().to_string(), v.trim().to_string());
             }

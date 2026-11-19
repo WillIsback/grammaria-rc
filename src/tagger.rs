@@ -534,6 +534,12 @@ impl Disambiguation {
                 let add: Vec<(String, String)> = r.add_tags.clone();
                 let text = tok.text.clone();
                 for (lemma, tag) in add.into_iter() {
+                    // `_GN_*` are nominal-group *chunk* tags in LanguageTool,
+                    // not part-of-speech readings; we do not expose chunk tags
+                    // to the rule engine, so they are not added as readings.
+                    if tag.starts_with("_GN_") {
+                        continue;
+                    }
                     let l = if lemma.is_empty() { text.clone() } else { lemma };
                     tok.add(&l, &tag);
                 }
