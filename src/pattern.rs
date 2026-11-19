@@ -141,6 +141,18 @@ impl TokenPattern {
     }
 
     pub fn matches_inner(&self, toks: &[AnalyzedToken], idx: usize) -> bool {
+        // A token element with *no* positive constraint but with exceptions
+        // (52 of the French disambiguation tokens) is a pure negative filter
+        // in LanguageTool: it matches any token only through its exception
+        // scope, so it never asserts a positive match on its own.
+        if self.text.is_none()
+            && self.regex.is_none()
+            && self.postag.is_none()
+            && self.lemma.is_none()
+            && !self.exceptions.is_empty()
+        {
+            return false;
+        }
         let tok = &toks[idx];
         if !self.matches_token(tok) {
             return false;

@@ -33,21 +33,31 @@ def main():
             for ex in exs:
                 text = ''.join(ex.itertext())
                 # marker spans
+                # Walk the example, recording absolute marker spans relative to
+                # the full sentence text (markers may nest inside tokens).
                 spans = []
-                marked_text = []
-                def collect(n, inside):
-                    if strip_ns(n.tag) == 'marker':
-                        inside = True
+                buf = []
+                pos = [0]
+
+                def walk_example(n, inside):
+                    marker_here = inside or strip_ns(n.tag) == 'marker'
                     if n.text:
-                        if inside:
-                            spans.append((len(marked_text), len(marked_text) + len(n.text)))
-                        marked_text.append(n.text)
+                        if marker_here and not inside:
+                            spans.append([pos[0], pos[0] + len(n.text)])
+                        elif marker_here and inside:
+                            # extend the last span
+                            spans[-1][1] = pos[0] + len(n.text)
+                        buf.append(n.text)
+                        pos[0] += len(n.text)
                     for c in n:
-                        collect(c, inside)
+                        walk_example(c, marker_here)
                     if n.tail:
-                        marked_text.append(n.tail)
-                collect(ex, False)
-                text2 = ''.join(marked_text)
+                        buf.append(n.tail)
+                        pos[0] += len(n.tail)
+
+                walk_example(ex, False)
+                text2 = ''.join(buf)
+                text = text2
                 examples.append({
                     'rule': rid,
                     'text': text,
