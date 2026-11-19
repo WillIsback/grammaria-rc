@@ -495,7 +495,10 @@ impl Disambiguation {
                                 .enumerate()
                                 .filter(|(_, t)| {
                                     if is_re {
-                                        crate::tagregex::regex_find(pat, t)
+                                        // `<match no="N" postag="P"/>` filters
+                                        // readings with a whole-tag match too.
+                                        crate::tagregex::regex_full_match(pat, t)
+                                            || crate::tagregex::regex_full_match(pat, &strip_aux(t))
                                     } else {
                                         pat.split('|').any(|p| p == *t)
                                     }
@@ -522,13 +525,17 @@ impl Disambiguation {
             if r.postag.is_empty() {
                 true
             } else if r.is_regexp {
-                // LanguageTool's disambiguation postags are matched with
-                // `Matcher.find()` on the tag, but the tagger/lefff variants
-                // (`V etre ppa e sp` for `V ppa .*`) mean a *prefix*/loose
-                // match is intended, so we also accept the same tag with the
-                // auxiliary name removed.
-                crate::tagregex::regex_find(&r.postag, tag)
-                    || crate::tagregex::regex_find(&r.postag, &strip_aux(tag))
+                // LanguageTool compiles the disambiguation `postag` and applies
+                // `Matcher.matches()` (a *whole-string* match -- see
+                // DisambiguationPatternRuleReplacer). `find()` would let
+                // `N.*` swallow the `SENT_START` pseudo-tag.
+                //
+                // The French lexicon spells `être`/`avoir` auxiliaries inside
+                // verb tags (`V etre ppa e sp`), so a rule written for the
+                // bare form (`V ppa .*`) also accepts the auxiliary-stripped
+                // spelling.
+                crate::tagregex::regex_full_match(&r.postag, tag)
+                    || crate::tagregex::regex_full_match(&r.postag, &strip_aux(tag))
             } else {
                 r.postag.split('|').any(|p| p == tag)
             }
