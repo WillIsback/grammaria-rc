@@ -552,43 +552,32 @@ impl Prog {
                 self.emit(OP_LOOK, id);
             }
             Node::Alt(alts) => {
-                // Layout: split seg0, seg1 / jmp END ... END:
-                // Each non-final alternative is preceded by a split whose
-                // `arg` is patched to the start of the following alternative
-                // AFTER that alternative (and its jmp) has been emitted.
-                let mut splits: Vec<usize> = Vec::new();
-                let mut jumps: Vec<usize> = Vec::new();
+                // Layout:  split -> alt0 ; jmp END ; alt1 ; jmp END ; ... END:
+                // The split for alternative i is patched to the start of
+                // alternative i+1, which is exactly the instruction following
+                // that alternative's own closing jump (recorded explicitly so
+                // that inner constructs such as `.*` cannot confuse it).
+                let mut split_pos: Vec<usize> = Vec::new();
+                let mut jmp_pos: Vec<usize> = Vec::new();
+                let last = alts.len().saturating_sub(1);
                 for (i, a) in alts.iter().enumerate() {
-                    if i + 1 < alts.len() {
-                        splits.push(self.emit(OP_SPLIT, 0));
+                    if i < last {
+                        split_pos.push(self.emit(OP_SPLIT, 0));
                     }
                     self.compile(a);
-                    if i + 1 < alts.len() {
-                        jumps.push(self.emit(OP_JMP, 0));
+                    if i < last {
+                        jmp_pos.push(self.emit(OP_JMP, 0));
                     }
                 }
                 let end = self.ops.len() as u32;
-                for j in jumps {
-                    self.ops[j].1 = end;
+                for j in jmp_pos.iter() {
+                    self.ops[*j].1 = end;
                 }
-                // the split for alternative i falls through to alternative i
-                // and jumps to alternative i+1, emitted right after it
-                for &sp in &splits {
-                    // find the next split (or the end of this alternative):
-                    let next_alt = {
-                        // locate the jmp that closes the alternative right after
-                        // this split's fall-through segment
-                        let mut j = sp + 1;
-                        while j < self.ops.len() && self.ops[j].0 != OP_JMP {
-                            j += 1;
-                        }
-                        if j < self.ops.len() {
-                            j + 1
-                        } else {
-                            self.ops.len()
-                        }
-                    };
-                    self.ops[sp].1 = next_alt as u32;
+                // split_i falls through to alternative i and jumps to the
+                // instruction right after alternative i's closing jump.
+                for (k, sp) in split_pos.iter().enumerate() {
+                    let next = jmp_pos[k] as u32 + 1;
+                    self.ops[*sp].1 = next;
                 }
             }
             Node::Repeat { node, min, max } => {
