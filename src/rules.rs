@@ -257,7 +257,7 @@ impl RuleSet {
                 "rulegroup" => {
                     let gid = node.attr("id").unwrap_or("").to_string();
                     let gname = node.attr("name").unwrap_or("").to_string();
-                    let group_off = node.attr("default") == Some("off");
+                    let group_off = matches!(node.attr("default"), Some("off") | Some("temp_off"));
                     for (i, sub) in node.children_named("rule").enumerate() {
                         // A nested <rule> carrying its own `id` is a standalone
                         // rule that merely lives inside the group element.
@@ -293,7 +293,7 @@ impl RuleSet {
                             }
                             "rulegroup" => {
                                 let gid = n.attr("id").unwrap_or("").to_string();
-                                let group_off = n.attr("default") == Some("off");
+                                let group_off = matches!(n.attr("default"), Some("off") | Some("temp_off"));
                                 for (i, sub) in n.children_named("rule").enumerate() {
                                     if sub.attr("id").map(|x| !x.is_empty()).unwrap_or(false) {
                                         if let Some(mut r) = convert_rule_at(sub, None, &cid, &cname, is_style_file, i + 1) {
@@ -397,7 +397,9 @@ fn convert_rule_impl(
         _ => Priority::Medium,
     };
     let is_style = is_style_file || node.attr("type") == Some("style");
-    let default_off = node.attr("default") == Some("off");
+    // `default="off"` and `default="temp_off"` both mean the rule is not
+    // active by default in LanguageTool.
+    let default_off = matches!(node.attr("default"), Some("off") | Some("temp_off"));
     let urls: Vec<String> = node.children_named("url").map(|u| u.text().trim().to_string()).collect();
     let suppress_match = node.children_named("filter").any(|f| {
         f.attr("args").map(|a| a.contains("suppressMatch:true")).unwrap_or(false)
