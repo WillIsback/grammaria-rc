@@ -151,6 +151,18 @@ impl RuleSet {
                             self.generic.push(i);
                         }
                     }
+                    // A first element that is a regex: if it is a plain
+                    // alternation of literals (`tout|toute|toutes`, `mange`,
+                    // `une?`), index every alternative so the rule is only
+                    // tried when one of those words occurs.
+                    (None, Some(re)) => match alternation_keys(re.as_source()) {
+                        Some(keys) if !keys.is_empty() => {
+                            for k in keys {
+                                self.by_literal.entry(k).or_default().push(i);
+                            }
+                        }
+                        _ => self.generic.push(i),
+                    },
                     (None, _) => match &t.postag {
                         Some(pm) => {
                             let src = pm.as_source();
@@ -195,6 +207,48 @@ const VALIDATING_FILTERS: &[&str] = &[
     "FrenchNumberInWordFilter",
     "MakeContractionsFilter",
 ];
+
+/// Expand a first-token regex into the set of literal keys it can match, when
+/// the pattern is a simple alternation of literal words with optional trailing
+/// `s`/`?`. Returns `None` when the regex is too complex to index (metacharacters
+/// such as `.`, `[`, `\d`), in which case the rule stays in the generic bucket.
+///
+/// Examples: `tout|toute|toutes` -> {tout, toute, toutes};
+/// `une?` -> {un, une}; `[mts]on` -> None (character class).
+fn alternation_keys(src: &str) -> Option<Vec<String>> {
+    let complex = |s: &str| {
+        s.bytes().any(|c| {
+            matches!(
+                c,
+                b'.' | b'[' | b']' | b'(' | b')' | b'*' | b'+' | b'{' | b'}' | b'^' | b'$' | b'\\'
+            )
+        })
+    };
+    let mut keys = Vec::new();
+    for alt in src.split('|') {
+        if alt.is_empty() {
+            return None;
+        }
+        // Strip a trailing `?` (optional last character) or `s?`.
+        let base = alt.strip_suffix('?').unwrap_or(alt);
+        if base.is_empty() || complex(base) {
+            return None;
+        }
+        keys.push(crate::strutil::lower(base));
+        // `une?` also matches `un`.
+        if alt.ends_with('?') && !base.is_empty() {
+            let mut chars: Vec<char> = base.chars().collect();
+            chars.pop();
+            if !chars.is_empty() {
+                keys.push(crate::strutil::lower(&chars.iter().collect::<String>()));
+            }
+        }
+    }
+    keys.retain(|k| !k.is_empty());
+    keys.sort();
+    keys.dedup();
+    Some(keys)
+}
 
 /// True when a literal contains no regex-ish characters.
 fn is_plain_literal(s: &str) -> bool {
