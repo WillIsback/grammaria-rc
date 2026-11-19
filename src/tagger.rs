@@ -485,7 +485,7 @@ impl Disambiguation {
                                 .enumerate()
                                 .filter(|(_, t)| {
                                     if is_re {
-                                        crate::tagregex::regex_full_match(pat, t)
+                                        crate::tagregex::regex_find(pat, t)
                                     } else {
                                         pat.split('|').any(|p| p == *t)
                                     }
@@ -512,9 +512,9 @@ impl Disambiguation {
             if r.postag.is_empty() {
                 true
             } else if r.is_regexp {
-                // LanguageTool matches disambiguation postags with
-                // `Pattern.matcher(tag).matches()` (whole-tag match).
-                crate::tagregex::regex_full_match(&r.postag, tag)
+                // LanguageTool's disambiguation postags behave like `find()`
+                // (a substring match): `V ppa .*` keeps `V etre ppa e sp`.
+                crate::tagregex::regex_find(&r.postag, tag)
             } else {
                 r.postag.split('|').any(|p| p == tag)
             }
@@ -644,7 +644,7 @@ pub fn convert_children_marked(node: &XmlNode, out: &mut Vec<PatternElem>, marke
                 if in_marker {
                     marked.push(out.len());
                 }
-                out.push(PatternElem::Token(convert_token(n)));
+                out.push(PatternElem::Token(convert_token_disambig(n)));
             }
             "and" | "or" | "unify" | "unify-ignore" | "match" => {
                 convert_children_marked(n, out, marked, in_marker);
@@ -652,6 +652,21 @@ pub fn convert_children_marked(node: &XmlNode, out: &mut Vec<PatternElem>, marke
             _ => {}
         }
     }
+}
+
+/// Convert a `<token>` for the disambiguation rules, where exception-only
+/// elements act as negative filters (they never assert a match).
+pub fn convert_token_disambig(n: &XmlNode) -> TokenPattern {
+    let mut t = convert_token(n);
+    if t.text.is_none()
+        && t.regex.is_none()
+        && t.postag.is_none()
+        && t.lemma.is_none()
+        && !t.exceptions.is_empty()
+    {
+        t.exception_only_matches_any = false;
+    }
+    t
 }
 
 /// Public wrapper used by the grammar rule loader.

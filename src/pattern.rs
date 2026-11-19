@@ -39,6 +39,11 @@ pub struct TokenPattern {
     pub space_before: Option<bool>,
     /// `negate_pos="yes"` (LT 5+: negate the postag condition).
     pub negate_pos: bool,
+    /// For a token element that only carries `<exception>` children: does it
+    /// match any token not excluded by the exceptions? LanguageTool treats such
+    /// elements as negative filters inside the *disambiguation* rules (they
+    /// never assert a match) but as "any token" in grammar rules.
+    pub exception_only_matches_any: bool,
     /// Repeat bounds (default 1/1). `min="0"` makes the token optional.
     pub min: u32,
     pub max: u32,
@@ -68,6 +73,7 @@ impl TokenPattern {
         TokenPattern {
             min: 1,
             max: 1,
+            exception_only_matches_any: true,
             ..Default::default()
         }
     }
@@ -141,17 +147,21 @@ impl TokenPattern {
     }
 
     pub fn matches_inner(&self, toks: &[AnalyzedToken], idx: usize) -> bool {
-        // A token element with *no* positive constraint but with exceptions
-        // (52 of the French disambiguation tokens) is a pure negative filter
-        // in LanguageTool: it matches any token only through its exception
-        // scope, so it never asserts a positive match on its own.
+        // A token element with no positive constraint but with `<exception>`
+        // children: in grammar rules it means "any token that its exceptions do
+        // not exclude"; inside disambiguation (where it flags
+        // `exception_only_matches_any = false`) it is a pure negative filter.
         if self.text.is_none()
             && self.regex.is_none()
             && self.postag.is_none()
             && self.lemma.is_none()
             && !self.exceptions.is_empty()
+            && self.space_before.is_none()
         {
-            return false;
+            if !self.exception_only_matches_any {
+                return false;
+            }
+            return toks.get(idx).map(|t| t.kind.is_matchable()).unwrap_or(false);
         }
         let tok = &toks[idx];
         if !self.matches_token(tok) {
