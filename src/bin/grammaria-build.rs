@@ -79,7 +79,8 @@ fn build_lexicon(assets: &str, out: &str) -> std::io::Result<()> {
         table.sense_count_hint(),
         path.display()
     );
-    let lx = Lexicon::from_table(&table);
+    // Compact away construction headroom before writing the blob.
+    let lx = Lexicon::from_table(&table).compact();
     let dest = Path::new(out).join("fr.lex");
     lx.save(&dest)?;
     eprintln!("wrote {} ({} bytes)", dest.display(), fs::metadata(&dest)?.len());

@@ -468,6 +468,21 @@ impl Lexicon {
         }
     }
 
+    /// Drop trailing unused trie slots (construction headroom) so that the
+    /// on-disk blob —and therefore start-up time— is minimal. Slots in the
+    /// middle are kept so that `base + label` addressing stays valid.
+    pub fn compact(mut self) -> Lexicon {
+        let mut n = self.base.len();
+        while n > 2 && self.check[n - 1] == 0 && self.count[n - 1] == 0 && self.base[n - 1] == 0 {
+            n -= 1;
+        }
+        self.base.truncate(n);
+        self.check.truncate(n);
+        self.first.truncate(n);
+        self.count.truncate(n);
+        self
+    }
+
     // ----- serialization -------------------------------------------------
     pub fn save<P: AsRef<Path>>(&self, path: P) -> io::Result<()> {
         let tmp = path.as_ref().with_extension("tmp");
