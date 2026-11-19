@@ -112,9 +112,8 @@ impl TokenPattern {
             }
         }
         if let Some(re) = &self.regex {
-            // Token surface regexes must match the *whole* token
-            // (LanguageTool evaluates `<token regexp="yes">` with
-            // `Pattern.matcher(token).matches()`, not `find()`).
+            // `<token regexp="yes">`: LanguageTool requires the whole token to
+            // match (`Pattern.matcher(token).matches()`).
             if !re.is_full_match(&tok.text) {
                 return false;
             }
@@ -175,6 +174,35 @@ impl TokenPattern {
         true
     }
 
+    /// Does this token pattern (used as an `<exception>`) match `toks[idx]`?
+    /// Exception regexes use `find` semantics in LanguageTool, so
+    /// `<exception regexp="yes">publié</exception>` also excludes `publiés`.
+    pub fn matches_as_exception(&self, toks: &[AnalyzedToken], idx: usize) -> bool {
+        let tok = &toks[idx];
+        if let Some(lit) = &self.text {
+            if !crate::strutil::eq_ignore_case(lit, &tok.text) {
+                return false;
+            }
+        }
+        if let Some(re) = &self.regex {
+            if !re.is_match(&tok.text) {
+                return false;
+            }
+        }
+        if let Some(posmat) = &self.postag {
+            let hit = tok.tags.iter().any(|t| posmat.is_full_match(t));
+            if hit == self.negate_pos {
+                return false;
+            }
+        }
+        if let Some(lemma) = &self.lemma {
+            if !tok.lemmas.iter().any(|l| l.split('|').any(|x| lemma.is_full_match(x))) {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Check all `<exception>` children against the surrounding tokens.
     pub fn exceptions_ok(&self, toks: &[AnalyzedToken], idx: usize) -> bool {
         for ex in &self.exceptions {
@@ -190,7 +218,7 @@ impl TokenPattern {
                 }
             };
             if let Some(t) = target {
-                if ex.pattern.matches_inner(toks, t) {
+                if ex.pattern.matches_as_exception(toks, t) {
                     return false;
                 }
             }
@@ -461,7 +489,7 @@ fn match_slot(
                         break;
                     }
                     // exceptions veto the match
-                    if slot.exceptions.iter().any(|e| e.pattern.matches_inner(toks, idx)) {
+                    if slot.exceptions.iter().any(|e| e.pattern.matches_as_exception(toks, idx)) {
                         ok = false;
                         break;
                     }
