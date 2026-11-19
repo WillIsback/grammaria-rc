@@ -172,16 +172,32 @@ impl Tagger {
         let lex = self.lexicon;
         let mut morphs: Vec<(&str, &str)> = Vec::new();
 
-        // 1. exact match
+        // 1. exact match; for capitalised words also merge the lowercase
+        //    readings, as LanguageTool does (`Mes` -> `Me/T e p` + `mon/D e p`).
         lex.morphs(text, &mut morphs);
-        if !morphs.is_empty() {
-            for (l, t) in &morphs {
+        let exact: Vec<(String, String)> = morphs
+            .iter()
+            .map(|(l, t)| (l.to_string(), t.to_string()))
+            .collect();
+        if !exact.is_empty() {
+            for (l, t) in &exact {
                 tok.add(l, t);
+            }
+            let lower = strutil::lower(text);
+            if lower != text {
+                lex.morphs(&lower, &mut morphs);
+                let lower_readings: Vec<(String, String)> = morphs
+                    .iter()
+                    .map(|(l, t)| (l.to_string(), t.to_string()))
+                    .collect();
+                for (l, t) in &lower_readings {
+                    tok.add(l, t);
+                }
             }
             self.add_case_extra(tok, text);
             return;
         }
-        // 2. lowercase match (sentence-initial capitalisation)
+        // 2. lowercase-only match (sentence-initial capitalisation)
         let lower = strutil::lower(text);
         if lower != text {
             lex.morphs(&lower, &mut morphs);

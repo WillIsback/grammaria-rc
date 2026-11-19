@@ -271,7 +271,9 @@ impl<'a> Matcher<'a> {
                 seq.len() == 1 && Self::elem_matches(&seq[0], toks, idx)
             }),
             PatternElem::And(ts) => ts.iter().all(|t| t.matches(toks, idx)),
-            PatternElem::Seq(seq) => seq.len() == 1 && Self::elem_matches(&seq[0], toks, idx),
+            // `<and>` becomes `Seq` in the converter: every child must match
+            // the *same* token (LanguageTool semantics).
+            PatternElem::Seq(seq) => seq.iter().all(|x| Self::elem_matches(x, toks, idx)),
             PatternElem::Unify { .. } => true,
         }
     }
@@ -362,6 +364,8 @@ fn expand_into<'a>(e: &'a PatternElem, out: &mut Vec<Slot<'a>>) {
                 }),
             });
         }
+        // `<and>` / `<or>` / nested sequences: a single slot whose element
+        // test requires all (resp. one) alternative to match the same token.
         _ => out.push(Slot {
             elem: e,
             min: 1,

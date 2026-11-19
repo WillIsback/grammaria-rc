@@ -94,22 +94,42 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
         return FilterOutcome::keep();
     }
     let w_gender = parts[1];
-    let w_number = parts[2];
+    let w_number = parts[2].trim_end_matches(')');
     let d_parts: Vec<&str> = dt.split(' ').collect();
     if d_parts.len() < 3 {
         return FilterOutcome::keep();
     }
     let d_gender = d_parts[d_parts.len() - 2];
-    let d_number = d_parts[d_parts.len() - 1];
+    let d_number = d_parts[d_parts.len() - 1].trim_end_matches(')');
 
     // number agreement: s/p sp
     let number_ok = d_number == w_number
         || d_number == "sp"
         || w_number == "sp"
         || (d_number == "e" && w_number == "e");
-    // gender agreement: determiners that are gender-invariant
-    let gender_invariant = matches!(det.text.as_str(), "l'" | "les" | "des" | "ces" | "ses" | "mes" | "tes" | "nos" | "vos" | "leurs" | "quels" | "quelles" | "plusieurs" | "certains" | "certaines");
-    let gender_ok = gender_invariant
+    // Gender-invariant determiners: they only need to agree in number.
+    // (`aucun(e)`, `tout(e)`, `ce/cette` DO inflect for gender.)
+    let det_lower = crate::strutil::lower(&det.text);
+    let gender_invariant = matches!(
+        det_lower.as_str(),
+        "l'" | "les" | "des" | "ces" | "ses" | "mes" | "tes" | "nos" | "vos" | "leurs" | "quels"
+            | "quelles" | "plusieurs" | "certains" | "certaines" | "aux" | "du" | "de la"
+            | "quelques" | "divers" | "diverses" | "de" | "d'"
+    );
+    // Determiners whose surface form encodes gender: disagreement is an error.
+    let encodes_gender = matches!(
+        det_lower.as_str(),
+        "un" | "une" | "le" | "la" | "ce" | "cette" | "mon" | "ma" | "ton" | "ta" | "son" | "sa"
+            | "aucun" | "aucune" | "tout" | "toute" | "tous" | "toutes" | "chaque" | "quel" | "quelle"
+            | "notre" | "votre" | "leur" | "cet" | "nul" | "nulle" | "tel" | "telle" | "maints"
+            | "maintes" | "certain" | "certaine"
+    );
+    // `tout/toute/tous/toutes` and `chaque` are quantifiers: for these, gender
+    // agreement with an epicene or the other-number noun is not checkable here.
+    let quantifier = matches!(det_lower.as_str(), "chaque" | "tous" | "toutes" | "notre" | "votre" | "leur");
+    let gender_ok = !encodes_gender
+        || gender_invariant
+        || quantifier
         || d_gender == w_gender
         || d_gender == "e"
         || w_gender == "e"
@@ -184,7 +204,7 @@ fn determiner_form(text: &str, gender: &str, number: &str, det_gender: &str, det
         ("la", "m", _) => Some("le"),
         ("un", "f", _) => Some("une"),
         ("une", "m", _) => Some("un"),
-        ("le", _, "p") | ("la", _, "p") | ("un", _, "p") | ("une", _, "p") => Some("les"),
+        ("le", _, "p") | ("la", _, "p") | ("un", _, "p") | ("une", _, "p") | ("au", _, "p") | ("du", _, "p") => Some("les"),
         ("ce", "f", _) => Some("cette"),
         ("cette", "m", _) => Some("ce"),
         ("mon", "f", _) => Some("ma"),
@@ -194,6 +214,20 @@ fn determiner_form(text: &str, gender: &str, number: &str, det_gender: &str, det
         ("ta", "m", _) => Some("ton"),
         ("sa", "m", _) => Some("son"),
         ("ce", _, "p") | ("cette", _, "p") => Some("ces"),
+        ("mes", "m", "s") => Some("mon"),
+        ("mes", "f", "s") => Some("ma"),
+        ("tes", "m", "s") => Some("ton"),
+        ("tes", "f", "s") => Some("ta"),
+        ("ses", "m", "s") => Some("son"),
+        ("ses", "f", "s") => Some("sa"),
+        ("aux", "m", "s") => Some("au"),
+        ("aux", "f", "s") => Some("à la"),
+        ("au", "f", _) => Some("à la"),
+        ("du", "f", _) => Some("de la"),
+        ("aucune", "m", _) => Some("aucun"),
+        ("aucun", "f", _) => Some("aucune"),
+        ("toute", "m", _) => Some("tout"),
+        ("tout", "f", _) => Some("toute"),
         _ => {
             if det_gender == gender && det_number == number {
                 None
