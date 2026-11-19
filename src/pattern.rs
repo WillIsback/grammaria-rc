@@ -74,7 +74,13 @@ impl TokenPattern {
 
     /// Test one token against this pattern's own constraints (no exceptions).
     pub fn matches_token(&self, tok: &AnalyzedToken) -> bool {
-        if !tok.kind.is_matchable() {
+        // `SENT_START` / `SENT_END` are only matched through their postag
+        // (`postag="SENT_START"`); every other token must be matchable.
+        let structural = matches!(
+            tok.kind,
+            crate::tokenizer::TokenType::SentenceStart | crate::tokenizer::TokenType::SentenceEnd
+        );
+        if !structural && !tok.kind.is_matchable() {
             return false;
         }
         // surface form
@@ -392,31 +398,26 @@ fn match_slot(
         return Some(pos);
     }
     let slot = &slots[si];
-    // skip: between the previous and this slot, up to `skip` tokens may be
-    // skipped (LanguageTool uses `skip` on the token that follows).
-    let mut skip_ok = Vec::with_capacity(slot.skip as usize + 1);
-    if slot.skip > 0 {
-        let mut consumed = 0usize;
-        while consumed <= slot.skip as usize && pos + consumed < toks.len() {
-            // Skipped tokens must not match the current slot itself (LT rule).
-            skip_ok.push(pos + consumed);
-            consumed += 1;
-        }
+    // `skip` widens the search window for THIS element, exactly like
+    // LanguageTool's `prevSkipNext`: the element may match at `pos .. pos+skip`.
+    // `skip = u32::MAX` (LT's `skip="-1"`) means "unbounded within the sentence".
+    let limit = if slot.skip == u32::MAX {
+        toks.len().saturating_sub(pos)
     } else {
-        skip_ok.push(pos);
-    }
-    for &skip_pos in &skip_ok {
-        // try consuming k tokens, from max down to min (greedy)
-        let maxk = slot.max.min((toks.len() - skip_pos) as u32);
+        (slot.skip as usize).min(toks.len().saturating_sub(pos))
+    };
+    let windows: Vec<usize> = (0..=limit).map(|d| pos + d).collect();
+    for &start in &windows {
+        // Try consuming k = max..min tokens starting at `start` (greedy).
+        let maxk = slot.max.min((toks.len() - start) as u32);
         if maxk < slot.min {
             continue;
         }
-        let mink = slot.min;
-        for k in (mink..=maxk).rev() {
+        for k in (slot.min..=maxk).rev() {
             if k > 0 {
                 let mut ok = true;
                 for t in 0..k as usize {
-                    let idx = skip_pos + t;
+                    let idx = start + t;
                     if idx >= toks.len() || !Matcher::elem_matches(slot.elem, toks, idx) {
                         ok = false;
                         break;
@@ -426,7 +427,7 @@ fn match_slot(
                         ok = false;
                         break;
                     }
-                    if !crate::pattern::exceptions_of_slot(slot, toks, idx) {
+                    if !exceptions_of_slot(slot, toks, idx) {
                         ok = false;
                         break;
                     }
@@ -440,38 +441,36 @@ fn match_slot(
             if per_elem.len() <= si {
                 per_elem.resize(si + 1, 0);
             }
-            per_elem[si] = skip_pos;
+            per_elem[si] = start;
             if let Some(uc) = &slot.unify_check {
-                if std::env::var("GRM_UNIFY_DEBUG").is_ok() {
-                    eprintln!("unify check(k) si={} inner_len={} per_elem={:?} pos={}", si, uc.inner_len, per_elem, skip_pos);
-                }
-                if !check_unify(toks, per_elem, skip_pos, uc) {
+                if !check_unify(toks, per_elem, start, uc) {
+                    per_elem.truncate(before_elems);
                     continue;
                 }
             }
             if k > 0 {
-                groups.push((skip_pos, skip_pos + k as usize));
+                groups.push((start, start + k as usize));
             }
-            if let Some(end) = match_slot(slots, si + 1, toks, skip_pos + k as usize, groups, per_elem, budget) {
+            if let Some(end) = match_slot(slots, si + 1, toks, start + k as usize, groups, per_elem, budget) {
                 return Some(end);
             }
             groups.truncate(before);
             per_elem.truncate(before_elems);
         }
     }
-    // Optional slots can be skipped entirely.
+    // Optional slots (min = 0) may be omitted entirely.
     if slot.min == 0 {
-        // An `<unify>` check slot verifies the agreement of the preceding
-        // `inner_len` tokens; a plain optional token is simply skipped.
-        if let Some(uc) = &slot.unify_check {
-            if !check_unify(toks, per_elem, pos, uc) {
-                return None;
-            }
-        }
+        let before_elems = per_elem.len();
         if per_elem.len() <= si {
             per_elem.resize(si + 1, 0);
         }
         per_elem[si] = pos;
+        if let Some(uc) = &slot.unify_check {
+            if !check_unify(toks, per_elem, pos, uc) {
+                per_elem.truncate(before_elems);
+                return None;
+            }
+        }
         return match_slot(slots, si + 1, toks, pos, groups, per_elem, budget);
     }
     None

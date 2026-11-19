@@ -69,6 +69,15 @@ pub struct Rule {
     /// Filters that suppress the whole match (`suppressMatch:true`), e.g.
     /// `FrenchSuppressMisspelledSuggestionsFilter`.
     pub suppress_match: bool,
+    /// `tags` attribute values; `picky` rules are off by default in
+    /// LanguageTool and only enabled explicitly.
+    pub tags: Vec<String>,
+    /// Java filter class names referenced by `<filter class="...">`. Filters
+    /// that only suppress suggestions (FindSuggestionsFilter etc.) are
+    /// cosmetic, but filters that *validate* a match (e.g. postponed adjective
+    /// concordance) cannot be reproduced without them: such rules are skipped
+    /// to avoid false positives.
+    pub java_filters: Vec<String>,
     /// Example sentences: (text, corrections, type).
     pub examples: Vec<Example>,
 }
@@ -162,6 +171,25 @@ impl RuleSet {
         }
     }
 }
+
+/// LanguageTool filter classes that *validate* a match (as opposed to merely
+/// de-duplicating or suppressing suggestions). Without a re-implementation of
+/// the class, such a rule over-fires, so it is disabled.
+const VALIDATING_FILTERS: &[&str] = &[
+    // Multi-token spelling rules rely on LanguageTool's morfologik speller to
+    // decide whether the *joined* form is a misspelling; without that oracle
+    // they fire on ordinary text.
+    "FR_MULTITOKEN_SPELLING",
+    "FrenchMultitokenSpeller",
+    "PostponedAdjectiveConcordanceFilter",
+    "WordWithDeterminerFilter",
+    "InterrogativeVerbFilter",
+    "DateCheckFilter",
+    "DMYDateCheckFilter",
+    "NewYearDateFilter",
+    "FrenchNumberInWordFilter",
+    "MakeContractionsFilter",
+];
 
 /// True when a literal contains no regex-ish characters.
 fn is_plain_literal(s: &str) -> bool {
@@ -349,6 +377,14 @@ fn convert_rule_impl(
     let suppress_match = node.children_named("filter").any(|f| {
         f.attr("args").map(|a| a.contains("suppressMatch:true")).unwrap_or(false)
     });
+    let tags: Vec<String> = node
+        .attr("tags")
+        .map(|t| t.split(',').map(|x| x.trim().to_string()).collect())
+        .unwrap_or_default();
+    let java_filters: Vec<String> = node
+        .children_named("filter")
+        .filter_map(|f| f.attr("class").map(|c| c.rsplit('.').next().unwrap_or(c).to_string()))
+        .collect();
     let sub_id = node
         .attr("subId")
         .map(|s| s.to_string())
@@ -391,6 +427,8 @@ fn convert_rule_impl(
         default_off,
         urls,
         suppress_match,
+        tags,
+        java_filters,
         examples,
     })
 }
@@ -474,6 +512,19 @@ impl RuleSet {
                 continue;
             }
             if rule.default_off || rule.suppress_match {
+                continue;
+            }
+            // `picky` rules are disabled by default in LanguageTool.
+            if !style_checking && rule.tags.iter().any(|t| t == "picky") {
+                continue;
+            }
+            // Rules whose match validity depends on a Java filter (or on the
+            // spell checker) that we cannot reproduce would produce false
+            // positives: skip them.
+            if rule.java_filters.iter().any(|f| VALIDATING_FILTERS.contains(&f.as_str())) {
+                continue;
+            }
+            if rule.id.starts_with("FR_MULTITOKEN_SPELLING") {
                 continue;
             }
             let matches = find_matches(&rule.pattern, &s.tokens);

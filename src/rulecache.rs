@@ -361,6 +361,14 @@ impl RuleSet {
             w.bool(r.is_style);
             w.bool(r.default_off);
             w.bool(r.suppress_match);
+            w.u32(r.tags.len() as u32);
+            for t in &r.tags {
+                w.str(t);
+            }
+            w.u32(r.java_filters.len() as u32);
+            for f in &r.java_filters {
+                w.str(f);
+            }
             w.u32(r.urls.len() as u32);
             for u in &r.urls {
                 w.str(u);
@@ -415,6 +423,16 @@ impl RuleSet {
             let is_style = r.bool()?;
             let default_off = r.bool()?;
             let suppress_match = r.bool()?;
+            let nt = r.u32()? as usize;
+            let mut tags = Vec::with_capacity(nt);
+            for _ in 0..nt {
+                tags.push(r.str()?);
+            }
+            let nf = r.u32()? as usize;
+            let mut java_filters = Vec::with_capacity(nf);
+            for _ in 0..nf {
+                java_filters.push(r.str()?);
+            }
             let nu = r.u32()? as usize;
             let mut urls = Vec::with_capacity(nu);
             for _ in 0..nu {
@@ -452,6 +470,8 @@ impl RuleSet {
                 is_style,
                 default_off,
                 suppress_match,
+                tags,
+                java_filters,
                 urls,
                 examples,
             });

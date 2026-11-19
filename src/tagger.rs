@@ -124,16 +124,34 @@ impl Tagger {
     }
 
     /// Tag a sentence: tokenize + lookup + chunk + disambiguate.
+    ///
+    /// Like LanguageTool, the analysed token list is framed by a `SENT_START`
+    /// token and a `SENT_END` token so that rules can anchor patterns at
+    /// sentence boundaries (805 French rules use `SENT_START`).
     pub fn tag(&self, text: &str, offset: usize) -> Sentence {
         let mut s = Sentence::new(text, offset);
-        s.tokens = tokenizer::tokenize(text)
-            .iter()
-            .map(AnalyzedToken::from_token)
-            .collect();
+        let first_start = text.len() - text.trim_start().len();
+        let mut start_tok = AnalyzedToken::new_for_test("");
+        start_tok.start = first_start;
+        start_tok.end = first_start;
+        start_tok.kind = crate::tokenizer::TokenType::SentenceStart;
+        start_tok.tags.push("SENT_START".to_string());
+        start_tok.lemmas.push("".to_string());
+        s.tokens.push(start_tok);
+        s.tokens.extend(tokenizer::tokenize(text).iter().map(AnalyzedToken::from_token));
+        // dictionary lookup for every word (the structural token is skipped)
         self.lookup_all(&mut s);
         self.chunk(&mut s);
         self.disambiguate(&mut s);
         self.add_unknown_markers(&mut s);
+        // SENT_END
+        let mut end_tok = AnalyzedToken::new_for_test("");
+        end_tok.start = text.len();
+        end_tok.end = text.len();
+        end_tok.kind = crate::tokenizer::TokenType::SentenceEnd;
+        end_tok.tags.push("SENT_END".to_string());
+        end_tok.lemmas.push("".to_string());
+        s.tokens.push(end_tok);
         s
     }
 
@@ -141,6 +159,9 @@ impl Tagger {
 
     fn lookup_all(&self, s: &mut Sentence) {
         for i in 0..s.tokens.len() {
+            if s.tokens[i].kind == TokenType::SentenceStart {
+                continue;
+            }
             let text = s.tokens[i].text.clone();
             self.lookup_token(&mut s.tokens[i], &text);
         }
@@ -228,6 +249,9 @@ impl Tagger {
     pub fn verbose(&self, s: &Sentence) -> String {
         let mut out = String::from("<S>");
         for t in &s.tokens {
+            if t.kind == TokenType::SentenceStart || t.kind == TokenType::SentenceEnd {
+                continue;
+            }
             out.push(' ');
             out.push_str(&t.text);
             out.push('[');
@@ -252,6 +276,9 @@ impl Tagger {
 
     fn add_unknown_markers(&self, s: &mut Sentence) {
         for t in &mut s.tokens {
+            if t.kind == TokenType::SentenceStart || t.kind == TokenType::SentenceEnd {
+                continue;
+            }
             if t.tags.is_empty() {
                 t.add(&t.text.clone(), "UNKNOWN");
             }
@@ -680,7 +707,13 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
         t.max = v.parse().unwrap_or(1);
     }
     if let Some(v) = n.attr("skip") {
-        t.skip = v.parse().unwrap_or(0);
+        // `skip="-1"` in LanguageTool means "skip any number of tokens"
+        // (unbounded); `skip="N"` allows up to N.
+        t.skip = match v.parse::<i64>() {
+            Ok(n) if n < 0 => u32::MAX,
+            Ok(n) => n as u32,
+            Err(_) => 0,
+        };
     }
     t.inflected = n.attr("inflected") == Some("yes");
     t.case_sensitive = n.attr("case_sensitive") == Some("yes");
