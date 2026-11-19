@@ -50,6 +50,8 @@ fn main() {
     let mut json = false;
     let mut tagger_only = false;
     let mut style = false;
+    let mut rest_json: Option<String> = None;
+    let _ = &mut rest_json;
     let mut files: Vec<String> = Vec::new();
     let mut data: Option<String> = None;
     let mut i = 1;
@@ -89,6 +91,9 @@ fn main() {
         } else {
             std::fs::read_to_string(f).unwrap_or_default()
         };
+        if let Some(rest) = rest_json.as_ref() {
+            let _ = rest;
+        }
         if tagger_only {
             for (a, b) in grammaria::tokenizer::sentence_boundaries(&text) {
                 let s = tg.tag(&text[a..b], a);

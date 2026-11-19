@@ -66,6 +66,9 @@ pub struct Rule {
     pub default_off: bool,
     /// URLs shown with the message.
     pub urls: Vec<String>,
+    /// Filters that suppress the whole match (`suppressMatch:true`), e.g.
+    /// `FrenchSuppressMisspelledSuggestionsFilter`.
+    pub suppress_match: bool,
     /// Example sentences: (text, corrections, type).
     pub examples: Vec<Example>,
 }
@@ -285,6 +288,9 @@ fn convert_rule_impl(
     let is_style = is_style_file || node.attr("type") == Some("style");
     let default_off = node.attr("default") == Some("off");
     let urls: Vec<String> = node.children_named("url").map(|u| u.text().trim().to_string()).collect();
+    let suppress_match = node.children_named("filter").any(|f| {
+        f.attr("args").map(|a| a.contains("suppressMatch:true")).unwrap_or(false)
+    });
     let sub_id = node
         .attr("subId")
         .map(|s| s.to_string())
@@ -326,6 +332,7 @@ fn convert_rule_impl(
         is_style,
         default_off,
         urls,
+        suppress_match,
         examples,
     })
 }
@@ -381,7 +388,7 @@ impl RuleSet {
             if rule.is_style && !style_checking {
                 continue;
             }
-            if rule.default_off {
+            if rule.default_off || rule.suppress_match {
                 continue;
             }
             let matches = find_matches(&rule.pattern, &s.tokens);

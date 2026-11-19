@@ -684,7 +684,11 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
     }
     t.inflected = n.attr("inflected") == Some("yes");
     t.case_sensitive = n.attr("case_sensitive") == Some("yes");
-    t.space_before_no = n.attr("spacebefore") == Some("no");
+    t.space_before = match n.attr("spacebefore") {
+        Some("no") => Some(false),
+        Some("yes") => Some(true),
+        _ => None,
+    };
     t.negate_pos = n.attr("negate_pos") == Some("yes");
     let is_regexp = n.attr("regexp") == Some("yes");
     let content = n.text();

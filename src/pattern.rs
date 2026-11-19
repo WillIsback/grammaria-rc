@@ -34,8 +34,9 @@ pub struct TokenPattern {
     pub inflected: bool,
     /// `case_sensitive="yes"`.
     pub case_sensitive: bool,
-    /// `spacebefore="no"` (attached to the previous token).
-    pub space_before_no: bool,
+    /// `spacebefore` constraint: `Some(true)` = a space must precede,
+    /// `Some(false)` = no space, `None` = unconstrained.
+    pub space_before: Option<bool>,
     /// `negate_pos="yes"` (LT 5+: negate the postag condition).
     pub negate_pos: bool,
     /// Repeat bounds (default 1/1). `min="0"` makes the token optional.
@@ -87,13 +88,10 @@ impl TokenPattern {
             }
         }
         if let Some(re) = &self.regex {
-            // A token constrains the surface form via `regex`. With
-            // `case_sensitive="yes"` only an exact match is accepted.
-            if self.case_sensitive {
-                if !re.is_full_match(&tok.text) {
-                    return false;
-                }
-            } else if !re.is_match(&tok.text) {
+            // Token surface regexes must match the *whole* token
+            // (LanguageTool evaluates `<token regexp="yes">` with
+            // `Pattern.matcher(token).matches()`, not `find()`).
+            if !re.is_full_match(&tok.text) {
                 return false;
             }
         }
@@ -129,8 +127,10 @@ impl TokenPattern {
         if !self.matches_token(tok) {
             return false;
         }
-        if self.space_before_no && tok.spaces_before > 0 {
-            return false;
+        if let Some(no_space) = self.space_before {
+            if no_space == (tok.spaces_before > 0) {
+                return false;
+            }
         }
         true
     }
