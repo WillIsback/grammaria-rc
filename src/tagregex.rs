@@ -295,6 +295,30 @@ impl<'a> P<'a> {
                             ranges: vec![(b'\t', b'\r'), (b' ', b' ')],
                         }
                     }
+                    Some(b'p') | Some(b'P') => {
+                        // Unicode property classes: `\p{Ll}`, `\p{Lu}`,
+                        // `\p{L}`, `\p{P}`, `\p{N}` ... mapped onto byte
+                        // ranges of the Latin-1/Latin-Extended blocks plus the
+                        // ASCII letters. Good enough for French tokens.
+                        let negated = self.peek() == Some(b'P');
+                        self.i += 1;
+                        if self.peek() == Some(b'{') {
+                            self.i += 1;
+                            let mut name = String::new();
+                            while let Some(c) = self.peek() {
+                                self.i += 1;
+                                if c == b'}' {
+                                    break;
+                                }
+                                name.push(c as char);
+                            }
+                            let ranges = unicode_property_ranges(&name);
+                            Node::Class { neg: negated, ranges }
+                        } else {
+                            self.error = true;
+                            Node::Char(b'p')
+                        }
+                    }
                     Some(b'S') => {
                         self.i += 1;
                         Node::Class {
@@ -987,3 +1011,29 @@ mod tests {
 
 
 
+
+/// Byte ranges approximating a Unicode general category for Latin text.
+///
+/// French tokens are Latin script, so the ASCII and Latin-1/Latin-Extended
+/// ranges cover the categories that matter (`Ll`, `Lu`, `L`, `P`, `N`).
+fn unicode_property_ranges(name: &str) -> Vec<(u8, u8)> {
+    // ASCII + Latin-1 accented letters are all multi-byte in UTF-8, so the
+    // classes below only need to describe ASCII; accented letters are covered
+    // by the "any non-ASCII byte" ranges (0x80..=0xBF continuation bytes are
+    // part of a multi-byte char and therefore matched by `Any`, not a class).
+    match name {
+        "Ll" => vec![(b'a', b'z'), (0xC3, 0xC3)],
+        "Lu" => vec![(b'A', b'Z'), (0xC3, 0xC3)],
+        "L" => vec![(b'A', b'Z'), (b'a', b'z'), (0xC3, 0xC3), (0xC5, 0xC5), (0xC6, 0xC6), (0xC8, 0xCE)],
+        "P" => vec![
+            (b'!', b'/'),
+            (b':', b'@'),
+            (b'[', b'`'),
+            (b'{', b'~'),
+            (0xC2, 0xC2),
+        ],
+        "N" | "Nd" => vec![(b'0', b'9')],
+        "Zs" | "Z" | "S" => vec![(b' ', b' ')],
+        _ => vec![(b'A', b'Z'), (b'a', b'z')],
+    }
+}
