@@ -114,6 +114,7 @@ impl Tagger {
             let key = words.join(" ").to_lowercase();
             chunks.entry(key).or_insert_with(|| (words.clone(), tags.clone()));
         }
+        crate::lexicon::set_global_lexicon(lex);
         let t = Tagger {
             lexicon: lex,
             chunks,

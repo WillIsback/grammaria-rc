@@ -102,11 +102,11 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
     let d_gender = d_parts[d_parts.len() - 2];
     let d_number = d_parts[d_parts.len() - 1].trim_end_matches(')');
 
-    // number agreement: s/p sp
-    let number_ok = d_number == w_number
-        || d_number == "sp"
-        || w_number == "sp"
-        || (d_number == "e" && w_number == "e");
+    // Number agreement: `sp` (singular *or* plural) is compatible with both.
+    let number_ok = d_number == w_number || d_number == "sp" || w_number == "sp";
+    if std::env::var("GRM_FILTER_DEBUG").is_ok() {
+        eprintln!("det='{}' tag='{}' (g={} n={}) | word='{}' tag='{}' (g={} n={}) -> num_ok={}", det.text, dt, d_gender, d_number, word.text, wt, w_gender, w_number, number_ok);
+    }
     // Gender-invariant determiners: they only need to agree in number.
     // (`aucun(e)`, `tout(e)`, `ce/cette` DO inflect for gender.)
     let det_lower = crate::strutil::lower(&det.text);
@@ -140,22 +140,55 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
     }
     // The pair does not agree: this is a real error. Suggest the correct forms
     // by trying the noun's gender/number with the determiner and vice versa.
+    // Suggest the two classic repairs, in order of preference:
+    //   1. adapt the noun to the determiner ("Les voiture" -> "Les voitures"),
+    //   2. adapt the determiner to the noun ("La toit" -> "Le toit").
     let mut suggestions = Vec::new();
-    let is_noun = wt.starts_with('N') || wt.starts_with('Z');
-    let _ = is_noun;
-    // keep the determiner, inflect the word (nominal forms)
-    for number in ["s", "p"] {
-        for gender in ["m", "f"] {
-            let cand = noun_form(&word.text, gender, number);
-            let det_text = determiner_form(&det.text, gender, number, d_gender, d_number);
-            if let Some(dt2) = det_text {
-                if let Some(w2) = cand {
-                    let sug = format!("{} {}", dt2, w2).replace("' ", "'");
-                    if sug != format!("{} {}", det.text, word.text) && !suggestions.contains(&sug) {
-                        suggestions.push(sug);
-                    }
+    let original = format!("{} {}", det.text, word.text);
+    // 1. noun follows the determiner
+    if d_number != "sp" && (d_gender != "e" || !encodes_gender) {
+        let number = d_number;
+        let gender = if encodes_gender && d_gender != "e" { d_gender } else { w_gender };
+        let cand = noun_form(&word.text, gender, number, w_gender);
+        if let Some(w2) = cand {
+            if let Some(dt2) = determiner_form(&det.text, gender, number, d_gender, d_number) {
+                let sug = format!("{} {}", dt2, w2).replace("' ", "'");
+                if sug != original && !suggestions.contains(&sug) {
+                    suggestions.push(sug);
+                }
+            } else {
+                let sug = format!("{} {}", det.text, w2).replace("' ", "'");
+                if sug != original && !suggestions.contains(&sug) {
+                    suggestions.push(sug);
                 }
             }
+        }
+    }
+    // 2. determiner follows the noun
+    let cand = noun_form(&word.text, w_gender, w_number, w_gender);
+    if let Some(w2) = cand {
+        if let Some(dt2) = determiner_form(&det.text, w_gender, w_number, d_gender, d_number) {
+            let sug = format!("{} {}", dt2, w2).replace("' ", "'");
+            if sug != original && !suggestions.contains(&sug) {
+                suggestions.push(sug);
+            }
+        }
+    }
+    // Keep only suggestions whose noun is a real dictionary word, and prefer
+    // those; this removes synthetic forms such as "toite" or "bell".
+    if let Some(lx) = crate::lexicon::global_lexicon() {
+        let valid: Vec<String> = suggestions
+            .iter()
+            .filter(|sug| {
+                sug.split_whitespace()
+                    .last()
+                    .map(|w| lx.contains(w) || lx.contains(&crate::strutil::lower(w)))
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect();
+        if !valid.is_empty() {
+            suggestions = valid;
         }
     }
     // Disagreement between determiner and noun. LanguageTool only reports the
@@ -164,6 +197,7 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
     if suggestions.is_empty() {
         return FilterOutcome::reject();
     }
+    suggestions.truncate(4);
     FilterOutcome {
         is_error: true,
         has_suggestions: true,
@@ -171,29 +205,111 @@ pub fn word_with_determiner(s: &Sentence, m: &Match, args: &FilterArgs) -> Filte
     }
 }
 
-/// Very small French inflection helper for nouns/adjectives used by the
-/// determiner filter: plurals add `s` (or `x` after `au/eu/ou`), feminine adds
-/// `e` with common patterns.
-fn noun_form(word: &str, gender: &str, number: &str) -> Option<String> {
+/// Small French inflection helper for nouns/adjectives used by the
+/// determiner filter: plural (`-s`, `-x` after `au/eu/ou`) and feminine
+/// (`-e`, with the common `-eur/-euse`, `-teur/-trice`, `-er/-ère` patterns).
+fn noun_form(word: &str, gender: &str, number: &str, original_gender: &str) -> Option<String> {
     let mut w = word.to_string();
+    // feminine form when the requested gender differs from the noun's own
+    if gender == "f" && original_gender == "m" {
+        w = feminize(&w);
+    } else if gender == "m" && original_gender == "f" {
+        w = masculinize(&w);
+    }
     // plural
     if number == "p" && !w.ends_with('s') && !w.ends_with('x') && !w.ends_with('z') {
         if w.ends_with("au") || w.ends_with("eu") || w.ends_with("ou") {
             w.push('x');
+        } else if w.ends_with("al") {
+            w.truncate(w.len() - 2);
+            w.push_str("aux");
         } else {
             w.push('s');
         }
     }
     if number == "s" {
-        // naive singularisation for suggestions
-        if w.ends_with('s') && w.len() > 2 {
-            w.pop();
-        } else if w.ends_with('x') && w.len() > 2 {
+        if w.ends_with("aux") {
+            w.truncate(w.len() - 3);
+            w.push_str("al");
+        } else if w.ends_with("eaux") {
+            w.truncate(w.len() - 4);
+            w.push_str("eau");
+        } else if (w.ends_with('s') || w.ends_with('x')) && w.chars().count() > 2 {
             w.pop();
         }
     }
-    let _ = gender;
     Some(w)
+}
+
+/// Feminine of a masculine noun (common regular patterns).
+fn feminize(w: &str) -> String {
+    let special: &[(&str, &str)] = &[
+        ("homme", "femme"),
+        ("père", "mère"),
+        ("frère", "sœur"),
+        ("roi", "reine"),
+        ("dieu", "déesse"),
+        ("neveu", "nièce"),
+        ("oncle", "tante"),
+        ("cheval", "jument"),
+        ("taureau", "vache"),
+        ("coq", "poule"),
+        ("fils", "fille"),
+        ("garçon", "fille"),
+    ];
+    for (m, f) in special {
+        if w == *m {
+            return f.to_string();
+        }
+    }
+    if w.ends_with("eur") {
+        format!("{}euse", &w[..w.len() - 3])
+    } else if w.ends_with("teur") {
+        format!("{}trice", &w[..w.len() - 4])
+    } else if w.ends_with("er") {
+        format!("{}ère", &w[..w.len() - 2])
+    } else if w.ends_with("eau") {
+        format!("{}elle", &w[..w.len() - 3])
+    } else if w.ends_with("el") || w.ends_with("en") || w.ends_with("on") {
+        // bon -> bonne, petit -> petite
+        format!("{}{}e", w, w.chars().last().unwrap())
+    } else if w.ends_with('e') || w.ends_with('é') {
+        w.to_string()
+    } else {
+        format!("{w}e")
+    }
+}
+
+/// Masculine of a feminine noun (best effort).
+fn masculinize(w: &str) -> String {
+    let special: &[(&str, &str)] = &[
+        ("femme", "homme"),
+        ("mère", "père"),
+        ("sœur", "frère"),
+        ("reine", "roi"),
+        ("nièce", "neveu"),
+        ("tante", "oncle"),
+        ("jument", "cheval"),
+        ("vache", "taureau"),
+        ("poule", "coq"),
+        ("fille", "fils"),
+    ];
+    for (f, m) in special {
+        if w == *f {
+            return m.to_string();
+        }
+    }
+    if w.ends_with("euse") {
+        format!("{}eur", &w[..w.len() - 4])
+    } else if w.ends_with("trice") {
+        format!("{}teur", &w[..w.len() - 5])
+    } else if w.ends_with("ère") {
+        format!("{}er", &w[..w.len() - 3])
+    } else if w.ends_with('e') {
+        w[..w.len() - 1].to_string()
+    } else {
+        w.to_string()
+    }
 }
 
 /// Try to adapt a determiner to a gender/number.

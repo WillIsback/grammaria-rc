@@ -591,6 +591,20 @@ fn read_strings(bytes: &[u8], p: usize, n: usize) -> io::Result<(Vec<String>, us
     Ok((out, blob_start + blob_len))
 }
 
+/// Process-wide lexicon handle, installed by the checker so that helper code
+/// (e.g. rule filters that synthesise corrected forms) can validate words.
+static GLOBAL: std::sync::OnceLock<&'static Lexicon> = std::sync::OnceLock::new();
+
+/// Install the process-wide lexicon (idempotent).
+pub fn set_global_lexicon(lx: &'static Lexicon) {
+    let _ = GLOBAL.set(lx);
+}
+
+/// The process-wide lexicon, if installed.
+pub fn global_lexicon() -> Option<&'static Lexicon> {
+    GLOBAL.get().copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
