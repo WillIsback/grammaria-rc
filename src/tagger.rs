@@ -582,6 +582,11 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
     r
 }
 
+/// Public wrapper used by the grammar rule loader.
+pub fn convert_children_public(node: &XmlNode, out: &mut Vec<PatternElem>) {
+    convert_children(node, out);
+}
+
 /// Convert a `<pattern>`/`<antipattern>` element into a `Pattern`.
 pub fn convert_pattern(node: &XmlNode) -> Pattern {
     let mut elems = Vec::new();
@@ -611,16 +616,45 @@ fn convert_children(node: &XmlNode, out: &mut Vec<PatternElem>) {
                 }
             }
             "marker" => convert_children(n, out),
-            "unify" | "unify-ignore" => {
-                // Feature agreement (`<feature id="..."/>`) is approximated by
-                // matching the tokens in sequence; unification is applied by
-                // the caller when the rule needs it.
+            "unify" => {
+                // `<unify>`: inner tokens must agree on the listed features.
+                let negate = n.attr("negate") == Some("yes");
+                let features: Vec<String> = n
+                    .children_named("feature")
+                    .filter_map(|f| f.attr("id").map(|s| s.to_string()))
+                    .collect();
+                let mut inner = Vec::new();
+                for c2 in &n.children {
+                    let DomItem::Node(cn) = c2 else { continue };
+                    if cn.name == "feature" {
+                        continue;
+                    }
+                    convert_children_single(cn, &mut inner);
+                }
+                out.push(PatternElem::Unify {
+                    inner,
+                    negate,
+                    features,
+                });
+            }
+            "unify-ignore" => {
                 convert_children(n, out);
             }
             // Wrappers that only mark a span for the message: flatten.
-            "match" | "suggestion" | "message" | "url" => {}
+            "match" => convert_children(n, out),
+            "suggestion" | "message" | "url" => {}
             _ => {}
         }
+    }
+}
+
+/// Convert one child element of a `<unify>` group.
+fn convert_children_single(n: &XmlNode, out: &mut Vec<PatternElem>) {
+    match n.name.as_str() {
+        "token" => out.push(PatternElem::Token(convert_token(n))),
+        "marker" => convert_children(n, out),
+        "unify-ignore" => convert_children(n, out),
+        _ => convert_children(n, out),
     }
 }
 
@@ -629,7 +663,10 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
     let mut t = TokenPattern::new();
     if let Some(v) = n.attr("postag") {
         let is_re = n.attr("postag_regexp") == Some("yes");
-        t.postag = Some(ValueMatcher::new(v, is_re));
+        // `postag=""` means "no POS constraint" (LanguageTool semantics)
+        if !v.is_empty() {
+            t.postag = Some(ValueMatcher::new(v, is_re));
+        }
         t.postag_regexp = is_re;
     }
     if let Some(v) = n.attr("lemma") {
@@ -651,6 +688,9 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
     t.negate_pos = n.attr("negate_pos") == Some("yes");
     let is_regexp = n.attr("regexp") == Some("yes");
     let content = n.text();
+    if std::env::var("GRM_TOK_DEBUG").is_ok() {
+        eprintln!("convert_token: name={} attrs={:?} content={:?}", n.name, n.attrs, content);
+    }
     let content = content.trim();
     if !content.is_empty() {
         if is_regexp {
@@ -659,11 +699,15 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
             t.text = Some(content.to_string());
         }
     }
+    // `regexp="yes"` with empty content is a constraint-free token (matches any
+    // token); LT only writes it when combined with other constraints.
     for ex in n.children_named("exception") {
         let mut e = TokenPattern::new();
         if let Some(v) = ex.attr("postag") {
             let is_re = ex.attr("postag_regexp") == Some("yes");
-            e.postag = Some(ValueMatcher::new(v, is_re));
+            if !v.is_empty() {
+                e.postag = Some(ValueMatcher::new(v, is_re));
+            }
         }
         if let Some(v) = ex.attr("lemma") {
             let is_re = ex.attr("lemma_regexp") == Some("yes");

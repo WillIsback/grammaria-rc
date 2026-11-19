@@ -87,19 +87,27 @@ impl TokenPattern {
             }
         }
         if let Some(re) = &self.regex {
-            if !re.is_match(&tok.text) {
+            // A token constrains the surface form via `regex`. With
+            // `case_sensitive="yes"` only an exact match is accepted.
+            if self.case_sensitive {
+                if !re.is_full_match(&tok.text) {
+                    return false;
+                }
+            } else if !re.is_match(&tok.text) {
                 return false;
             }
         }
-        // part of speech
+        // Part of speech. LanguageTool matches the *whole* tag
+        // (`Pattern.matcher(tag).matches()`), so `postag="J m s"` must not
+        // match `V ppa m s`.
         if let Some(posmat) = &self.postag {
-            let pos_hit = tok.tags.iter().any(|s| posmat.is_match(s));
+            let pos_hit = tok.tags.iter().any(|s| posmat.is_full_match(s));
             if pos_hit == self.negate_pos {
                 return false;
             }
         }
         if let Some(lemma) = &self.lemma {
-            if !tok.tags.iter().any(|s| lemma.is_match(s)) {
+            if !tok.lemmas.iter().any(|l| l.split('|').any(|x| lemma.is_full_match(x))) {
                 return false;
             }
         }
@@ -167,6 +175,15 @@ pub enum PatternElem {
     And(Vec<TokenPattern>),
     /// Sequence of elements that must all match, in order (used by `<and>`).
     Seq(Vec<PatternElem>),
+    /// `<unify>` group: the inner tokens must match and their features
+    /// (number/gender/person/tense) must agree, or -- with `negate="yes"` --
+    /// disagree.
+    Unify {
+        inner: Vec<PatternElem>,
+        negate: bool,
+        /// Feature names whose equivalence classes are compared.
+        features: Vec<String>,
+    },
 }
 
 /// A complete pattern (`<pattern>` or `<antipattern>`).
@@ -225,6 +242,7 @@ impl<'a> Matcher<'a> {
             }),
             PatternElem::And(ts) => ts.iter().all(|t| t.matches(toks, idx)),
             PatternElem::Seq(seq) => seq.len() == 1 && Self::elem_matches(&seq[0], toks, idx),
+            PatternElem::Unify { .. } => true,
         }
     }
 }
@@ -275,32 +293,55 @@ pub fn find_matches(pat: &Pattern, toks: &[AnalyzedToken]) -> Vec<Match> {
     out
 }
 
-/// Flatten a pattern into slots: (elem ref, min reps, max reps, skip).
+/// Flatten a pattern into slots (one per element, plus a trailing check slot
+/// for `<unify>` groups).
 fn expand(pat: &Pattern) -> Vec<Slot<'_>> {
     let mut out = Vec::new();
     for e in &pat.elems {
-        match e {
-            PatternElem::Token(t) => out.push(Slot {
-                elem: e,
-                min: t.min,
-                max: t.max,
-                skip: t.skip,
-                optional: t.min == 0,
-                capture: true,
-                exceptions: &t.exceptions,
-            }),
-            _ => out.push(Slot {
-                elem: e,
-                min: 1,
-                max: 1,
-                skip: 0,
-                optional: false,
-                capture: true,
-                exceptions: &[],
-            }),
-        }
+        expand_into(e, &mut out);
     }
     out
+}
+
+fn expand_into<'a>(e: &'a PatternElem, out: &mut Vec<Slot<'a>>) {
+    match e {
+        PatternElem::Token(t) => out.push(Slot {
+            elem: e,
+            min: t.min,
+            max: t.max,
+            skip: t.skip,
+            capture: true,
+            exceptions: &t.exceptions,
+            unify_check: None,
+        }),
+        PatternElem::Unify { inner, negate, features } => {
+            for ie in inner {
+                expand_into(ie, out);
+            }
+            out.push(Slot {
+                elem: e,
+                min: 0,
+                max: 0,
+                skip: 0,
+                capture: false,
+                exceptions: &[],
+                unify_check: Some(UnifyCheck {
+                    inner_len: inner.len(),
+                    negate: *negate,
+                    features: features.clone(),
+                }),
+            });
+        }
+        _ => out.push(Slot {
+            elem: e,
+            min: 1,
+            max: 1,
+            skip: 0,
+            capture: true,
+            exceptions: &[],
+            unify_check: None,
+        }),
+    }
 }
 
 struct Slot<'a> {
@@ -308,9 +349,16 @@ struct Slot<'a> {
     min: u32,
     max: u32,
     skip: u32,
-    optional: bool,
     capture: bool,
     exceptions: &'a [Exception],
+    unify_check: Option<UnifyCheck>,
+}
+
+#[derive(Clone, Debug)]
+struct UnifyCheck {
+    inner_len: usize,
+    negate: bool,
+    features: Vec<String>,
 }
 
 /// Attempt to match starting at `start`; greedily (and with backtracking)
@@ -393,6 +441,14 @@ fn match_slot(
                 per_elem.resize(si + 1, 0);
             }
             per_elem[si] = skip_pos;
+            if let Some(uc) = &slot.unify_check {
+                if std::env::var("GRM_UNIFY_DEBUG").is_ok() {
+                    eprintln!("unify check(k) si={} inner_len={} per_elem={:?} pos={}", si, uc.inner_len, per_elem, skip_pos);
+                }
+                if !check_unify(toks, per_elem, skip_pos, uc) {
+                    continue;
+                }
+            }
             if k > 0 {
                 groups.push((skip_pos, skip_pos + k as usize));
             }
@@ -405,6 +461,13 @@ fn match_slot(
     }
     // Optional slots can be skipped entirely.
     if slot.min == 0 {
+        // An `<unify>` check slot verifies the agreement of the preceding
+        // `inner_len` tokens; a plain optional token is simply skipped.
+        if let Some(uc) = &slot.unify_check {
+            if !check_unify(toks, per_elem, pos, uc) {
+                return None;
+            }
+        }
         if per_elem.len() <= si {
             per_elem.resize(si + 1, 0);
         }
@@ -440,5 +503,102 @@ impl<'a> Slot<'a> {
             PatternElem::Token(t) => t.exceptions_ok(toks, idx),
             _ => true,
         }
+    }
+}
+
+
+/// Feature agreement check for a `<unify>` group whose inner tokens ended at
+/// `pos`. Each matched token contributes its tags; features are compared using
+/// the tag vocabulary of the French tagset (`sp`/`s`/`p`, `m`/`f`/`e`,
+/// person digits, tense words).
+fn check_unify(toks: &[AnalyzedToken], per_elem: &[usize], pos: usize, uc: &UnifyCheck) -> bool {
+    if per_elem.len() < uc.inner_len || pos == 0 {
+        return true;
+    }
+    let start = per_elem[per_elem.len() - uc.inner_len];
+    let end = pos;
+    if start >= end || end > toks.len() {
+        return true;
+    }
+    // Collect the possible feature values per token.
+    let mut per_token: Vec<Vec<String>> = Vec::new();
+    for t in &toks[start..end] {
+        let mut vals = Vec::new();
+        for tag in &t.tags {
+            for f in &uc.features {
+                if let Some(v) = feature_value(f, tag) {
+                    vals.push(v);
+                }
+            }
+        }
+        if vals.is_empty() {
+            return true; // undecidable: do not veto
+        }
+        per_token.push(vals);
+    }
+    if per_token.is_empty() {
+        return true;
+    }
+    // All tokens agree on at least one combination of feature values.
+    let mut combos: Vec<Vec<String>> = vec![Vec::new()];
+    for vals in &per_token {
+        let mut next = Vec::new();
+        for c in &combos {
+            for v in vals {
+                let mut c2 = c.clone();
+                c2.push(v.clone());
+                next.push(c2);
+            }
+        }
+        combos = next;
+        if combos.len() > 64 {
+            break;
+        }
+    }
+    // group per feature
+    let agrees = combos.iter().any(|combo| {
+        for (fi, f) in uc.features.iter().enumerate() {
+            let first = combo.get(fi);
+            if combo
+                .iter()
+                .enumerate()
+                .any(|(ti, c)| ti % uc.features.len() == fi && Some(c) != first)
+            {
+                let _ = f;
+            }
+        }
+        // simplification: all values equal per feature
+        (0..uc.features.len()).all(|fi| {
+            let vals: Vec<&String> = combo.iter().skip(fi).step_by(uc.features.len()).collect();
+            vals.windows(2).all(|w| w[0] == w[1])
+        })
+    });
+    if uc.negate {
+        !agrees
+    } else {
+        agrees
+    }
+}
+
+/// Extract the value of a unification feature from a LanguageTool tag.
+fn feature_value(feature: &str, tag: &str) -> Option<String> {
+    match feature {
+        "number" => tag
+            .split(' ')
+            .find(|p| *p == "s" || *p == "p" || *p == "sp")
+            .map(|p| if p == "sp" { "sp".to_string() } else { p.to_string() }),
+        "gender" => tag
+            .split(' ')
+            .find(|p| *p == "m" || *p == "f" || *p == "e")
+            .map(|p| p.to_string()),
+        "person" => tag
+            .split(' ')
+            .find(|p| *p == "1" || *p == "2" || *p == "3")
+            .map(|p| p.to_string()),
+        "tense" => tag
+            .split(' ')
+            .find(|p| matches!(*p, "pres" | "psim" | "impa" | "futu" | "con"))
+            .map(|p| p.to_string()),
+        _ => None,
     }
 }

@@ -5,6 +5,7 @@
 
 pub mod lexicon;
 pub mod pattern;
+pub mod rules;
 pub mod sentence;
 pub mod strutil;
 pub mod tagger;

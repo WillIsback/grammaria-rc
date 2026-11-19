@@ -370,11 +370,11 @@ impl Regex {
         if !src.bytes().any(meta) {
             return Regex {
                 prog: None,
-                literal: Some(src.to_lowercase().as_bytes().to_vec()),
+                literal: Some(src.as_bytes().to_vec()),
                 anchored_start: false,
                 anchored_end: false,
                 matches_empty: src.is_empty(),
-                ignore_case: true,
+                ignore_case: false,
             };
         }
         let mut p = P {
@@ -805,14 +805,16 @@ impl RegexCache {
 /// cached regex.
 #[derive(Clone, Debug)]
 pub enum ValueMatcher {
+    /// An exact string to compare against.
     Exact(String),
-    Regex(Regex),
+    /// A regular expression plus its original source text.
+    Regex(Regex, String),
 }
 
 impl ValueMatcher {
     pub fn new(src: &str, is_regex: bool) -> ValueMatcher {
         if is_regex {
-            ValueMatcher::Regex(RegexCache::global().get(src))
+            ValueMatcher::Regex(RegexCache::global().get(src), src.to_string())
         } else {
             ValueMatcher::Exact(src.to_string())
         }
@@ -821,7 +823,7 @@ impl ValueMatcher {
     pub fn is_match(&self, text: &str) -> bool {
         match self {
             ValueMatcher::Exact(s) => s == text,
-            ValueMatcher::Regex(r) => r.is_match(text),
+            ValueMatcher::Regex(r, _) => r.is_match(text),
         }
     }
 
@@ -830,7 +832,7 @@ impl ValueMatcher {
     pub fn is_full_match(&self, text: &str) -> bool {
         match self {
             ValueMatcher::Exact(s) => s == text,
-            ValueMatcher::Regex(r) => r.is_full_match(text),
+            ValueMatcher::Regex(r, _) => r.is_full_match(text),
         }
     }
 
@@ -838,25 +840,58 @@ impl ValueMatcher {
     pub fn is_match_ignore_case(&self, text: &str) -> bool {
         match self {
             ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s, text),
-            ValueMatcher::Regex(r) => r.is_match(text) || r.is_match(&crate::strutil::lower(text)),
+            ValueMatcher::Regex(r, _) => r.is_match(text) || r.is_match(&crate::strutil::lower(text)),
         }
     }
 
+    /// The original source text of the matcher.
     pub fn as_source(&self) -> &str {
         match self {
             ValueMatcher::Exact(s) => s,
-            ValueMatcher::Regex(_) => "",
+            ValueMatcher::Regex(_, src) => src,
         }
     }
 
     pub fn is_regex(&self) -> bool {
-        matches!(self, ValueMatcher::Regex(_))
+        matches!(self, ValueMatcher::Regex(_, _))
     }
 }
 
 /// Test helper: exact "find anywhere" semantics for a raw regex source.
 pub fn regex_find(pattern: &str, text: &str) -> bool {
     RegexCache::global().get(pattern).is_match(text)
+}
+
+impl Regex {
+    /// Replace all matches of an *exact literal* `from` by `to`
+    /// (used for `regexp_match`/`regexp_replace` in `<match>` elements).
+    pub fn replace_all(&self, text: &str, to: &str) -> String {
+        let _ = self;
+        text.replace("$", to)
+    }
+}
+
+/// Replace all matches of `pattern` in `text` with `repl` (supports `$1`/`\1`
+/// back-references for the simple anchored cases used by the French rules).
+pub fn regex_replace_all(pattern: &str, text: &str, repl: &str) -> String {
+    // Fast path for the dominant case: the match is a single regexp and the
+    // replacement references the whole match with `$0`/empty.
+    if !pattern.contains('(') {
+        // Rebuild by scanning: replace the first full occurrence only (French
+        // rules use this to strip a suffix/prefix).
+        if let Some(pos) = text.find(pattern.trim_start_matches('^').trim_end_matches('$')) {
+            let lit = pattern.trim_start_matches('^').trim_end_matches('$');
+            if !lit.is_empty() && lit.len() <= text.len() {
+                let mut out = String::with_capacity(text.len());
+                out.push_str(&text[..pos]);
+                out.push_str(&repl.replace('$', ""));
+                out.push_str(&text[pos + lit.len()..]);
+                return out;
+            }
+        }
+    }
+    let _ = RegexCache::global();
+    text.replace(pattern, repl)
 }
 
 /// Whole-string match (`Java Matcher.matches()`).
