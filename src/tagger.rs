@@ -362,6 +362,16 @@ impl Tagger {
     }
 }
 
+/// Remove the `etre`/`avoir` auxiliary name from a verb tag so that
+/// `V etre ppa e sp` also satisfies a `V ppa .*` filter.
+fn strip_aux(tag: &str) -> String {
+    let mut parts: Vec<&str> = tag.split(' ').collect();
+    if parts.len() > 2 && parts[0] == "V" && (parts[1] == "etre" || parts[1] == "avoir") {
+        parts.remove(1);
+    }
+    parts.join(" ")
+}
+
 fn is_capitalized(text: &str) -> bool {
     strutil::starts_upper(text)
 }
@@ -512,9 +522,13 @@ impl Disambiguation {
             if r.postag.is_empty() {
                 true
             } else if r.is_regexp {
-                // LanguageTool's disambiguation postags behave like `find()`
-                // (a substring match): `V ppa .*` keeps `V etre ppa e sp`.
+                // LanguageTool's disambiguation postags are matched with
+                // `Matcher.find()` on the tag, but the tagger/lefff variants
+                // (`V etre ppa e sp` for `V ppa .*`) mean a *prefix*/loose
+                // match is intended, so we also accept the same tag with the
+                // auxiliary name removed.
                 crate::tagregex::regex_find(&r.postag, tag)
+                    || crate::tagregex::regex_find(&r.postag, &strip_aux(tag))
             } else {
                 r.postag.split('|').any(|p| p == tag)
             }
