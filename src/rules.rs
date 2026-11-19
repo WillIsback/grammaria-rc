@@ -72,6 +72,8 @@ pub struct Rule {
     /// `tags` attribute values; `picky` rules are off by default in
     /// LanguageTool and only enabled explicitly.
     pub tags: Vec<String>,
+    /// Native filter implementations attached to the rule.
+    pub filters: Vec<crate::filters::RuleFilter>,
     /// Java filter class names referenced by `<filter class="...">`. Filters
     /// that only suppress suggestions (FindSuggestionsFilter etc.) are
     /// cosmetic, but filters that *validate* a match (e.g. postponed adjective
@@ -182,7 +184,6 @@ const VALIDATING_FILTERS: &[&str] = &[
     "FR_MULTITOKEN_SPELLING",
     "FrenchMultitokenSpeller",
     "PostponedAdjectiveConcordanceFilter",
-    "WordWithDeterminerFilter",
     "InterrogativeVerbFilter",
     "DateCheckFilter",
     "DMYDateCheckFilter",
@@ -254,6 +255,17 @@ impl RuleSet {
                     let gname = node.attr("name").unwrap_or("").to_string();
                     let group_off = node.attr("default") == Some("off");
                     for (i, sub) in node.children_named("rule").enumerate() {
+                        // A nested <rule> carrying its own `id` is a standalone
+                        // rule that merely lives inside the group element.
+                        if sub.attr("id").map(|x| !x.is_empty()).unwrap_or(false) {
+                            if let Some(mut r) = convert_rule_at(sub, None, &gname, &gname, is_style_file, i + 1) {
+                                if group_off {
+                                    r.default_off = true;
+                                }
+                                set.rules.push(r);
+                            }
+                            continue;
+                        }
                         if let Some(mut r) = convert_rule_at(sub, Some(&gid), &gname, &gname, is_style_file, i + 1) {
                             // attributes like default="off" declared on the
                             // rulegroup apply to all its rules
@@ -279,6 +291,15 @@ impl RuleSet {
                                 let gid = n.attr("id").unwrap_or("").to_string();
                                 let group_off = n.attr("default") == Some("off");
                                 for (i, sub) in n.children_named("rule").enumerate() {
+                                    if sub.attr("id").map(|x| !x.is_empty()).unwrap_or(false) {
+                                        if let Some(mut r) = convert_rule_at(sub, None, &cid, &cname, is_style_file, i + 1) {
+                                            if group_off {
+                                                r.default_off = true;
+                                            }
+                                            set.rules.push(r);
+                                        }
+                                        continue;
+                                    }
                                     if let Some(mut r) = convert_rule_at(sub, Some(&gid), &cid, &cname, is_style_file, i + 1) {
                                         if group_off {
                                             r.default_off = true;
@@ -385,6 +406,15 @@ fn convert_rule_impl(
         .children_named("filter")
         .filter_map(|f| f.attr("class").map(|c| c.rsplit('.').next().unwrap_or(c).to_string()))
         .collect();
+    let filters: Vec<crate::filters::RuleFilter> = node
+        .children_named("filter")
+        .filter_map(|f| {
+            f.attr("class").map(|c| crate::filters::RuleFilter {
+                class: c.to_string(),
+                args: crate::filters::FilterArgs::parse(f.attr("args").unwrap_or("")),
+            })
+        })
+        .collect();
     let sub_id = node
         .attr("subId")
         .map(|s| s.to_string())
@@ -429,6 +459,7 @@ fn convert_rule_impl(
         suppress_match,
         tags,
         java_filters,
+        filters,
         examples,
     })
 }
@@ -556,7 +587,32 @@ impl RuleSet {
                 }) {
                     continue;
                 }
-                if let Some(rm) = self.render_match(rule, s, m) {
+                // Run native filters: they validate the match and may add or
+                // replace the suggestions.
+                // Native filters: a filter returning "not an error" discards
+                // the match; a filter returning "error" may supply its own
+                // (better) suggestions, which replace the static ones.
+                let mut extra: Vec<String> = Vec::new();
+                let mut has_extra = false;
+                let mut keep = true;
+                for f in &rule.filters {
+                    let outcome = f.apply(s, m);
+                    if !outcome.is_error {
+                        keep = false;
+                        break;
+                    }
+                    if outcome.has_suggestions {
+                        extra = outcome.suggestions;
+                        has_extra = true;
+                    }
+                }
+                if !keep {
+                    continue;
+                }
+                if let Some(mut rm) = self.render_match(rule, s, m) {
+                    if has_extra {
+                        rm.suggestions = extra;
+                    }
                     out.push(rm);
                 }
             }

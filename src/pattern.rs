@@ -511,7 +511,7 @@ impl<'a> Slot<'a> {
 /// the tag vocabulary of the French tagset (`sp`/`s`/`p`, `m`/`f`/`e`,
 /// person digits, tense words).
 fn check_unify(toks: &[AnalyzedToken], per_elem: &[usize], pos: usize, uc: &UnifyCheck) -> bool {
-    if per_elem.len() < uc.inner_len || pos == 0 {
+    if uc.inner_len == 0 || per_elem.len() < uc.inner_len {
         return true;
     }
     let start = per_elem[per_elem.len() - uc.inner_len];
@@ -519,59 +519,75 @@ fn check_unify(toks: &[AnalyzedToken], per_elem: &[usize], pos: usize, uc: &Unif
     if start >= end || end > toks.len() {
         return true;
     }
-    // Collect the possible feature values per token.
-    let mut per_token: Vec<Vec<String>> = Vec::new();
+    // For each token: the set of feature-value tuples it can realise.
+    // A tuple has one value per feature (or `*` when the tag does not state it).
+    let mut per_token: Vec<Vec<Vec<String>>> = Vec::new();
     for t in &toks[start..end] {
-        let mut vals = Vec::new();
+        let mut tuples: Vec<Vec<String>> = Vec::new();
         for tag in &t.tags {
+            let mut tuple = Vec::with_capacity(uc.features.len());
+            let mut ok = true;
             for f in &uc.features {
-                if let Some(v) = feature_value(f, tag) {
-                    vals.push(v);
+                match feature_value(f, tag) {
+                    Some(v) => tuple.push(v),
+                    None => {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            if !ok {
+                continue;
+            }
+            if !tuples.contains(&tuple) {
+                tuples.push(tuple);
+            }
+        }
+        if tuples.is_empty() {
+            // undecidable for this token: do not veto
+            return true;
+        }
+        per_token.push(tuples);
+    }
+    if per_token.len() < 2 {
+        return true;
+    }
+    // Agreement: exists a choice of tuples (one per token) such that for every
+    // feature, all chosen values are equal (the `sp`/`e`/`ep` wildcard values
+    // are compatible with anything, mirroring LanguageTool's equivalence
+    // classes where `sp` covers `s` and `p`).
+    let compatible = |a: &str, b: &str| -> bool {
+        a == b || a == "sp" || b == "sp" || a == "e" || b == "e" || a == "ep" || b == "ep"
+    };
+    let mut combos: Vec<Vec<String>> = vec![per_token[0][0].clone()];
+    for tuples in &per_token[1..] {
+        let mut next = Vec::new();
+        for base in &combos {
+            for cand in tuples {
+                if base
+                    .iter()
+                    .zip(cand.iter())
+                    .all(|(a, b)| compatible(a, b))
+                {
+                    // keep the most specific value of the pair
+                    let merged: Vec<String> = base
+                        .iter()
+                        .zip(cand.iter())
+                        .map(|(a, b)| if b == "sp" || b == "e" || b == "ep" { a.clone() } else { b.clone() })
+                        .collect();
+                    next.push(merged);
                 }
             }
         }
-        if vals.is_empty() {
-            return true; // undecidable: do not veto
-        }
-        per_token.push(vals);
-    }
-    if per_token.is_empty() {
-        return true;
-    }
-    // All tokens agree on at least one combination of feature values.
-    let mut combos: Vec<Vec<String>> = vec![Vec::new()];
-    for vals in &per_token {
-        let mut next = Vec::new();
-        for c in &combos {
-            for v in vals {
-                let mut c2 = c.clone();
-                c2.push(v.clone());
-                next.push(c2);
-            }
-        }
-        combos = next;
-        if combos.len() > 64 {
+        if next.is_empty() {
             break;
         }
-    }
-    // group per feature
-    let agrees = combos.iter().any(|combo| {
-        for (fi, f) in uc.features.iter().enumerate() {
-            let first = combo.get(fi);
-            if combo
-                .iter()
-                .enumerate()
-                .any(|(ti, c)| ti % uc.features.len() == fi && Some(c) != first)
-            {
-                let _ = f;
-            }
+        combos = next;
+        if combos.len() > 256 {
+            combos.truncate(256);
         }
-        // simplification: all values equal per feature
-        (0..uc.features.len()).all(|fi| {
-            let vals: Vec<&String> = combo.iter().skip(fi).step_by(uc.features.len()).collect();
-            vals.windows(2).all(|w| w[0] == w[1])
-        })
-    });
+    }
+    let agrees = !combos.is_empty();
     if uc.negate {
         !agrees
     } else {

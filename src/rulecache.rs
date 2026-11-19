@@ -369,6 +369,11 @@ impl RuleSet {
             for f in &r.java_filters {
                 w.str(f);
             }
+            w.u32(r.filters.len() as u32);
+            for f in &r.filters {
+                w.str(&f.class);
+                w.str(&f.args.to_args_string());
+            }
             w.u32(r.urls.len() as u32);
             for u in &r.urls {
                 w.str(u);
@@ -433,6 +438,13 @@ impl RuleSet {
             for _ in 0..nf {
                 java_filters.push(r.str()?);
             }
+            let nfi = r.u32()? as usize;
+            let mut filters = Vec::with_capacity(nfi);
+            for _ in 0..nfi {
+                let class = r.str()?;
+                let args = crate::filters::FilterArgs::parse(&r.str()?);
+                filters.push(crate::filters::RuleFilter { class, args });
+            }
             let nu = r.u32()? as usize;
             let mut urls = Vec::with_capacity(nu);
             for _ in 0..nu {
@@ -472,6 +484,7 @@ impl RuleSet {
                 suppress_match,
                 tags,
                 java_filters,
+                filters,
                 urls,
                 examples,
             });
