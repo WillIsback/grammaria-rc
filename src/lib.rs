@@ -5,6 +5,7 @@
 
 pub mod filters;
 pub mod lexicon;
+pub mod mapped_lexicon;
 pub mod pattern;
 pub mod rulecache;
 pub mod rules;
