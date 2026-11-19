@@ -479,6 +479,24 @@ impl Node {
         })
     }
 
+    /// All descendant elements with `name` (depth-first order).
+    pub fn descendants_named<'a, 'b>(&'a self, name: &'b str) -> impl Iterator<Item = &'a Node> + use<'a, 'b> {
+        let name = name.to_string();
+        fn rec<'a>(n: &'a Node, name: &str, out: &mut Vec<&'a Node>) {
+            for c in &n.children {
+                if let DomItem::Node(x) = c {
+                    if x.name == name {
+                        out.push(x);
+                    }
+                    rec(x, name, out);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        rec(self, &name, &mut out);
+        out.into_iter()
+    }
+
     pub fn first_child(&self, name: &str) -> Option<&Node> {
         self.children_named(name).next()
     }

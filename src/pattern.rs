@@ -75,12 +75,16 @@ impl TokenPattern {
     /// Test one token against this pattern's own constraints (no exceptions).
     pub fn matches_token(&self, tok: &AnalyzedToken) -> bool {
         // `SENT_START` / `SENT_END` are only matched through their postag
-        // (`postag="SENT_START"`); every other token must be matchable.
+        // (`postag="SENT_START"`). A token pattern without a `postag`
+        // constraint never matches a structural token.
         let structural = matches!(
             tok.kind,
             crate::tokenizer::TokenType::SentenceStart | crate::tokenizer::TokenType::SentenceEnd
         );
-        if !structural && !tok.kind.is_matchable() {
+        if structural {
+            return self.postag.is_some();
+        }
+        if !tok.kind.is_matchable() {
             return false;
         }
         // surface form

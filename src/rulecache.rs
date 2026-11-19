@@ -374,6 +374,7 @@ impl RuleSet {
                 w.str(&f.class);
                 w.str(&f.args.to_args_string());
             }
+            w.opt_str(&r.unsupported);
             w.u32(r.urls.len() as u32);
             for u in &r.urls {
                 w.str(u);
@@ -445,6 +446,7 @@ impl RuleSet {
                 let args = crate::filters::FilterArgs::parse(&r.str()?);
                 filters.push(crate::filters::RuleFilter { class, args });
             }
+            let unsupported = r.opt_str()?;
             let nu = r.u32()? as usize;
             let mut urls = Vec::with_capacity(nu);
             for _ in 0..nu {
@@ -485,6 +487,7 @@ impl RuleSet {
                 tags,
                 java_filters,
                 filters,
+                unsupported,
                 urls,
                 examples,
             });

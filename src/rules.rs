@@ -74,6 +74,10 @@ pub struct Rule {
     pub tags: Vec<String>,
     /// Native filter implementations attached to the rule.
     pub filters: Vec<crate::filters::RuleFilter>,
+    /// The rule uses a construct the engine does not reproduce faithfully
+    /// (e.g. a pattern-level `raw_pos`, `<match no="N"/>` inside a pattern, or
+    /// an `<and>` group). Such rules are skipped to protect precision.
+    pub unsupported: Option<String>,
     /// Java filter class names referenced by `<filter class="...">`. Filters
     /// that only suppress suggestions (FindSuggestionsFilter etc.) are
     /// cosmetic, but filters that *validate* a match (e.g. postponed adjective
@@ -406,6 +410,17 @@ fn convert_rule_impl(
         .children_named("filter")
         .filter_map(|f| f.attr("class").map(|c| c.rsplit('.').next().unwrap_or(c).to_string()))
         .collect();
+    let mut unsupported: Option<String> = None;
+    if let Some(p) = node.first_child("pattern") {
+        if p.attr("raw_pos") == Some("yes") {
+            unsupported = Some("raw_pos".into());
+        }
+        // `<match>` inside a pattern, `<and>` groups and `<unify>` with
+        // in-pattern *additions* are only partially supported.
+        if p.descendants_named("match").next().is_some() {
+            unsupported = Some("pattern-match".into());
+        }
+    }
     let filters: Vec<crate::filters::RuleFilter> = node
         .children_named("filter")
         .filter_map(|f| {
@@ -460,6 +475,7 @@ fn convert_rule_impl(
         tags,
         java_filters,
         filters,
+        unsupported,
         examples,
     })
 }
@@ -558,6 +574,9 @@ impl RuleSet {
             if rule.id.starts_with("FR_MULTITOKEN_SPELLING") {
                 continue;
             }
+            if rule.unsupported.is_some() {
+                continue;
+            }
             let matches = find_matches(&rule.pattern, &s.tokens);
             if matches.is_empty() {
                 continue;
@@ -607,6 +626,11 @@ impl RuleSet {
                     }
                 }
                 if !keep {
+                    continue;
+                }
+                // Never report a zero-width match (e.g. one anchored only on
+                // SENT_START/SENT_END): the user cannot act on it.
+                if m.end <= m.start {
                     continue;
                 }
                 if let Some(mut rm) = self.render_match(rule, s, m) {
