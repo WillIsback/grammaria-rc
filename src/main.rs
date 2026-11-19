@@ -117,6 +117,11 @@ fn main() {
 }
 
 fn load_rules(dir: &Path) -> grammaria::rules::RuleSet {
+    // Fast path: the precompiled binary rule cache.
+    if let Some(set) = grammaria::rules::RuleSet::load_cache(dir.join("fr.rules")) {
+        return set;
+    }
+    // Fallback: parse the XML rule files directly.
     let mut set = grammaria::rules::RuleSet::default();
     for (file, is_style) in [("fr.grammar.xml", false), ("fr.style.xml", true)] {
         let p = dir.join(file);

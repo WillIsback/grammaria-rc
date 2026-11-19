@@ -809,6 +809,8 @@ pub enum ValueMatcher {
     Exact(String),
     /// A regular expression plus its original source text.
     Regex(Regex, String),
+    /// A regular expression that is compiled on first use (fast to load).
+    LazyRegex(String),
 }
 
 impl ValueMatcher {
@@ -820,10 +822,28 @@ impl ValueMatcher {
         }
     }
 
+    /// Like `new`, but defers regex compilation to first use.
+    pub fn new_lazy(src: &str, is_regex: bool) -> ValueMatcher {
+        if is_regex {
+            ValueMatcher::LazyRegex(src.to_string())
+        } else {
+            ValueMatcher::Exact(src.to_string())
+        }
+    }
+
+    #[inline]
+    fn compiled(&self) -> Option<Regex> {
+        match self {
+            ValueMatcher::Regex(r, _) => Some(r.clone()),
+            ValueMatcher::LazyRegex(src) => Some(RegexCache::global().get(src)),
+            ValueMatcher::Exact(_) => None,
+        }
+    }
+
     pub fn is_match(&self, text: &str) -> bool {
         match self {
             ValueMatcher::Exact(s) => s == text,
-            ValueMatcher::Regex(r, _) => r.is_match(text),
+            _ => self.compiled().map(|r| r.is_match(text)).unwrap_or(false),
         }
     }
 
@@ -832,7 +852,7 @@ impl ValueMatcher {
     pub fn is_full_match(&self, text: &str) -> bool {
         match self {
             ValueMatcher::Exact(s) => s == text,
-            ValueMatcher::Regex(r, _) => r.is_full_match(text),
+            _ => self.compiled().map(|r| r.is_full_match(text)).unwrap_or(false),
         }
     }
 
@@ -840,7 +860,10 @@ impl ValueMatcher {
     pub fn is_match_ignore_case(&self, text: &str) -> bool {
         match self {
             ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s, text),
-            ValueMatcher::Regex(r, _) => r.is_match(text) || r.is_match(&crate::strutil::lower(text)),
+            _ => self
+                .compiled()
+                .map(|r| r.is_match(text) || r.is_match(&crate::strutil::lower(text)))
+                .unwrap_or(false),
         }
     }
 
@@ -849,11 +872,12 @@ impl ValueMatcher {
         match self {
             ValueMatcher::Exact(s) => s,
             ValueMatcher::Regex(_, src) => src,
+            ValueMatcher::LazyRegex(src) => src,
         }
     }
 
     pub fn is_regex(&self) -> bool {
-        matches!(self, ValueMatcher::Regex(_, _))
+        !matches!(self, ValueMatcher::Exact(_))
     }
 }
 

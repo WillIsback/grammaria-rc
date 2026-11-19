@@ -37,6 +37,7 @@ fn main() -> std::io::Result<()> {
     let t0 = std::time::Instant::now();
     build_lexicon(&assets, &out)?;
     build_word_lists(&assets, &out)?;
+    build_rule_cache(&assets, &out)?;
     eprintln!("built assets in {:?}", t0.elapsed());
     Ok(())
 }
@@ -82,6 +83,29 @@ fn build_lexicon(assets: &str, out: &str) -> std::io::Result<()> {
     let dest = Path::new(out).join("fr.lex");
     lx.save(&dest)?;
     eprintln!("wrote {} ({} bytes)", dest.display(), fs::metadata(&dest)?.len());
+    Ok(())
+}
+
+/// Compile the rule XML files into the binary rule cache (`fr.rules`).
+fn build_rule_cache(assets: &str, out: &str) -> std::io::Result<()> {
+    let t0 = std::time::Instant::now();
+    let mut set = grammaria::rules::RuleSet::default();
+    for (name, is_style) in [("languagetool-grammar.xml", false), ("languagetool-style.xml", true)] {
+        let p = Path::new(assets).join(name);
+        let xml = fs::read_to_string(&p)?;
+        let s = grammaria::rules::RuleSet::parse(&xml, is_style);
+        eprintln!("  parsed {}: {} rules", name, s.len());
+        set.rules.extend(s.rules);
+    }
+    let dest = Path::new(out).join("fr.rules");
+    set.save_cache(&dest)?;
+    eprintln!(
+        "wrote {} ({} rules, {} bytes) in {:?}",
+        dest.display(),
+        set.len(),
+        fs::metadata(&dest)?.len(),
+        t0.elapsed()
+    );
     Ok(())
 }
 

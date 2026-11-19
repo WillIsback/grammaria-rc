@@ -109,6 +109,63 @@ pub struct RuleSet {
     pub phrases: std::collections::HashMap<String, Pattern>,
     /// Unification features: feature name -> equivalence type -> (postag, is_regex).
     pub unification: std::collections::HashMap<String, Vec<(String, TokenPattern)>>,
+    /// Index of rules whose first pattern element is a plain literal:
+    /// lowercase word -> rule indices. Rules whose first element is not a
+    /// literal are always tried.
+    pub by_literal: std::collections::HashMap<String, Vec<usize>>,
+    /// Rule indices that have no literal first element.
+    pub generic: Vec<usize>,
+    /// Index of rules whose first element constrains the POS tag: tag prefix
+    /// letter (first character of the `postag` source) -> rule indices.
+    pub by_postag: std::collections::HashMap<char, Vec<usize>>,
+}
+
+impl RuleSet {
+    /// Build the lookup index used by `check_sentence` (called after loading).
+    pub fn build_index(&mut self) {
+        self.by_literal.clear();
+        self.generic.clear();
+        self.by_postag.clear();
+        for (i, r) in self.rules.iter().enumerate() {
+            match r.pattern.elems.first() {
+                Some(PatternElem::Token(t)) => match (&t.text, &t.regex) {
+                    (Some(lit), _) => {
+                        if is_plain_literal(lit) {
+                            self.by_literal.entry(crate::strutil::lower(lit)).or_default().push(i);
+                        } else {
+                            self.generic.push(i);
+                        }
+                    }
+                    (None, _) => match &t.postag {
+                        Some(pm) => {
+                            let src = pm.as_source();
+                            // A postag starting with a concrete tag letter (e.g.
+                            // `V .*`, `N f s`, `[DJ] .*`) can be bucketed by that
+                            // first character; complex regexes stay generic.
+                            let first = src.chars().next().unwrap_or('?');
+                            if first.is_ascii_uppercase() || (first == '[' && src.chars().nth(1).map(|c| c.is_ascii_uppercase()).unwrap_or(false)) {
+                                let key = if first == '[' {
+                                    src.chars().nth(1).unwrap_or('?')
+                                } else {
+                                    first
+                                };
+                                self.by_postag.entry(key).or_default().push(i);
+                            } else {
+                                self.generic.push(i);
+                            }
+                        }
+                        None => self.generic.push(i),
+                    },
+                },
+                _ => self.generic.push(i),
+            }
+        }
+    }
+}
+
+/// True when a literal contains no regex-ish characters.
+fn is_plain_literal(s: &str) -> bool {
+    !s.bytes().any(|c| matches!(c, b'.' | b'[' | b']' | b'(' | b')' | b'|' | b'?' | b'*' | b'+' | b'{' | b'}' | b'^' | b'$' | b'\\'))
 }
 
 impl RuleSet {
@@ -209,6 +266,7 @@ impl RuleSet {
                 _ => {}
             }
         }
+        set.build_index();
         set
     }
 }
@@ -384,7 +442,34 @@ impl RuleSet {
     /// Check one sentence, returning the matches found in it.
     pub fn check_sentence(&self, s: &Sentence, style_checking: bool) -> Vec<RuleMatch> {
         let mut out: Vec<RuleMatch> = Vec::new();
-        for rule in &self.rules {
+        // Candidate rules: those whose first pattern element is a literal
+        // present in the sentence, plus every rule that starts with a
+        // non-literal element (cheap membership test, like LanguageTool's
+        // Aho-Corasick pre-filter).
+        let mut candidates: Vec<usize> = Vec::with_capacity(self.generic.len() * 2);
+        if self.by_literal.is_empty() {
+            candidates.extend(0..self.rules.len());
+        } else {
+            candidates.extend(self.generic.iter().copied());
+            for t in &s.tokens {
+                let lower = crate::strutil::lower(&t.text);
+                if let Some(v) = self.by_literal.get(&lower) {
+                    candidates.extend(v.iter().copied());
+                }
+                // POS-bucketed rules: check the first letter of every tag.
+                for tag in &t.tags {
+                    if let Some(c) = tag.chars().next() {
+                        if let Some(v) = self.by_postag.get(&c) {
+                            candidates.extend(v.iter().copied());
+                        }
+                    }
+                }
+            }
+            candidates.sort_unstable();
+            candidates.dedup();
+        }
+        for &ri in &candidates {
+            let rule = &self.rules[ri];
             if rule.is_style && !style_checking {
                 continue;
             }
@@ -392,25 +477,35 @@ impl RuleSet {
                 continue;
             }
             let matches = find_matches(&rule.pattern, &s.tokens);
-            for m in matches {
-                // antipatterns veto overlapping matches
-                if rule.antipatterns.iter().any(|ap| {
-                    find_matches(ap, &s.tokens)
-                        .iter()
-                        .any(|a| a.token_start < m.token_end && a.token_end > m.token_start)
-                }) {
-                    continue;
+            if matches.is_empty() {
+                continue;
+            }
+            // Antipattern matches are computed at most once per rule.
+            let mut ap_spans: Option<Vec<(usize, usize)>> = None;
+            for m in &matches {
+                if !rule.antipatterns.is_empty() {
+                    let spans = ap_spans.get_or_insert_with(|| {
+                        let mut v = Vec::new();
+                        for ap in &rule.antipatterns {
+                            for a in find_matches(ap, &s.tokens) {
+                                v.push((a.token_start, a.token_end));
+                            }
+                        }
+                        v
+                    });
+                    if spans.iter().any(|&(a, b)| a < m.token_end && b > m.token_start) {
+                        continue;
+                    }
                 }
                 // resolve overlaps: a match starting at the same token as an
                 // existing one is dropped unless it has a higher priority.
                 if out.iter().any(|e| {
                     let es = e.offset.saturating_sub(s.offset);
-                    let ee = es + e.length;
                     es == m.start && e.priority >= rule.priority
                 }) {
                     continue;
                 }
-                if let Some(rm) = self.render_match(rule, s, &m) {
+                if let Some(rm) = self.render_match(rule, s, m) {
                     out.push(rm);
                 }
             }
