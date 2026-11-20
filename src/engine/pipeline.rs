@@ -115,17 +115,27 @@ impl French {
         let extensions = extend(dir, &tagger, &synthesizer);
         let factory = |class: &str| extensions.filters.iter().find_map(|f| f(class));
 
+        // The disambiguation files are read while the grammar files are.
         let mut disambig_unifier = UnifierConfiguration::default();
-        let disambiguator = Arc::new(Disambiguator::load(dir, &factory, &mut disambig_unifier)?);
         let mut unifier = UnifierConfiguration::default();
         let mut grammar_rules: Vec<GrammarRule> = Vec::new();
         let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(8);
-        for path in rule_files {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("rules.xml");
-            let style = name.contains("style");
-            let xml = std::fs::read_to_string(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
-            grammar_rules.extend(load_grammar_parallel(&xml, name, style, &factory, &mut unifier, threads));
-        }
+        let factory: &(dyn Fn(&str) -> Option<Arc<dyn RuleFilter>> + Sync) = &factory;
+        let (disambiguator, grammar) = std::thread::scope(|scope| {
+            let disambiguation = scope.spawn(|| Disambiguator::load(dir, &|class| factory(class), &mut disambig_unifier));
+            let grammar = (|| -> io::Result<()> {
+                for path in rule_files {
+                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("rules.xml");
+                    let style = name.contains("style");
+                    let xml = std::fs::read_to_string(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
+                    grammar_rules.extend(load_grammar_parallel(&xml, name, style, factory, &mut unifier, threads));
+                }
+                Ok(())
+            })();
+            (disambiguation.join().expect("disambiguation loader panicked"), grammar)
+        });
+        grammar?;
+        let disambiguator = Arc::new(disambiguator?);
         let Extensions { native_rules, speller, rules_loaded, .. } = extensions;
         if let Some(loaded) = rules_loaded {
             loaded(&grammar_rules, &analyzer, &disambiguator);
