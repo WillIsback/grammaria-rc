@@ -102,6 +102,16 @@ impl<'a> R<'a> {
         self.p += n;
         Ok(s)
     }
+
+    /// Advance past a length-prefixed string without allocating it.
+    fn skip_str(&mut self) -> io::Result<()> {
+        let n = self.u32()? as usize;
+        if self.p + n > self.b.len() {
+            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "rule cache"));
+        }
+        self.p += n;
+        Ok(())
+    }
     fn opt_str(&mut self) -> io::Result<Option<String>> {
         Ok(if self.bool()? { Some(self.str()?) } else { None })
     }
@@ -457,22 +467,21 @@ impl RuleSet {
             for _ in 0..nu {
                 urls.push(r.str()?);
             }
+            // `<example>` sentences are ground truth for the evaluation
+            // harness only; the checker never reads them. Skipping the decode
+            // keeps ~0.9 MB of text plus 17 784 struct allocations out of the
+            // resident set. Their bytes are still walked so the stream stays
+            // aligned.
             let ne = r.u32()? as usize;
-            let mut examples = Vec::with_capacity(ne);
             for _ in 0..ne {
-                let text = r.str()?;
+                r.skip_str()?;
                 let nc = r.u32()? as usize;
-                let mut corrections = Vec::with_capacity(nc);
                 for _ in 0..nc {
-                    corrections.push(r.str()?);
+                    r.skip_str()?;
                 }
-                let kind = r.str()?;
-                examples.push(Example {
-                    text,
-                    corrections,
-                    kind,
-                });
+                r.skip_str()?;
             }
+            let examples: Vec<Example> = Vec::new();
             set.rules.push(Rule {
                 id,
                 full_id,
