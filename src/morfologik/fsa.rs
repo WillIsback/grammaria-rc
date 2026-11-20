@@ -34,7 +34,7 @@ pub mod flags {
 }
 
 /// `FSAHeader.FSA_MAGIC`: the four bytes `\fsa`.
-const FSA_MAGIC: [u8; 4] = [b'\\', b'f', b's', b'a'];
+const FSA_MAGIC: [u8; 4] = *b"\\fsa";
 
 fn invalid(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg)
@@ -60,7 +60,7 @@ pub trait Automaton {
     fn is_arc_final(&self, arc: usize) -> bool;
     /// True if `arc` has no target node.
     fn is_arc_terminal(&self, arc: usize) -> bool;
-    /// The node `arc` points to. Meaningless (`0`) for a terminal arc.
+    /// The node `arc` points to; `0` if and only if the arc is terminal.
     fn end_node(&self, arc: usize) -> usize;
     /// The [`flags`] the automaton was built with.
     fn flags(&self) -> u16;
@@ -387,12 +387,32 @@ impl Automaton for Cfsa2 {
 
     #[inline]
     fn arc(&self, node: usize, label: u8) -> usize {
+        // Same as walking first_arc/next_arc and comparing arc_label, with
+        // each arc decoded once (this loop is the hot spot of a lookup).
+        let arcs = &self.arcs[..];
         let mut arc = self.first_arc(node);
         while arc != 0 {
-            if self.arc_label(arc) == label {
+            let flag = arcs[arc];
+            let index = flag & Self::LABEL_INDEX_MASK;
+            let (arc_label, mut next) = if index > 0 {
+                (self.label_mapping[usize::from(index)], arc + 1)
+            } else {
+                (arcs[arc + 1], arc + 2)
+            };
+            if arc_label == label {
                 return arc;
             }
-            arc = self.next_arc(arc);
+            if flag & Self::BIT_LAST_ARC != 0 {
+                return 0;
+            }
+            if flag & Self::BIT_TARGET_NEXT == 0 {
+                // Skip the v-coded target address.
+                while arcs[next] & 0x80 != 0 {
+                    next += 1;
+                }
+                next += 1;
+            }
+            arc = next;
         }
         0
     }
@@ -583,7 +603,21 @@ pub struct MatchResult {
 
 /// `FSATraversal.match`: finds `sequence` in the automaton, starting at `node`.
 #[inline]
-pub fn match_sequence<A: Automaton>(fsa: &A, sequence: &[u8], mut node: usize) -> MatchResult {
+pub fn match_sequence<A: Automaton>(fsa: &A, sequence: &[u8], node: usize) -> MatchResult {
+    match_sequence_by(fsa, sequence, node, |_, node, label| fsa.arc(node, label))
+}
+
+/// [`match_sequence`] with a caller-supplied arc finder: `find_arc(i, node,
+/// label)` must return `fsa.arc(node, label)` for the byte at index `i` of the
+/// sequence. It lets a caller answer from an index instead of scanning the
+/// arcs of the largest nodes.
+#[inline]
+pub fn match_sequence_by<A: Automaton>(
+    fsa: &A,
+    sequence: &[u8],
+    mut node: usize,
+    mut find_arc: impl FnMut(usize, usize, u8) -> usize,
+) -> MatchResult {
     if node == 0 {
         return MatchResult {
             kind: MatchKind::NoMatch,
@@ -593,7 +627,7 @@ pub fn match_sequence<A: Automaton>(fsa: &A, sequence: &[u8], mut node: usize) -
     }
     let end = sequence.len();
     for (i, &label) in sequence.iter().enumerate() {
-        let arc = fsa.arc(node, label);
+        let arc = find_arc(i, node, label);
         if arc != 0 {
             if i + 1 == end && fsa.is_arc_final(arc) {
                 // The automaton has an exact match.
@@ -603,7 +637,9 @@ pub fn match_sequence<A: Automaton>(fsa: &A, sequence: &[u8], mut node: usize) -
                     node,
                 };
             }
-            if fsa.is_arc_terminal(arc) {
+            // The target node, `0` for a terminal arc.
+            let target = fsa.end_node(arc);
+            if target == 0 {
                 // The automaton contains a prefix of the input sequence.
                 return MatchResult {
                     kind: MatchKind::AutomatonHasPrefix,
@@ -612,7 +648,7 @@ pub fn match_sequence<A: Automaton>(fsa: &A, sequence: &[u8], mut node: usize) -
                 };
             }
             // Make a transition along the arc.
-            node = fsa.end_node(arc);
+            node = target;
         } else {
             let kind = if i > 0 {
                 MatchKind::AutomatonHasPrefix
@@ -640,7 +676,11 @@ pub fn match_sequence<A: Automaton>(fsa: &A, sequence: &[u8], mut node: usize) -
 /// `Ok(hash)` for a stored sequence; otherwise the [`MatchKind`] explaining
 /// the failure. Requires an automaton compiled with [`flags::NUMBERS`]
 /// (`NoMatch` is returned without it) and a non-empty sequence.
-pub fn perfect_hash<A: Automaton>(fsa: &A, sequence: &[u8], node: usize) -> Result<usize, MatchKind> {
+pub fn perfect_hash<A: Automaton>(
+    fsa: &A,
+    sequence: &[u8],
+    node: usize,
+) -> Result<usize, MatchKind> {
     if sequence.is_empty() || fsa.flags() & flags::NUMBERS == 0 {
         return Err(MatchKind::NoMatch);
     }
@@ -752,9 +792,11 @@ impl<'a, A: Automaton> SequenceIter<'a, A> {
             self.buffer.truncate(last_index);
             self.buffer.push(self.fsa.arc_label(arc));
 
-            if !self.fsa.is_arc_terminal(arc) {
+            // The target node, `0` for a terminal arc.
+            let target = self.fsa.end_node(arc);
+            if target != 0 {
                 // Recursively descend into the arc's node.
-                self.arcs.push(self.fsa.first_arc(self.fsa.end_node(arc)));
+                self.arcs.push(self.fsa.first_arc(target));
             }
             if self.fsa.is_arc_final(arc) {
                 return Some(&self.buffer[..last_index + 1]);
@@ -775,7 +817,7 @@ mod tests {
         let mut v = b"\\fsa".to_vec();
         v.push(5); // version
         v.extend_from_slice(&[b'_', b'+', 0x01]); // filler, annotation, gtl = 1
-        // offset 0: dummy terminating node (one arc, last, target 0).
+                                                  // offset 0: dummy terminating node (one arc, last, target 0).
         v.extend_from_slice(&[0, 0b010]);
         // offset 2: epsilon node, its arc points to the root (offset 4).
         v.extend_from_slice(&[b'^', 0b010 | (4 << 3)]);
@@ -792,7 +834,7 @@ mod tests {
         v.push(0xc6);
         v.extend_from_slice(&[0x00, 0x07]); // flags: FLEXIBLE | STOPBIT | NEXTBIT
         v.extend_from_slice(&[2, 0, b'a']); // label mapping: index 1 = 'a'
-        // offset 0: epsilon node: explicit label '^', last, NEXT → root at 2.
+                                            // offset 0: epsilon node: explicit label '^', last, NEXT → root at 2.
         v.extend_from_slice(&[0x80 | 0x40, b'^']);
         // offset 2: root: indexed label 'a' (1), final, last, goto 4.
         v.extend_from_slice(&[0x40 | 0x20 | 1, 4]);

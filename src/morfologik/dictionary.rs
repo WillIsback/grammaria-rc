@@ -17,7 +17,7 @@ use std::io;
 use std::path::Path;
 
 use super::encoders;
-use super::fsa::{match_sequence, Automaton, Fsa, MatchKind, SequenceIter};
+use super::fsa::{match_sequence_by, Automaton, Fsa, MatchKind, MatchResult, SequenceIter};
 use super::metadata::DictionaryMetadata;
 
 /// One reading of a word: its stem (lemma) and its tag.
@@ -40,11 +40,74 @@ pub struct Dictionary {
     pub metadata: DictionaryMetadata,
     /// Cached `fsa.root_node()`.
     root: usize,
+    /// Direct access to the arcs of the root node and of its children.
+    index: Option<ArcIndex>,
+}
+
+/// Label → arc tables for the root node and for the nodes one step below it.
+///
+/// These are by far the largest nodes of a dictionary (one arc per possible
+/// first or second byte of a word), and finding an arc in a node is a linear
+/// scan in the automaton formats. The tables give the same answers as
+/// `Automaton::arc`, only faster; they take about 1 kB per child of the root.
+struct ArcIndex {
+    /// `fsa.arc(root, label)` for every label.
+    root: Box<[u32; 256]>,
+    /// For a first byte, the index of its table in `children` (`NO_TABLE` if
+    /// the root has no arc, or a terminal arc, for that byte).
+    child_of: Box<[u16; 256]>,
+    /// `fsa.arc(node, label)` for every label, for each child `node` of the
+    /// root.
+    children: Vec<[u32; 256]>,
+}
+
+const NO_TABLE: u16 = u16::MAX;
+
+impl ArcIndex {
+    fn build(fsa: &Fsa, root: usize) -> Option<ArcIndex> {
+        if root == 0 || fsa.size_in_bytes() > u32::MAX as usize {
+            return None;
+        }
+        let table = |node: usize| -> [u32; 256] {
+            let mut t = [0u32; 256];
+            let mut arc = fsa.first_arc(node);
+            while arc != 0 {
+                let slot = &mut t[usize::from(fsa.arc_label(arc))];
+                // `arc()` returns the first arc carrying a label.
+                if *slot == 0 {
+                    *slot = arc as u32;
+                }
+                arc = fsa.next_arc(arc);
+            }
+            t
+        };
+        let root_table = table(root);
+        let mut child_of = Box::new([NO_TABLE; 256]);
+        let mut children = Vec::new();
+        for (label, &arc) in root_table.iter().enumerate() {
+            if arc == 0 {
+                continue;
+            }
+            let target = fsa.end_node(arc as usize);
+            if target != 0 {
+                child_of[label] = children.len() as u16;
+                children.push(table(target));
+            }
+        }
+        Some(ArcIndex {
+            root: Box::new(root_table),
+            child_of,
+            children,
+        })
+    }
 }
 
 impl Dictionary {
     /// Reads a dictionary from its `.dict` and `.info` files.
-    pub fn load(dict_path: impl AsRef<Path>, info_path: impl AsRef<Path>) -> io::Result<Dictionary> {
+    pub fn load(
+        dict_path: impl AsRef<Path>,
+        info_path: impl AsRef<Path>,
+    ) -> io::Result<Dictionary> {
         let dict = std::fs::read(dict_path)?;
         let info = std::fs::read_to_string(info_path)?;
         Self::from_bytes(&dict, &info)
@@ -57,7 +120,9 @@ impl Dictionary {
         let name = dict_path
             .file_name()
             .and_then(|n| n.to_str())
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid dictionary path"))?;
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidInput, "invalid dictionary path")
+            })?;
         let info = dict_path.with_file_name(DictionaryMetadata::expected_metadata_file_name(name));
         Self::load(dict_path, info)
     }
@@ -65,13 +130,50 @@ impl Dictionary {
     /// `Dictionary.read(InputStream, InputStream)`: builds a dictionary from
     /// the contents of its two files.
     pub fn from_bytes(dict: &[u8], info: &str) -> io::Result<Dictionary> {
-        Ok(Self::new(Fsa::read(dict)?, DictionaryMetadata::parse(info)?))
+        Ok(Self::new(
+            Fsa::read(dict)?,
+            DictionaryMetadata::parse(info)?,
+        ))
     }
 
     /// A dictionary from an automaton and metadata already in memory.
     pub fn new(fsa: Fsa, metadata: DictionaryMetadata) -> Dictionary {
         let root = fsa.root_node();
-        Dictionary { fsa, metadata, root }
+        let index = ArcIndex::build(&fsa, root);
+        Dictionary {
+            fsa,
+            metadata,
+            root,
+            index,
+        }
+    }
+
+    /// `FSATraversal.match(sequence)` from the root of the dictionary: the
+    /// same result as [`Fsa::match_sequence`], computed with the help of the
+    /// tables of the first two levels.
+    #[inline]
+    pub fn match_sequence(&self, sequence: &[u8]) -> MatchResult {
+        match &self.fsa {
+            Fsa::Cfsa2(fsa) => self.match_in(fsa, sequence),
+            Fsa::Fsa5(fsa) => self.match_in(fsa, sequence),
+        }
+    }
+
+    #[inline]
+    fn match_in<A: Automaton>(&self, fsa: &A, sequence: &[u8]) -> MatchResult {
+        match &self.index {
+            Some(index) => match_sequence_by(fsa, sequence, self.root, |i, node, label| match i {
+                0 => index.root[usize::from(label)] as usize,
+                1 => match index.child_of[usize::from(sequence[0])] {
+                    NO_TABLE => fsa.arc(node, label),
+                    t => index.children[usize::from(t)][usize::from(label)] as usize,
+                },
+                _ => fsa.arc(node, label),
+            }),
+            None => match_sequence_by(fsa, sequence, self.root, |_, node, label| {
+                fsa.arc(node, label)
+            }),
+        }
     }
 
     /// The root node of the automaton.
@@ -202,7 +304,7 @@ impl<'a> Lookup<'a> {
         }
 
         // Try to find a partial match in the dictionary.
-        let m = match_sequence(fsa, bytes, self.dict.root);
+        let m = self.dict.match_sequence(bytes);
         if m.kind != MatchKind::SequenceIsAPrefix {
             return;
         }
@@ -264,7 +366,7 @@ impl<'a> Lookup<'a> {
             return 0;
         }
         let fsa = &self.dict.fsa;
-        let m = match_sequence(fsa, word.as_bytes(), self.dict.root);
+        let m = self.dict.match_sequence(word.as_bytes());
         if m.kind == MatchKind::SequenceIsAPrefix {
             let arc = fsa.arc(m.node, meta.separator);
             if arc != 0 && !fsa.is_arc_final(arc) {
@@ -306,7 +408,11 @@ pub fn apply_replacements(word: &str, replacements: &[(String, String)]) -> Stri
 pub(super) fn index_of(haystack: &[u16], needle: &[u16], from: isize) -> Option<usize> {
     let from = from.max(0) as usize;
     if from > haystack.len() {
-        return if needle.is_empty() { Some(haystack.len()) } else { None };
+        return if needle.is_empty() {
+            Some(haystack.len())
+        } else {
+            None
+        };
     }
     if needle.is_empty() {
         return Some(from);
@@ -323,7 +429,10 @@ mod tests {
 
     #[test]
     fn replacements_follow_java() {
-        let pairs = vec![("a".to_string(), "bb".to_string()), ("bbb".to_string(), "c".to_string())];
+        let pairs = vec![
+            ("a".to_string(), "bb".to_string()),
+            ("bbb".to_string(), "c".to_string()),
+        ];
         assert_eq!(apply_replacements("xay", &pairs), "xbby");
         assert_eq!(apply_replacements("aa", &pairs), "cb");
         assert_eq!(apply_replacements("word", &[]), "word");

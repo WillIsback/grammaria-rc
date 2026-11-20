@@ -29,7 +29,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 
 use super::dictionary::{apply_replacements, index_of, Dictionary, Lookup};
-use super::fsa::{match_sequence, Automaton, Fsa, MatchKind};
+use super::fsa::{Automaton, Fsa, MatchKind};
 use super::metadata::DictionaryMetadata;
 use super::unicode;
 
@@ -271,7 +271,7 @@ impl<'a> Speller<'a> {
         let bytes = word.as_bytes();
         let separator = self.meta.separator;
         // Try to find a partial match in the dictionary.
-        let m = match_sequence(self.fsa, bytes, self.root_node);
+        let m = self.dict.match_sequence(bytes);
 
         // Make sure the word doesn't contain a separator if there is an exact
         // match.
@@ -343,8 +343,10 @@ impl<'a> Speller<'a> {
                     {
                         let mut replacement = format!("{prefix} {suffix}");
                         if !self.meta.output_conversion_pairs.is_empty() {
-                            replacement =
-                                apply_replacements(&replacement, &self.meta.output_conversion_pairs);
+                            replacement = apply_replacements(
+                                &replacement,
+                                &self.meta.output_conversion_pairs,
+                            );
                         }
                         let cd = self.candidate_data(replacement, 1);
                         candidates.push(cd);
@@ -502,7 +504,12 @@ impl<'a> Speller<'a> {
         result
     }
 
-    fn push_candidate(&mut self, candidates: &mut Vec<CandidateData>, cand_index: usize, dist: i32) {
+    fn push_candidate(
+        &mut self,
+        candidates: &mut Vec<CandidateData>,
+        cand_index: usize,
+        dist: i32,
+    ) {
         let word = String::from_utf16_lossy(&self.candidate[..=cand_index]);
         let cd = self.candidate_data(word, dist);
         candidates.push(cd);
@@ -524,15 +531,17 @@ impl<'a> Speller<'a> {
         let fsa = self.fsa;
         let mut arc = fsa.first_arc(node);
         while arc != 0 {
-            let this_arc = arc;
+            // What Java recomputes at each use (target node, end of candidate)
+            // is computed at most once per arc; the automaton is immutable.
+            let mut this_arc = ArcState::new(arc);
             arc = fsa.next_arc(arc);
 
-            let bytes = prev_bytes.with(fsa.arc_label(this_arc));
+            let bytes = prev_bytes.with(fsa.arc_label(this_arc.arc));
             let Some(unit) = bytes.decode_first_unit() else {
                 // Incomplete (or invalid) character: keep the bytes and go
                 // on. Note: depth is not incremented.
-                if !fsa.is_arc_terminal(this_arc) {
-                    let end = fsa.end_node(this_arc);
+                let end = self.target(&mut this_arc);
+                if end != 0 {
                     self.find_repl(candidates, depth, end, bytes, word_index, cand_index);
                 }
                 continue;
@@ -547,7 +556,7 @@ impl<'a> Speller<'a> {
             let length_replacement = self.match_any_to_two(word_index, cand_index);
             if length_replacement > 0 {
                 // The replacement takes place at the end of the candidate.
-                if self.is_end_of_candidate(this_arc, word_index) {
+                if self.is_end_of_candidate(&mut this_arc, word_index) {
                     let mut dist = self.h_matrix.get(depth - 1, depth - 1);
                     if dist <= self.effect_edit_distance {
                         let extra =
@@ -562,11 +571,11 @@ impl<'a> Speller<'a> {
                         }
                     }
                 }
-                if self.is_arc_not_terminal(this_arc, cand_index) {
+                if self.is_arc_not_terminal(&mut this_arc, cand_index) {
                     let x = self.h_matrix.get(depth, depth);
                     let diag = self.h_matrix.get(depth - 1, depth - 1);
                     self.h_matrix.set(depth, depth, diag);
-                    let end = fsa.end_node(this_arc);
+                    let end = self.target(&mut this_arc);
                     self.find_repl(
                         candidates,
                         depth.max(0),
@@ -582,7 +591,7 @@ impl<'a> Speller<'a> {
             let length_replacement = self.match_any_to_one(word_index, cand_index);
             if length_replacement > 0 {
                 // The replacement takes place at the end of the candidate.
-                if self.is_end_of_candidate(this_arc, word_index) {
+                if self.is_end_of_candidate(&mut this_arc, word_index) {
                     let mut dist = self.h_matrix.get(depth, depth);
                     if dist <= self.effect_edit_distance {
                         let extra =
@@ -597,8 +606,8 @@ impl<'a> Speller<'a> {
                         }
                     }
                 }
-                if self.is_arc_not_terminal(this_arc, cand_index) {
-                    let end = fsa.end_node(this_arc);
+                if self.is_arc_not_terminal(&mut this_arc, cand_index) {
+                    let end = self.target(&mut this_arc);
                     self.find_repl(
                         candidates,
                         depth,
@@ -611,7 +620,7 @@ impl<'a> Speller<'a> {
             }
             // General case.
             if self.cuted(depth, word_index, cand_index) <= self.effect_edit_distance {
-                if self.is_end_of_candidate(this_arc, word_index) {
+                if self.is_end_of_candidate(&mut this_arc, word_index) {
                     let dist = self.ed(
                         self.word_len - 1 - (word_index - depth),
                         depth,
@@ -622,8 +631,8 @@ impl<'a> Speller<'a> {
                         self.push_candidate(candidates, cand_index, dist);
                     }
                 }
-                if self.is_arc_not_terminal(this_arc, cand_index) {
-                    let end = fsa.end_node(this_arc);
+                if self.is_arc_not_terminal(&mut this_arc, cand_index) {
+                    let end = self.target(&mut this_arc);
                     self.find_repl(
                         candidates,
                         depth + 1,
@@ -637,24 +646,46 @@ impl<'a> Speller<'a> {
         }
     }
 
+    /// The target node of the arc (`0` if it is terminal), computed once.
     #[inline]
-    fn is_arc_not_terminal(&self, arc: usize, cand_index: usize) -> bool {
-        !self.fsa.is_arc_terminal(arc)
+    fn target(&self, st: &mut ArcState) -> usize {
+        match st.target {
+            Some(t) => t,
+            None => {
+                let t = self.fsa.end_node(st.arc);
+                st.target = Some(t);
+                t
+            }
+        }
+    }
+
+    /// `isArcNotTerminal`: the search can go on below this arc.
+    #[inline]
+    fn is_arc_not_terminal(&self, st: &mut ArcState, cand_index: usize) -> bool {
+        self.target(st) != 0
             && !(self.contains_separators
                 && self.candidate[cand_index] == self.meta.separator_char as u16)
     }
 
+    /// `isEndOfCandidate`: the candidate is a word of the dictionary (final
+    /// arc, or arc followed by the separator) of a proper length. The answer
+    /// does not change while an arc is processed, so it is kept.
     #[inline]
-    fn is_end_of_candidate(&self, arc: usize, word_index: i32) -> bool {
-        (self.fsa.is_arc_final(arc) || self.is_before_separator(arc))
-            // The candidate has a proper length.
-            && (self.word_len - 1 - word_index).abs() <= self.effect_edit_distance
+    fn is_end_of_candidate(&self, st: &mut ArcState, word_index: i32) -> bool {
+        if let Some(v) = st.end_of_candidate {
+            return v;
+        }
+        let v = (self.word_len - 1 - word_index).abs() <= self.effect_edit_distance
+            && (self.fsa.is_arc_final(st.arc) || self.is_before_separator(st));
+        st.end_of_candidate = Some(v);
+        v
     }
 
+    /// `isBeforeSeparator`.
     #[inline]
-    fn is_before_separator(&self, arc: usize) -> bool {
+    fn is_before_separator(&self, st: &mut ArcState) -> bool {
         if self.contains_separators {
-            let arc1 = self.fsa.arc(self.fsa.end_node(arc), self.meta.separator);
+            let arc1 = self.fsa.arc(self.target(st), self.meta.separator);
             return arc1 != 0 && !self.fsa.is_arc_terminal(arc1);
         }
         false
@@ -665,7 +696,10 @@ impl<'a> Speller<'a> {
     #[inline]
     fn word_at(&self, index: i32) -> u16 {
         if index >= 0 {
-            self.word_processed.get(index as usize).copied().unwrap_or(0)
+            self.word_processed
+                .get(index as usize)
+                .copied()
+                .unwrap_or(0)
         } else {
             0
         }
@@ -764,7 +798,10 @@ impl<'a> Speller<'a> {
         if self.replacements_any_to_one.is_empty() {
             return 0;
         }
-        if let Some(reps) = self.replacements_any_to_one.get(&self.candidate[cand_index]) {
+        if let Some(reps) = self
+            .replacements_any_to_one
+            .get(&self.candidate[cand_index])
+        {
             for rep in reps {
                 let mut i = 0usize;
                 while i < rep.len()
@@ -877,7 +914,8 @@ impl<'a> Speller<'a> {
                     let ind = index_of(s, rep, from_index - rep.len() as isize + 1);
                     if rep.len() > key.len() {
                         if let Some(ind) = ind {
-                            if ind == index || ind as isize == index as isize - rep.len() as isize + 1
+                            if ind == index
+                                || ind as isize == index as isize - rep.len() as isize + 1
                             {
                                 continue;
                             }
@@ -898,6 +936,26 @@ impl<'a> Speller<'a> {
             replaced.push(s.to_vec());
         }
         replaced
+    }
+}
+
+/// An arc being explored by `find_repl`, with what is already known of it.
+struct ArcState {
+    arc: usize,
+    /// Its target node, once computed.
+    target: Option<usize>,
+    /// The result of `is_end_of_candidate`, once computed.
+    end_of_candidate: Option<bool>,
+}
+
+impl ArcState {
+    #[inline]
+    fn new(arc: usize) -> ArcState {
+        ArcState {
+            arc,
+            target: None,
+            end_of_candidate: None,
+        }
     }
 }
 
