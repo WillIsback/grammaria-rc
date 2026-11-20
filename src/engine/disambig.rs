@@ -96,29 +96,30 @@ impl DisambigRule {
         if self.rule.pattern.can_be_ignored_for(sentence) {
             return None;
         }
-        let mut work = Work {
-            all: sentence.tokens.clone(),
-            view: sentence.non_ws.iter().map(|&i| sentence.tokens[i].clone()).collect(),
-            attached: vec![true; sentence.non_ws.len()],
-        };
-        let mut changed = false;
+        // The tokens are only copied once the rule changes something.
+        let base: Vec<&Readings> = sentence.non_ws_tokens();
+        let mut work: Option<Work> = None;
         let mut performer = Performer::new(&self.rule.pattern, &ctx.lang, &ctx.disambig_unifier, false, None);
-        let starts = performer.start_indices(sentence, work.view.len(), true);
+        let starts = performer.start_indices(sentence, base.len(), true);
         for start in starts {
-            let pm = {
-                let tokens: Vec<&Readings> = work.view.iter().collect();
-                performer.match_from(start, &tokens)
-            };
-            let Some(pm) = pm else { continue };
-            let rule_match_from = work.view[pm.first_match_token].start_pos;
-            let rule_match_to = work.view[pm.last_match_token.min(work.view.len() - 1)].end_pos();
+            let view: Option<Vec<&Readings>> = work.as_ref().map(|w| w.view.iter().collect());
+            let tokens: &[&Readings] = view.as_deref().unwrap_or(&base);
+            let Some(pm) = performer.match_from(start, tokens) else { continue };
+            let rule_match_from = tokens[pm.first_match_token].start_pos;
+            let rule_match_to = tokens[pm.last_match_token.min(tokens.len() - 1)].end_pos();
             let matching_tokens = pm.token_positions.iter().filter(|&&p| p != 0).count();
-            if self.keep_despite_filter(sentence, &work.view, &pm, ctx) && self.keep_by_disambig(sentence, rule_match_from, rule_match_to, ctx) {
-                self.execute_action(sentence, &mut work, &pm, matching_tokens, ctx);
-                changed = true;
+            if self.keep_despite_filter(sentence, tokens, &pm, ctx) && self.keep_by_disambig(sentence, rule_match_from, rule_match_to, ctx) {
+                drop(view);
+                let work = work.get_or_insert_with(|| Work {
+                    all: sentence.tokens.clone(),
+                    view: sentence.non_ws.iter().map(|&i| sentence.tokens[i].clone()).collect(),
+                    attached: vec![true; sentence.non_ws.len()],
+                });
+                self.execute_action(sentence, work, &pm, matching_tokens, ctx);
             }
         }
-        if changed {
+        let changed = work.is_some();
+        if let Some(work) = work {
             // As in LanguageTool, the new sentence's "pre-disambiguation"
             // tokens are the tokens this rule started from (with the edits
             // it made in place), not the tagger's output: a `raw_pos` grammar
@@ -131,7 +132,11 @@ impl DisambigRule {
                     pre[position] = work.view[nw].clone();
                 }
             }
-            Some(Sentence::new(sentence.text.clone(), work.all, pre))
+            // Immunizing and ignoring spelling only set flags; ADD may change
+            // a token's text, so nothing is reused then.
+            let readings_unchanged = matches!(self.action, DisambigAction::Immunize | DisambigAction::IgnoreSpelling);
+            let previous = if matches!(self.action, DisambigAction::Add) { None } else { Some(sentence) };
+            Some(Sentence::derived(sentence.text.clone(), work.all, pre, previous, readings_unchanged))
         } else {
             None
         }
@@ -153,17 +158,16 @@ impl DisambigRule {
         true
     }
 
-    fn keep_despite_filter(&self, sentence: &Sentence, view: &[Readings], pm: &PatternMatch, ctx: &RuleContext) -> bool {
+    fn keep_despite_filter(&self, sentence: &Sentence, tokens: &[&Readings], pm: &PatternMatch, ctx: &RuleContext) -> bool {
         match &self.rule.filter {
             None => true,
             Some(FilterRef::Unsupported(_)) => false,
             Some(FilterRef::Native(filter)) => {
-                let tokens: Vec<&Readings> = view.iter().collect();
                 let last = pm.last_match_token.min(tokens.len() - 1);
                 let relevant = &tokens[pm.first_match_token..=last];
                 // LanguageTool resolves `\N` arguments against the whole
                 // sentence here (unlike grammar rules).
-                let Some(args) = resolve_filter_arguments(self.rule.filter_args.as_deref().unwrap_or(""), &tokens, &pm.token_positions) else {
+                let Some(args) = resolve_filter_arguments(self.rule.filter_args.as_deref().unwrap_or(""), tokens, &pm.token_positions) else {
                     return false;
                 };
                 let fake = RuleMatch::new(usize::MAX, "", 0, 1, 0, 1, "(internal rule)".into(), String::new(), false, false, "");

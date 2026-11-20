@@ -9,6 +9,8 @@
 
 use std::sync::Arc;
 
+use super::fx::FxMap;
+
 pub const SENTENCE_START: &str = "SENT_START";
 pub const SENTENCE_END: &str = "SENT_END";
 pub const PARAGRAPH_END: &str = "PARA_END";
@@ -429,14 +431,22 @@ pub struct Sentence {
     pub pre_non_ws: Vec<usize>,
     /// Lower-cased surface form -> indices among the non-whitespace tokens
     /// (`getTokenOffsets`), to rule out rules quickly.
-    pub token_offsets: std::collections::HashMap<String, Vec<usize>>,
+    pub token_offsets: Arc<FxMap<String, Vec<usize>>>,
     /// Lower-cased lemma (or surface form when there is none) -> indices
     /// (`getLemmaOffsets`).
-    pub lemma_offsets: std::collections::HashMap<String, Vec<usize>>,
+    pub lemma_offsets: Arc<FxMap<String, Vec<usize>>>,
 }
 
 /// LanguageTool's "non blank" tokens: everything but whitespace, except that
 /// a whitespace token marking the sentence start or end is kept.
+fn lowercase(s: &str) -> String {
+    if s.is_ascii() {
+        s.to_ascii_lowercase()
+    } else {
+        s.to_lowercase()
+    }
+}
+
 fn non_blank(tokens: &[Readings]) -> Vec<usize> {
     tokens
         .iter()
@@ -448,20 +458,53 @@ fn non_blank(tokens: &[Readings]) -> Vec<usize> {
 
 impl Sentence {
     pub fn new(text: Arc<str>, tokens: Vec<Readings>, pre_disambig: Vec<Readings>) -> Sentence {
+        Sentence::derived(text, tokens, pre_disambig, None, false)
+    }
+
+    /// A sentence derived from `previous` by editing some tokens. As in
+    /// LanguageTool, the word index is shared when the token strings are the
+    /// same, and the lemma index too when the caller guarantees that no
+    /// reading changed (`readings_unchanged`).
+    pub fn derived(text: Arc<str>, tokens: Vec<Readings>, pre_disambig: Vec<Readings>, previous: Option<&Sentence>, readings_unchanged: bool) -> Sentence {
         let non_ws = non_blank(&tokens);
         let pre_non_ws = non_blank(&pre_disambig);
-        let mut token_offsets: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
-        let mut lemma_offsets: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
-        for (i, &ti) in non_ws.iter().enumerate() {
-            let t = &tokens[ti];
-            token_offsets.entry(t.token.to_lowercase()).or_default().push(i);
-            for r in &t.readings {
-                let list = lemma_offsets.entry(r.lemma_or_token().to_lowercase()).or_default();
-                if list.last() != Some(&i) {
-                    list.push(i);
+        let previous = previous.filter(|p| {
+            p.non_ws.len() == non_ws.len() && p.non_ws.iter().zip(&non_ws).all(|(&a, &b)| Arc::ptr_eq(&p.tokens[a].token, &tokens[b].token) || p.tokens[a].token == tokens[b].token)
+        });
+        let token_offsets = match previous {
+            Some(p) => p.token_offsets.clone(),
+            None => {
+                let mut map: FxMap<String, Vec<usize>> = FxMap::default();
+                for (i, &ti) in non_ws.iter().enumerate() {
+                    map.entry(lowercase(&tokens[ti].token)).or_default().push(i);
                 }
+                Arc::new(map)
             }
-        }
+        };
+        let lemma_offsets = match previous {
+            Some(p) if readings_unchanged => p.lemma_offsets.clone(),
+            _ => {
+                let mut map: FxMap<String, Vec<usize>> = FxMap::default();
+                for (i, &ti) in non_ws.iter().enumerate() {
+                    for r in &tokens[ti].readings {
+                        let lemma = r.lemma_or_token();
+                        // Most lemmas are already lower case: look up first.
+                        let list = if lemma.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
+                            match map.get_mut(lemma) {
+                                Some(list) => list,
+                                None => map.entry(lemma.to_string()).or_default(),
+                            }
+                        } else {
+                            map.entry(lowercase(lemma)).or_default()
+                        };
+                        if list.last() != Some(&i) {
+                            list.push(i);
+                        }
+                    }
+                }
+                Arc::new(map)
+            }
+        };
         Sentence { text, tokens, non_ws, pre_disambig, pre_non_ws, token_offsets, lemma_offsets }
     }
 

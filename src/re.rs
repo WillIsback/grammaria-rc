@@ -216,11 +216,11 @@ pub struct Regex {
     fold: u8,
     inline_flags: bool,
     /// The single-char nodes a match can begin with, when every match begins
-    /// with a char (lets `find` skip the positions where none of them fits).
-    first: Option<CharFilter>,
-    /// The same for the second char, when the pattern begins with two
-    /// single-char items.
-    second: Option<CharFilter>,
+    /// with a char (lets `find` skip the positions where none of them fits),
+    /// and the same for the second char when the pattern begins with two
+    /// single-char items. Built on first use: most expressions are only ever
+    /// matched against whole words.
+    start: OnceLock<(Option<CharFilter>, Option<CharFilter>)>,
     src: String,
 }
 
@@ -1913,10 +1913,7 @@ impl Regex {
         } else {
             (None, 0)
         };
-        let mut first = Vec::new();
-        let first = first_nodes(&node, &mut first).then(|| CharFilter::new(&first));
-        let second = if first.is_some() { second_nodes(&node).map(|nodes| CharFilter::new(&nodes)) } else { None };
-        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, inline_flags: p.inline_flags, first, second, src: src.to_string() })
+        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, inline_flags: p.inline_flags, start: OnceLock::new(), src: src.to_string() })
     }
 
     pub fn source(&self) -> &str {
@@ -2041,11 +2038,16 @@ impl Regex {
     /// (and second) char can begin one.
     #[inline]
     pub fn may_start_at(&self, chars: &[char], s: usize) -> bool {
-        match &self.first {
+        let (first, second) = self.start.get_or_init(|| {
+            let mut nodes = Vec::new();
+            let first = first_nodes(&self.node, &mut nodes).then(|| CharFilter::new(&nodes));
+            let second = if first.is_some() { second_nodes(&self.node).map(|nodes| CharFilter::new(&nodes)) } else { None };
+            (first, second)
+        });
+        match first {
             None => true,
             Some(first) => {
-                chars.get(s).is_some_and(|&c| first.accepts(c))
-                    && self.second.as_ref().map_or(true, |second| chars.get(s + 1).is_some_and(|&c| second.accepts(c)))
+                chars.get(s).is_some_and(|&c| first.accepts(c)) && second.as_ref().map_or(true, |second| chars.get(s + 1).is_some_and(|&c| second.accepts(c)))
             }
         }
     }
