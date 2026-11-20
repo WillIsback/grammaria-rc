@@ -1,0 +1,2316 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Règles propres à Grammaria, au format des règles de LanguageTool.
+Licence : MPL-2.0 (comme le reste de la bibliothèque).
+
+Traits d'union des mots composés et des locutions, nombres, unités et espaces
+insécables, ponctuation et guillemets, majuscules, pléonasmes, locutions figées.
+
+Dans une règle <regexp>, une espace du motif correspond à toute suite d'espaces,
+insécables comprises ; « [ ] » désigne l'espace ordinaire seule.
+
+Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
+-->
+<!DOCTYPE rules [
+    <!-- mots composés et noms de lieux, tels qu on les trouve écrits sans trait d union -->
+    <!ENTITY composes_deux_mots "week end|week ends|rendez vous|chef lieu|chefs lieux|chou fleur|choux fleurs|gratte ciel|haut parleur|haut parleurs|tire bouchon|tire bouchons|pare brise|pare chocs|porte parole|porte monnaie|porte clés|porte avions|porte bagages|guet apens|pêle mêle|volte face|après demain|avant hier|là bas|là haut|là dedans|ci dessous|ci dessus|ci contre|ci après|grand mère|grand mères|grands mères|grand père|grands pères|grands parents|arrière plan|arrière plans|arrière goût|arrière boutique|arrière pays|arrière saison|arrière garde|avant garde|avant goût|avant veille|avant propos|avant bras|avant poste|avant postes|bas relief|bas reliefs|bas fond|bas fonds|beau frère|beaux frères|beau père|beaux pères|belle mère|belles mères|belle sœur|belles sœurs|beaux parents|court circuit|courts circuits|garde fou|garde fous|garde robe|garde robes|garde manger|garde chasse|lave vaisselle|lave linge|sèche linge|sèche cheveux|ouvre boîte|ouvre boîtes|passe temps|passe partout|procès verbal|procès verbaux|rouge gorge|rouges gorges|timbre poste|timbres poste|wagon lit|wagons lits|station service|stations service|non sens|rond point|ronds points|franc maçon|francs maçons|franc tireur|francs tireurs|plate bande|plates bandes|sauf conduit|pot pourri|faux fuyant|faux fuyants|faux semblant|faux semblants|sacro saint|cerf volant|cerfs volants|chauve souris|chauves souris|compte gouttes|cache cache|casse tête|casse croûte|casse pieds|casse cou|couvre feu|croque monsieur|cure dent|cure dents|essuie glace|essuie glaces|gagne pain|libre service|loup garou|loups garous|pique nique|pique niques|porc épic|remue ménage|sourd muet|sourds muets|taille crayon|vide ordures|vide grenier|vide greniers|vice président|vice présidents|vice présidente|prêt bail|nouveau né|nouveau nés|bas côté|bas côtés|hors d['’]œuvre|chef d['’]œuvre|chefs d['’]œuvre">
+    <!ENTITY composes_trois_mots "arc en ciel|arcs en ciel|rez de chaussée|eau de vie|eaux de vie|boute en train|croc en jambe|pince sans rire|haut le cœur|haut de forme|va nu pieds|fier à bras|fiers à bras|rond de cuir|ronds de cuir|c['’]est à dire|vis à vis|cul de sac|culs de sac|bric à brac|tête à queue">
+    <!ENTITY locutions_avec_a "cloche pied|brûle pourpoint|tue tête|contre courant|contre jour|contre pied|rebrousse poil|mi voix|mi chemin|mi temps|mi parcours|mi hauteur|mi course|mi distance|demi mot|mi mot">
+    <!ENTITY toponymes_deux_mots "Rhône Alpes|Languedoc Roussillon|Midi Pyrénées|Poitou Charentes|Champagne Ardenne|Franche Comté|Alsace Lorraine|Nouvelle Aquitaine|Alpes Maritimes|Hautes Alpes|Charente Maritime|Haute Garonne|Haute Loire|Loire Atlantique|Haute Marne|Pyrénées Atlantiques|Hautes Pyrénées|Pyrénées Orientales|Bas Rhin|Haut Rhin|Haute Saône|Haute Savoie|Seine Maritime|Deux Sèvres|Haute Vienne|Haute Corse|Pays Bas|Royaume Uni|États Unis|Nouvelle Zélande|Nouvelle Calédonie|Nouvelle Guinée|Nouvelle Écosse|Nouvelle Orléans|Nouvelle Angleterre|Nouveau Mexique|Nouveau Brunswick|Terre Neuve|Colombie Britannique|Grande Bretagne|Bosnie Herzégovine|Guinée Bissau|Cap Vert|Autriche Hongrie|Extrême Orient|Proche Orient|Moyen Orient|Saint Pétersbourg|Saint Domingue|Tel Aviv|Addis Abeba|Clermont Ferrand|Saint Étienne|Saint Malo|Saint Tropez|Saint Nazaire|Saint Brieuc|Boulogne Billancourt|Charleville Mézières|Levallois Perret|Bade Wurtemberg|Rhénanie Palatinat|Schleswig Holstein|Basse Saxe|Émilie Romagne|Monte Carlo|Basse Normandie|Haute Normandie|Val d['’]Oise|Villeneuve d['’]Ascq">
+    <!ENTITY toponymes_trois_mots "Ille et Vilaine|Indre et Loire|Loir et Cher|Lot et Garonne|Maine et Loire|Meurthe et Moselle|Saône et Loire|Seine et Marne|Tarn et Garonne|Eure et Loir|Hauts de Seine|Val de Marne|Bouches du Rhône|Pas de Calais|Seine Saint Denis|Corse du Sud|Hauts de France|Île de France|Aix en Provence|Mont Saint Michel|Boulogne sur Mer|Neuilly sur Seine|Aix les Bains|Châlons en Champagne|Bourg en Bresse|Brive la Gaillarde|Issy les Moulineaux|Salon de Provence|Cagnes sur Mer|Vitry sur Seine|Ivry sur Seine|Port au Prince|Trinité et Tobago|Auvergne Rhône Alpes|Bourgogne Franche Comté">
+]>
+<rules lang="fr">
+    <category id="GRM_TRAITS_UNION" name="Traits d'union (Grammaria)" type="misspelling">
+
+        <rulegroup id="GRM_TU_MOTS_COMPOSES" name="mots composés écrits sans trait d'union">
+            <rule>
+                <regexp>(?&lt;![-\p{L}])(&composes_deux_mots;)\b</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion><match no="1" regexp_match="^([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)$" regexp_replace="$1-$2"/></suggestion>
+                <example correction="week-end">Nous partons en <marker>week end</marker> à la mer.</example>
+                <example correction="grand-mère">Sa <marker>grand mère</marker> habite ici.</example>
+                <example correction="chef-d'œuvre">C'est un <marker>chef d'œuvre</marker>.</example>
+                <example correction="bas-côté">Il s'est garé sur le <marker>bas côté</marker>.</example>
+                <example>Nous partons en week-end à la mer.</example>
+                <example>Il a signé un prêt-bail.</example>
+            </rule>
+            <rule>
+                <!-- trois éléments -->
+                <regexp>(?&lt;![-\p{L}])(&composes_trois_mots;)\b</regexp>
+                <message>Ce mot composé s'écrit avec des traits d'union.</message>
+                <suggestion><match no="1" regexp_match="^([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)$" regexp_replace="$1-$2-$3"/></suggestion>
+                <example correction="fiers-à-bras">Ces <marker>fiers à bras</marker> se croient tout permis.</example>
+                <example correction="ronds-de-cuir">J'en ai assez de ces <marker>ronds de cuir</marker>.</example>
+                <example>Ces fiers-à-bras se croient tout permis.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;!\bà )\b(sang) (froid)\b</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="sang-froid">Elle a gardé son <marker>sang froid</marker>.</example>
+                <example>Elle a gardé son sang-froid.</example>
+                <example>Les reptiles sont des animaux à sang froid.</example>
+            </rule>
+            <rule>
+                <!-- après-midi, nom : seulement après un déterminant -->
+                <regexp>(?&lt;=\b(?:cet|cette|une?|chaque|quel|quelle|bel|belle|les|des|ces|plein|cours|fin|début|milieu|l['’]|d['’]) ?)(?&lt;!\bheures? )(après) (midis?)\b</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="après-midi">Nous partons cet <marker>après midi</marker>.</example>
+                <example>Nous partons cet après-midi.</example>
+                <example>Il est arrivé à une heure après midi.</example>
+            </rule>
+            <rule>
+                <!-- à-peu-près, nom -->
+                <regexp>(?&lt;=\b(?:les|cet|des|ces|l['’]) ?)(à) (peu) (près)\b(?! \p{L})</regexp>
+                <message>Ce mot composé s'écrit avec des traits d'union.</message>
+                <suggestion>\1-\2-\3</suggestion>
+                <example correction="à-peu-près">On ne fait que de l'<marker>à peu près</marker>.</example>
+                <example>On ne fait que de l'à-peu-près.</example>
+                <example>Il y en a à peu près dix.</example>
+            </rule>
+            <rule>
+                <!-- déjà-vu, nom -->
+                <regexp>(?&lt;=\b(?:du|un|le|ce|au|beaucoup de|impression de|sentiment de|sensation de|air de|goût de|parfum de) )(déjà) (vu)\b(?! \p{L})</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="déjà-vu">Cette scène a un air de <marker>déjà vu</marker>.</example>
+                <example>Cette scène a un air de déjà-vu.</example>
+                <example>J'ai déjà vu ce film.</example>
+            </rule>
+            <rule>
+                <!-- prêt-à-porter, nom -->
+                <regexp>(?&lt;=\b(?:du|le|au|un|ce|magasins? de|boutiques? de|marques? de) )(prêt) (à) (porter)\b</regexp>
+                <message>Ce mot composé s'écrit avec des traits d'union.</message>
+                <suggestion>\1-\2-\3</suggestion>
+                <example correction="prêt-à-porter">Elle travaille dans le <marker>prêt à porter</marker>.</example>
+                <example>Elle travaille dans le prêt-à-porter.</example>
+                <example>Il est prêt à porter plainte.</example>
+            </rule>
+            <rule>
+                <!-- savoir-faire, savoir-vivre : noms -->
+                <regexp>(?&lt;=\b(?:le|un|son|leur|notre|votre|mon|ton|ce|du|au) )(savoir) (faire|vivre)\b</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="savoir-faire">Leur <marker>savoir faire</marker> est reconnu.</example>
+                <example>Leur savoir-faire est reconnu.</example>
+                <example>Il faut savoir faire des choix.</example>
+            </rule>
+            <rule>
+                <!-- bien-être, mal-être : noms -->
+                <regexp>(?&lt;=\b(?:le|un|son|leur|notre|votre|mon|ton|ce|du|au) )(bien|mal) (être)\b(?! (?:\p{L}+ée?s?|là|ici)\b)</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="bien-être">Pensez à votre <marker>bien être</marker>.</example>
+                <example>Pensez à votre bien-être.</example>
+                <example>Il doit bien être quelque part.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=\b(?:les|des|ces|un|une|chaque|aux) )(sans) (abri)\b</regexp>
+                <message>Ce mot composé s'écrit avec un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="sans-abri">La mairie aide les <marker>sans abri</marker>.</example>
+                <example>La mairie aide les sans-abri.</example>
+                <example>Ils sont restés sans abri pendant l'orage.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=\b(?:le|un|ce|du|au|leur|son) )(va) (et) (vient)\b</regexp>
+                <message>Ce mot composé s'écrit avec des traits d'union.</message>
+                <suggestion>\1-\2-\3</suggestion>
+                <example correction="va-et-vient">Ce <marker>va et vient</marker> me fatigue.</example>
+                <example>Ce va-et-vient me fatigue.</example>
+                <example>Il va et vient dans la pièce.</example>
+            </rule>
+            <rule>
+                <regexp>\b(sur) (le) (champ)(?= ?[.,;:!?…]|$)</regexp>
+                <message>Au sens de « aussitôt », cette locution s'écrit avec des traits d'union.</message>
+                <suggestion>\1-\2-\3</suggestion>
+                <example correction="sur-le-champ">Il partit <marker>sur le champ</marker>.</example>
+                <example>Il partit sur-le-champ.</example>
+                <example>Il est mort sur le champ de bataille.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>quelques</token>
+                        <token regexp="yes">un|uns</token>
+                    </marker>
+                </pattern>
+                <message>Le pronom s'écrit « quelques-uns ».</message>
+                <suggestion>quelques-uns</suggestion>
+                <example correction="quelques-uns">Sur le quai, <marker>quelques un</marker> téléphonaient déjà.</example>
+                <example correction="Quelques-uns"><marker>Quelques uns</marker> sont venus.</example>
+                <example>Quelques-uns sont venus.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>quelques</token>
+                        <token regexp="yes">une|unes</token>
+                    </marker>
+                </pattern>
+                <message>Le pronom s'écrit « quelques-unes ».</message>
+                <suggestion>quelques-unes</suggestion>
+                <example correction="Quelques-unes"><marker>Quelques une</marker> sont très habiles.</example>
+                <example>Quelques-unes sont très habiles.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_TU_LOCUTIONS" name="locutions écrites sans trait d'union">
+            <rule>
+                <regexp>\bà la (va) (vite)\b</regexp>
+                <message>On écrit « à la va-vite ».</message>
+                <suggestion>à la \1-\2</suggestion>
+                <example correction="à la va-vite">Le travail a été fait <marker>à la va vite</marker>.</example>
+                <example>Le travail a été fait à la va-vite.</example>
+            </rule>
+            <rule>
+                <regexp>\b(de) (ci),? (de) (là)\b</regexp>
+                <message>On écrit « de-ci de-là ».</message>
+                <suggestion>\1-\2 \3-\4</suggestion>
+                <example correction="de-ci de-là">Elles vont et viennent <marker>de ci, de là</marker>.</example>
+                <example>Elles vont et viennent de-ci de-là.</example>
+            </rule>
+            <rule>
+                <regexp>\b(par) (ci),? (par) (là)\b</regexp>
+                <message>On écrit « par-ci, par-là ».</message>
+                <suggestion>\1-\2, \3-\4</suggestion>
+                <example correction="par-ci, par-là">On en trouve <marker>par ci, par là</marker>.</example>
+                <example>On en trouve par-ci, par-là.</example>
+            </rule>
+            <rule>
+                <regexp>\ben (sous) (main)\b</regexp>
+                <message>On écrit « en sous-main ».</message>
+                <suggestion>en \1-\2</suggestion>
+                <example correction="en sous-main">Des tractations <marker>en sous main</marker>.</example>
+                <example>Des tractations en sous-main.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=\bà )(?&lt;![-\p{L}])(&locutions_avec_a;)\b</regexp>
+                <message>Cette locution s'écrit avec un trait d'union.</message>
+                <suggestion><match no="1" regexp_match="^([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)$" regexp_replace="$1-$2"/></suggestion>
+                <example correction="tue-tête">Il chantait à <marker>tue tête</marker>.</example>
+                <example correction="mi-chemin">Nous sommes à <marker>mi chemin</marker>.</example>
+                <example>Il chantait à tue-tête.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (bras) (le) (corps)\b</regexp>
+                <message>On écrit « à bras-le-corps ».</message>
+                <suggestion>à \1-\2-\3</suggestion>
+                <example correction="à bras-le-corps">Il prend le problème <marker>à bras le corps</marker>.</example>
+                <example>Il prend le problème à bras-le-corps.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (vau) (l['’]eau)\b</regexp>
+                <message>On écrit « à vau-l'eau ».</message>
+                <suggestion>à \1-\2</suggestion>
+                <example correction="à vau-l'eau">Tout part <marker>à vau l'eau</marker>.</example>
+                <example>Tout part à vau-l'eau.</example>
+            </rule>
+            <rule>
+                <regexp>\bd['’](arrache) (pied)\b</regexp>
+                <message>On écrit « d'arrache-pied ».</message>
+                <suggestion>d'\1-\2</suggestion>
+                <example correction="d'arrache-pied">Ils travaillent <marker>d'arrache pied</marker>.</example>
+                <example>Ils travaillent d'arrache-pied.</example>
+            </rule>
+            <rule>
+                <regexp>\bde (plain) (pied)\b</regexp>
+                <message>On écrit « de plain-pied ».</message>
+                <suggestion>de \1-\2</suggestion>
+                <example correction="de plain-pied">Une maison <marker>de plain pied</marker>.</example>
+                <example>Une maison de plain-pied.</example>
+            </rule>
+            <rule>
+                <regexp>\ben (porte) (à) (faux)\b</regexp>
+                <message>On écrit « en porte-à-faux ».</message>
+                <suggestion>en \1-\2-\3</suggestion>
+                <example correction="en porte-à-faux">Il se trouve <marker>en porte à faux</marker>.</example>
+                <example>Il se trouve en porte-à-faux.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=\b(?:au|un|le) )(garde) (à) (vous)\b</regexp>
+                <message>On écrit « garde-à-vous ».</message>
+                <suggestion>\1-\2-\3</suggestion>
+                <example correction="garde-à-vous">Les soldats sont au <marker>garde à vous</marker>.</example>
+                <example>Les soldats sont au garde-à-vous.</example>
+            </rule>
+            <rule>
+                <regexp>\b(lors)-(qu(?:e|['’]))</regexp>
+                <message>« Lorsque » s'écrit en un seul mot.</message>
+                <suggestion>\1\2</suggestion>
+                <example correction="Lorsque"><marker>Lors-que</marker> nous serons là, il faudra tout revoir.</example>
+                <example>Lorsque nous serons là, il faudra tout revoir.</example>
+                <example>Dès lors qu'on sait s'y prendre.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=\b(?:d['’]|par |pour |en |chez |à |de |sur |avec |contre |entre |devant |selon |envers ))(eux|elles)[ -](mêmes?)(?&lt;!-mêmes)(?= ?[.,;:!?…)]|$)</regexp>
+                <message>Le pronom renforcé s'écrit avec un trait d'union et « mêmes » au pluriel.</message>
+                <suggestion>\1-mêmes</suggestion>
+                <example correction="elles-mêmes">Les demandes ne cesseront pas d'<marker>elles même</marker>.</example>
+                <example correction="eux-mêmes">Ils l'ont fait par <marker>eux mêmes</marker>.</example>
+                <example>Les demandes ne cesseront pas d'elles-mêmes.</example>
+                <example>Pour elles même si c'est difficile, il faut continuer.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_TU_ARRIERE_GRAND" name="arrière-grand-mère, arrière-petit-fils…">
+            <rule>
+                <regexp>\barrière[ -]grande?s?[ -](mères?|tantes?)\b(?&lt;!arrière-grand-\1)(?&lt;!arrière-grands-\1)</regexp>
+                <message>On écrit « arrière-grand-mère », « arrière-grand-tante » : « grand » sans « e », avec des traits d'union.</message>
+                <suggestion>arrière-grand-\1</suggestion>
+                <example correction="arrière-grand-tante">Son <marker>arrière grande tante</marker> vit encore.</example>
+                <example>Son arrière-grand-tante vit encore.</example>
+            </rule>
+            <rule>
+                <regexp>\barrière (grands?|petite?s?)[ -](pères?|oncles?|parents|fils|filles?|enfants?|neveux?|nièces?|cousins?|cousines?)\b|\barrière-(grands?|petite?s?) (pères?|oncles?|parents|fils|filles?|enfants?|neveux?|nièces?|cousins?|cousines?)\b</regexp>
+                <message>Les éléments de ce nom de parenté sont reliés par des traits d'union.</message>
+                <suggestion>arrière-\1\3-\2\4</suggestion>
+                <example correction="arrière-petit-neveu">C'est un <marker>arrière petit neveu</marker> du peintre.</example>
+                <example>C'est un arrière-petit-neveu du peintre.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_TU_PREFIXES" name="préfixes ex-, quasi-, sous-, pseudo-, demi-, entre-">
+            <rule>
+                <pattern>
+                    <token regexp="yes">son|sa|ses|mon|ma|mes|ton|ta|tes|leur|leurs|notre|votre|nos|vos|un|une|l'|les|des|cet|cette|ces|d'|l'</token>
+                    <marker>
+                        <token>ex</token>
+                        <token regexp="yes">amie?s?|maris?|femmes?|époux|épouses?|copains?|copines?|compagnons?|compagnes?|conjointe?s?|fiancée?s?|petite?s?|partenaires?|amants?|maîtresses?|patrons?|patronnes?|associée?s?|collègues?|présidente?s?|ministres?|directeurs?|directrices?|chefs?|employeurs?|députée?s?|maires?|champions?|championnes?|entraîneurs?|joueurs?|joueuses?|membres?|concubine?s?|coéquipiers?|colocataires?|propriétaires?|employée?s?|salariée?s?|élèves?|professeurs?|policiers?|militaires?|détenue?s?|premier|première|numéro|belle-mère|beau-père|belle-famille</token>
+                    </marker>
+                </pattern>
+                <message>Le préfixe « ex » se joint au nom par un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="ex-ami">Son <marker>ex ami</marker> est un vrai cauchemar.</example>
+                <example>Son ex-ami est un vrai cauchemar.</example>
+                <example>Ton ex donne du fil à retordre.</example>
+                <example>Mon ex jaloux m'écrit encore.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <marker>
+                        <token>quasi</token>
+                        <token postag="N .*" postag_regexp="yes"><exception postag="J .*|V .*|A|P" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Devant un nom, « quasi » est suivi d'un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="quasi-indifférence">Il est frappé par leur <marker>quasi indifférence</marker>.</example>
+                <example>Il est frappé par leur quasi-indifférence.</example>
+                <example>C'est une tâche quasi impossible.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">une?|le|la|ce|cette|du|au|chaque|son|sa|mon|ma|ton|ta|notre|votre|leur|l'|d'<exception scope="previous">-</exception></token>
+                    <marker>
+                        <token>sous</token>
+                        <token postag="N .*" postag_regexp="yes"><exception postag="V .*|A|P|D .*|K" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Le préfixe « sous » se joint au nom par un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="sous-culture">C'est une <marker>sous culture</marker> passée de mode.</example>
+                <example>C'est une sous-culture passée de mode.</example>
+                <example>Il a quelques sous de côté.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">les|des|ces|mes|tes|ses|nos|vos|leurs|aux|deux|trois|quatre|plusieurs|quelques</token>
+                    <marker>
+                        <token>sous</token>
+                        <token regexp="yes">marins|vêtements|titres|sols|traitants|ensembles|préfets|officiers|groupes|cultures|produits|catégories|espèces|entendus|sections|couches|genres|familles|parties|chapitres|directeurs|secrétaires|lieutenants|commissions|comités|domaines|classes|systèmes|répertoires|dossiers|unités|effectifs|marques|préfectures|bois|verres|locataires|estimations|évaluations|types|totaux|ministres|développés</token>
+                    </marker>
+                </pattern>
+                <message>Le préfixe « sous » se joint au nom par un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="sous-titres">Les <marker>sous titres</marker> sont absents.</example>
+                <example>Les sous-titres sont absents.</example>
+                <example>Il compte ses sous un par un.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">la|une|cette|sa|ma|ta|les|des|ces|ses|mes|tes|leurs|nos|vos</token>
+                    <marker>
+                        <token>pseudo</token>
+                        <token postag="[NJ] .*" postag_regexp="yes"><exception postag="A|P|D .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Le préfixe « pseudo » se joint au mot qui suit par un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="pseudo-taxe">Que penser de la <marker>pseudo taxe</marker> carbone ?</example>
+                <example>Que penser de la pseudo-taxe carbone ?</example>
+                <example>Il a choisi un pseudo ridicule.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">le|un|ce|son|du|au</token>
+                    <marker>
+                        <token>pseudo</token>
+                        <token postag="N [me] .*" postag_regexp="yes"><exception postag="J .*|V .*|A|P|D .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Le préfixe « pseudo » se joint au mot qui suit par un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="pseudo-médecin">C'est un <marker>pseudo médecin</marker>.</example>
+                <example>C'est un pseudo-médecin.</example>
+                <example>Il a choisi un pseudo ridicule.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"><exception regexp="yes">et|à</exception></token>
+                    <marker>
+                        <token>demi<exception scope="previous" regexp="yes">et|à</exception></token>
+                        <token postag="N .*" postag_regexp="yes"><exception postag="V .*|A|P|D .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« Demi » placé devant un nom s'y joint par un trait d'union et reste invariable.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="demi-journée">Il reste une <marker>demi journée</marker> de travail.</example>
+                <example>Il reste une demi-journée de travail.</example>
+                <example>Il est à demi mort.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">s'|se</token>
+                    <marker>
+                        <token>entre</token>
+                        <token postag="V (inf|ppr|ind|sub|con).*" postag_regexp="yes"><exception postag="N .*|D .*|K|J .*|A|P|R .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Le préfixe « entre » se joint au verbe pronominal par un trait d'union.</message>
+                <suggestion>\2-\3</suggestion>
+                <example correction="entre-regarder">Ils finiront par s'<marker>entre regarder</marker>.</example>
+                <example>Ils finiront par s'entre-regarder.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_TU_NOMBRES" name="nombres composés inférieurs à cent">
+            <rule>
+                <regexp>\b(vingt|trente|quarante|cinquante|soixante|quatre-vingt) (deux|trois|quatre|cinq|six|sept|huit|neuf)\b(?! (?:cents?|mille|millions?|milliards?|fois sur)\b)</regexp>
+                <message>Les éléments d'un nombre inférieur à cent sont reliés par un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="trente-deux">Il a <marker>trente deux</marker> ans.</example>
+                <example>Il a trente-deux ans.</example>
+            </rule>
+            <rule>
+                <regexp>\b(soixante|quatre-vingt) (dix|onze|douze|treize|quatorze|quinze|seize)\b</regexp>
+                <message>Les éléments d'un nombre inférieur à cent sont reliés par un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="soixante-dix">Dans les années <marker>soixante dix</marker>.</example>
+                <example>Dans les années soixante-dix.</example>
+            </rule>
+            <rule>
+                <regexp>\b(dix) (sept|huit|neuf)\b(?! (?:cents?|mille|millions?|milliards?)\b)</regexp>
+                <message>Les éléments d'un nombre inférieur à cent sont reliés par un trait d'union.</message>
+                <suggestion>\1-\2</suggestion>
+                <example correction="dix-sept">Elle a <marker>dix sept</marker> ans.</example>
+                <example>Elle a dix-sept ans.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;![\p{L}\d] )\b(trois)-(quarts)(?= (?:des?|du|d['’])\b)</regexp>
+                <message>La fraction « trois quarts » s'écrit sans trait d'union.</message>
+                <suggestion>\1 \2</suggestion>
+                <example correction="Trois quarts"><marker>Trois-quarts</marker> des participants ont réussi.</example>
+                <example>Trois quarts des participants ont réussi.</example>
+                <example>Il porte un trois-quarts de laine.</example>
+                <example>Les trois-quarts de l'équipe de rugby.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_TU_TOPONYMES" name="noms de lieux composés : traits d'union">
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;![-\p{L}])(&toponymes_deux_mots;)\b</regexp>
+                <message>Ce nom de lieu s'écrit avec un trait d'union.</message>
+                <suggestion><match no="1" regexp_match="^([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)$" regexp_replace="$1-$2"/></suggestion>
+                <example correction="Rhône-Alpes">Des vacances en <marker>Rhône Alpes</marker>.</example>
+                <example correction="Pays-Bas">Il vit aux <marker>Pays Bas</marker>.</example>
+                <example>Des vacances en Rhône-Alpes.</example>
+                <example>La Haute Cour s'est réunie.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;![-\p{L}])(&toponymes_trois_mots;)\b</regexp>
+                <message>Ce nom de lieu s'écrit avec des traits d'union.</message>
+                <suggestion><match no="1" regexp_match="^([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)[\s&#xA0;]+([^\s&#xA0;]+)$" regexp_replace="$1-$2-$3"/></suggestion>
+                <example correction="Seine-et-Marne">Elle habite en <marker>Seine et Marne</marker>.</example>
+                <example>Elle habite en Seine-et-Marne.</example>
+            </rule>
+        </rulegroup>
+
+    </category>
+
+    <category id="GRM_TYPOGRAPHIE" name="Typographie (Grammaria)" type="typographical">
+
+        <rulegroup id="GRM_GRANDS_NOMBRES" name="nombres de cinq chiffres et plus : tranches de trois chiffres">
+            <rule>
+                <!-- nombre suivi d'un nom au pluriel ou d'une unité -->
+                <pattern>
+                    <marker>
+                        <token regexp="yes">\d{5,6}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|n|numéros?|code|postal|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|dossier|commande|facture|matricule|[(/,.°#+-]|\d.*</exception></token>
+                    </marker>
+                    <token postag="N . s?p" postag_regexp="yes"><exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="1" regexp_match="^(\d{2,3})(\d{3})$" regexp_replace="$1&#xA0;$2"/></suggestion>
+                <example correction="12&#xA0;345">Le stade compte <marker>12345</marker> places.</example>
+                <example>Le stade compte 12&#xA0;345 places.</example>
+                <example>Il habite au 75005 Paris.</example>
+                <example>Le dossier 123456 est clos.</example>
+            </rule>
+            <rule>
+                <!-- nombre seul -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <marker>
+                        <token regexp="yes" postag="SENT_END">\d{5,6}<exception regexp="yes">0\d+</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="2" regexp_match="^(\d{2,3})(\d{3})$" regexp_replace="$1&#xA0;$2"/></suggestion>
+                <example correction="12&#xA0;345"><marker>12345</marker></example>
+                <example>Total : 12&#xA0;345</example>
+            </rule>
+            <rule>
+                <!-- nombre suivi d'un nom au pluriel ou d'une unité -->
+                <pattern>
+                    <marker>
+                        <token regexp="yes">\d{7,9}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|n|numéros?|code|postal|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|dossier|commande|facture|matricule|[(/,.°#+-]|\d.*</exception></token>
+                    </marker>
+                    <token postag="N . s?p" postag_regexp="yes"><exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="1" regexp_match="^(\d{1,3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3"/></suggestion>
+                <example correction="1&#xA0;234&#xA0;567">La ville compte <marker>1234567</marker> habitants.</example>
+                <example>La ville compte 1&#xA0;234&#xA0;567 habitants.</example>
+                <example>Il habite au 75005 Paris.</example>
+                <example>Le dossier 123456 est clos.</example>
+            </rule>
+            <rule>
+                <!-- nombre seul -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <marker>
+                        <token regexp="yes" postag="SENT_END">\d{7,9}<exception regexp="yes">0\d+</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="2" regexp_match="^(\d{1,3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3"/></suggestion>
+                <example correction="1&#xA0;234&#xA0;567"><marker>1234567</marker></example>
+                <example>Total : 1&#xA0;234&#xA0;567</example>
+            </rule>
+            <rule>
+                <!-- nombre suivi d'un nom au pluriel ou d'une unité -->
+                <pattern>
+                    <marker>
+                        <token regexp="yes">\d{10,12}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|n|numéros?|code|postal|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|dossier|commande|facture|matricule|[(/,.°#+-]|\d.*</exception></token>
+                    </marker>
+                    <token postag="N . s?p" postag_regexp="yes"><exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="1" regexp_match="^(\d{1,3})(\d{3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3&#xA0;$4"/></suggestion>
+                <example correction="2&#xA0;308&#xA0;393&#xA0;909">Il y a <marker>2308393909</marker> possibilités.</example>
+                <example>Il y a 2&#xA0;308&#xA0;393&#xA0;909 possibilités.</example>
+                <example>Il habite au 75005 Paris.</example>
+                <example>Le dossier 123456 est clos.</example>
+            </rule>
+            <rule>
+                <!-- nombre seul -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <marker>
+                        <token regexp="yes" postag="SENT_END">\d{10,12}<exception regexp="yes">0\d+</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="2" regexp_match="^(\d{1,3})(\d{3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3&#xA0;$4"/></suggestion>
+                <example correction="2&#xA0;308&#xA0;393&#xA0;909"><marker>2308393909</marker></example>
+                <example>Total : 2&#xA0;308&#xA0;393&#xA0;909</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_UNITES" name="nombres et unités : symboles, signe de multiplication">
+            <rule>
+                <regexp>(\d)([¥£])</regexp>
+                <message>Le symbole monétaire est séparé du nombre par une espace insécable.</message>
+                <suggestion>\1&#xA0;\2</suggestion>
+                <example correction="4&#xA0;¥">Ça coûte 13,<marker>4¥</marker>.</example>
+                <example>Ça coûte 13,4&#xA0;¥.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Kgs?|KGS?|kgs)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « kg ».</message>
+                <suggestion>kg</suggestion>
+                <example correction="kg">Cela représente 25 <marker>Kg</marker> environ.</example>
+                <example>Cela représente 25 kg environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Kms?|KMS?|kms)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « km ».</message>
+                <suggestion>km</suggestion>
+                <example correction="km">Cela représente 25 <marker>Kms</marker> environ.</example>
+                <example>Cela représente 25 km environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Kw|KW|kw)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « kW ».</message>
+                <suggestion>kW</suggestion>
+                <example correction="kW">Cela représente 25 <marker>Kw</marker> environ.</example>
+                <example>Cela représente 25 kW environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Kwh|KWH|kwh|KWh|kwH)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « kWh ».</message>
+                <suggestion>kWh</suggestion>
+                <example correction="kWh">Cela représente 25 <marker>kwh</marker> environ.</example>
+                <example>Cela représente 25 kWh environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Mhz|mhz|MHZ)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « MHz ».</message>
+                <suggestion>MHz</suggestion>
+                <example correction="MHz">Cela représente 25 <marker>Mhz</marker> environ.</example>
+                <example>Cela représente 25 MHz environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Khz|khz|KHz|KHZ)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « kHz ».</message>
+                <suggestion>kHz</suggestion>
+                <example correction="kHz">Cela représente 25 <marker>Khz</marker> environ.</example>
+                <example>Cela représente 25 kHz environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Ghz|ghz|GHZ)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « GHz ».</message>
+                <suggestion>GHz</suggestion>
+                <example correction="GHz">Cela représente 25 <marker>Ghz</marker> environ.</example>
+                <example>Cela représente 25 GHz environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Kcal|KCal|KCAL)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « kcal ».</message>
+                <suggestion>kcal</suggestion>
+                <example correction="kcal">Cela représente 25 <marker>Kcal</marker> environ.</example>
+                <example>Cela représente 25 kcal environ.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;=\d ?)(?:Km/h|KM/H|km/H|kmh|Kmh|KMH)(?![\p{L}\d/])</regexp>
+                <message>Le symbole de cette unité s'écrit « km/h ».</message>
+                <suggestion>km/h</suggestion>
+                <example correction="km/h">Cela représente 25 <marker>kmh</marker> environ.</example>
+                <example>Cela représente 25 km/h environ.</example>
+            </rule>
+            <rule>
+                <regexp>(\d) ?\* ?(\d)</regexp>
+                <message>Le signe de la multiplication est « × ».</message>
+                <suggestion>\1&#xA0;×&#xA0;\2</suggestion>
+                <example correction="0&#xA0;×&#xA0;6">Une image de 80<marker>0*6</marker>00 points.</example>
+                <example>Une image de 800&#xA0;×&#xA0;600 points.</example>
+                <example>Le code 0x4407.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_GUILLEMETS" name="guillemets dépareillés ou mal espacés">
+            <rule>
+                <regexp>“[ ](?=[\p{L}\d])</regexp>
+                <message>Pas d'espace après le guillemet anglais ouvrant.</message>
+                <suggestion>“</suggestion>
+                <example correction="“">Vos prétendues <marker>“ </marker>excuses” ne trompent personne.</example>
+                <example>Vos prétendues “excuses” ne trompent personne.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=[\s(])”(?=\p{L})</regexp>
+                <message>Ce guillemet fermant est employé comme guillemet ouvrant.</message>
+                <suggestion>“</suggestion>
+                <example correction="“">Eux et leurs <marker>”</marker>amis” sont finis.</example>
+                <example>Eux et leurs “amis” sont finis.</example>
+            </rule>
+            <rule>
+                <regexp>“ ?([^“”«»]{1,80}?) ?»</regexp>
+                <message>Le guillemet ouvrant « “ » et le guillemet fermant « » » ne vont pas ensemble.</message>
+                <suggestion>«&#xA0;\1&#xA0;»</suggestion>
+                <suggestion>“\1”</suggestion>
+                <example correction="«&#xA0;casse-pieds&#xA0;»|“casse-pieds”">Quel <marker>“casse-pieds »</marker>, ce garçon.</example>
+                <example>Quel «&#xA0;casse-pieds&#xA0;», ce garçon.</example>
+            </rule>
+            <rule>
+                <regexp>“([^“”«»"’]{1,80}?(?:’\p{L}[^“”«»"’]{0,80}?)*)’(?!\p{L})(?![^“]*”)</regexp>
+                <message>Le guillemet ouvrant « “ » et le guillemet fermant « ’ » ne vont pas ensemble.</message>
+                <suggestion>“\1”</suggestion>
+                <example correction="“vaurien”">C'est quand même un <marker>“vaurien’</marker>.</example>
+                <example>C'est quand même un “vaurien”.</example>
+                <example>Il a dit “l’ami” en riant.</example>
+            </rule>
+            <rule>
+                <regexp>''(?=[^“”]*”)|(?&lt;=“[^“”']{1,80})''</regexp>
+                <message>Deux apostrophes ne remplacent pas un guillemet.</message>
+                <suggestion>“</suggestion>
+                <suggestion>”</suggestion>
+                <example correction="“|”">Le “grand<marker>''</marker> homme.</example>
+                <example>Le “grand” homme.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_PONCTUATION" name="ponctuation">
+            <rule>
+                <regexp>…\.(?!\.)</regexp>
+                <message>Après des points de suspension, on ne met pas de point.</message>
+                <suggestion>…</suggestion>
+                <example correction="…">Il hésite, il attend<marker>….</marker> Puis il part.</example>
+                <example>Il hésite, il attend… Puis il part.</example>
+            </rule>
+            <rule>
+                <regexp case_sensitive="yes">(?&lt;![\p{L}.])(Mlles?|Mmes?|Mgr)\.(?= \p{Lu})</regexp>
+                <message>Cette abréviation se termine par la dernière lettre du mot : elle ne prend pas de point.</message>
+                <suggestion>\1</suggestion>
+                <example correction="Mlle">Je crois que <marker>Mlle.</marker> Eva est partie.</example>
+                <example>Je crois que Mlle Eva est partie.</example>
+                <example>M. Dupont est parti.</example>
+            </rule>
+            <rule>
+                <regexp>(\p{L}+);(\p{L}+)</regexp>
+                <message>Le point-virgule est précédé d'une espace insécable et suivi d'une espace.</message>
+                <suggestion>\1&#xA0;; \2</suggestion>
+                <example correction="espace&#xA0;; ici">Il manque une <marker>espace;ici</marker> même.</example>
+                <example>Il manque une espace&#xA0;; ici même.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;=[?!;:…])\((?=\p{L})</regexp>
+                <message>Il faut une espace avant la parenthèse ouvrante.</message>
+                <suggestion> (</suggestion>
+                <example correction=" (">Tu viens ?<marker>(</marker>oui ou non)</example>
+                <example>Tu viens ? (oui ou non)</example>
+            </rule>
+            <rule>
+                <regexp>\[[ ](?=[\p{L}\d])</regexp>
+                <message>Pas d'espace après un crochet ouvrant.</message>
+                <suggestion>[</suggestion>
+                <example correction="[">Voir la note <marker>[ </marker>ajoutée] plus bas.</example>
+                <example>Voir la note [ajoutée] plus bas.</example>
+            </rule>
+            <rule>
+                <regexp>[ ]\t|\t[ ]</regexp>
+                <message>Une espace et une tabulation se suivent : une seule espace suffit.</message>
+                <suggestion> </suggestion>
+                <example correction=" ">J'espère que ça<marker> &#x9;</marker>ne va pas durer.</example>
+                <example>J'espère que ça ne va pas durer.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;![\p{L}\d:/@.])(?!mailto|skype|callto|magnet)(\p{L}{5,}):(\p{L}+)</regexp>
+                <message>Le deux-points est précédé d'une espace insécable et suivi d'une espace.</message>
+                <suggestion>\1&#xA0;: \2</suggestion>
+                <example correction="voyelles&#xA0;: a">Les <marker>voyelles:a</marker>, e, i, o, u.</example>
+                <example>Les voyelles&#xA0;: a, e, i, o, u.</example>
+                <example>Voir https://exemple.org pour la suite.</example>
+            </rule>
+            <rule>
+                <regexp>\b(qu|[ldjmtsnc]|jusqu|lorsqu|puisqu|quoiqu)[ ]?[`´][ ]?(?=[aeiouyhéèêàâîôûœ])</regexp>
+                <message>L'apostrophe est « ’ » (ou « ' »), sans espace, et non un accent isolé.</message>
+                <suggestion>\1’</suggestion>
+                <example correction="qu’">Je pense <marker>qu ` </marker>elle ne viendra pas.</example>
+                <example>Je pense qu’elle ne viendra pas.</example>
+            </rule>
+            <rule>
+                <regexp>^_[ ](?=\p{Lu})</regexp>
+                <message>Une réplique de dialogue commence par un tiret cadratin, non par un tiret bas.</message>
+                <suggestion>—&#xA0;</suggestion>
+                <example correction="—&#xA0;"><marker>_ </marker>C'est long !</example>
+                <example>—&#xA0;C'est long !</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_T_EUPHONIQUE" name="t euphonique : -t-il, -t-elle, -t-on">
+            <rule>
+                <regexp>\b(\p{L}*[aeéc])[ -]t['’](ils?|elles?|on)\b</regexp>
+                <message>Le « t » euphonique s'écrit entre deux traits d'union, sans apostrophe.</message>
+                <suggestion>\1-t-\2</suggestion>
+                <example correction="A-t-elle"><marker>A t'elle</marker> soif ?</example>
+                <example correction="va-t-il">Où <marker>va-t'il</marker> ?</example>
+                <example>A-t-elle soif ?</example>
+                <example>Que t'arrive-t-il ?</example>
+            </rule>
+            <rule>
+                <regexp>\b((?:con)?vainc)-(il|elle|on)\b</regexp>
+                <message>Après « vainc », on intercale un « t » euphonique.</message>
+                <suggestion>\1-t-\2</suggestion>
+                <example correction="Vainc-t-il"><marker>Vainc-il</marker> ses ennemis aisément ?</example>
+                <example>Vainc-t-il ses ennemis aisément ?</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_NUIT_DE_JOUR_A_JOUR" name="la nuit de lundi à mardi : deux jours consécutifs">
+            <rule>
+                <regexp mark="1">\bnuit (?:de|du) ((?:lundi (?:à|au) (?!mardi\b)|mardi (?:à|au) (?!mercredi\b)|mercredi (?:à|au) (?!jeudi\b)|jeudi (?:à|au) (?!vendredi\b)|vendredi (?:à|au) (?!samedi\b)|samedi (?:à|au) (?!dimanche\b)|dimanche (?:à|au) (?!lundi\b))(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche))\b</regexp>
+                <message>Une nuit s'étend sur deux jours consécutifs : vérifiez les jours.</message>
+                <example correction="">L'incendie a eu lieu dans la nuit de <marker>jeudi à mardi</marker>.</example>
+                <example>L'incendie a eu lieu dans la nuit de lundi à mardi.</example>
+            </rule>
+        </rulegroup>
+
+    </category>
+
+    <category id="GRM_MAJUSCULES" name="Majuscules (Grammaria)" type="typographical">
+
+        <rulegroup id="GRM_MAJ_GENTILES" name="noms d'habitants : majuscule">
+            <rule>
+                <pattern>
+                    <token regexp="yes">les|des|aux|ces<exception scope="previous">,</exception></token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">français|anglais|allemands|italiens|espagnols|américains|russes|chinois|japonais|belges|canadiens|québécois|mexicains|brésiliens|argentins|portugais|polonais|hongrois|roumains|bulgares|serbes|croates|tchèques|slovaques|autrichiens|néerlandais|hollandais|suédois|norvégiens|finlandais|irlandais|écossais|britanniques|européens|africains|algériens|marocains|tunisiens|égyptiens|libanais|syriens|irakiens|iraniens|israéliens|palestiniens|pakistanais|afghans|coréens|vietnamiens|australiens|sénégalais|maliens|ivoiriens|camerounais|congolais|parisiens|lyonnais|marseillais|bordelais|toulousains|alsaciens|berlinois|londoniens|ukrainiens|cubains|colombiens|chiliens|haïtiens|arméniens|catalans|flamands|wallons|luxembourgeois<exception scope="next" postag="N .*" postag_regexp="yes"/><exception scope="next" regexp="yes">,|et|ou|-</exception></token>
+                    </marker>
+                </pattern>
+                <message>Le nom qui désigne les habitants d'un pays ou d'une ville prend une majuscule.</message>
+                <suggestion><match no="2" case_conversion="startupper"/></suggestion>
+                <example correction="Français">Des <marker>français</marker> sont arrivés hier.</example>
+                <example correction="Israéliens">Il fait référence aux <marker>israéliens</marker>.</example>
+                <example>Des Français sont arrivés hier.</example>
+                <example>Les navires des touristes anglais sont partis.</example>
+                <example>Des navires de toutes nations, des anglais, des français, des hollandais.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token regexp="yes">la|l'|une|cette</token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">américaine|française|italienne|espagnole|japonaise|australienne|brésilienne|mexicaine|algérienne|marocaine|tunisienne|égyptienne|israélienne|palestinienne|iranienne|irakienne|syrienne|libanaise|coréenne|vietnamienne|ukrainienne|roumaine|autrichienne|néerlandaise|irlandaise|finlandaise|sénégalaise|malienne|ivoirienne|camerounaise|congolaise|chilienne|colombienne|cubaine|haïtienne|québécoise|parisienne|berlinoise|londonienne|africaine|européenne</token>
+                    </marker>
+                    <token postag="V (etre |avoir )?(ind|con|sub).*|SENT_END|M fin.*" postag_regexp="yes"><exception postag="N .*|J .*" postag_regexp="yes"/></token>
+                </pattern>
+                <message>Le nom qui désigne une habitante d'un pays ou d'une ville prend une majuscule.</message>
+                <suggestion><match no="3" case_conversion="startupper"/></suggestion>
+                <example correction="Américaine">L'<marker>américaine</marker> est arrivée hier.</example>
+                <example>L'Américaine est arrivée hier.</example>
+                <example>Des jardins à la française.</example>
+                <example>La cuisine italienne est réputée.</example>
+                <example>Tant la solution française que l'autrichienne a des défauts.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_MAJ_DIEU" name="Dieu, être unique : majuscule">
+            <rule>
+                <pattern>
+                    <token regexp="yes">pour|envers|avec|contre|devant|selon</token>
+                    <marker>
+                        <token case_sensitive="yes">dieu<exception scope="next" postag="N .*|J .*|Z .*" postag_regexp="yes"/><exception scope="next" regexp="yes">de|du|des|d'|-</exception></token>
+                    </marker>
+                </pattern>
+                <message>Employé sans déterminant pour désigner l'être unique des religions monothéistes, « Dieu » prend une majuscule.</message>
+                <suggestion>Dieu</suggestion>
+                <example correction="Dieu">Il a fait cela pour <marker>dieu</marker>.</example>
+                <example>Il a fait cela pour Dieu.</example>
+                <example>Un tableau le représente en dieu Mars.</example>
+                <example>Quel dieu d'amour ferait cela ?</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token inflected="yes" regexp="yes" postag="V .*" postag_regexp="yes">prier|oublier|aimer|craindre|servir|louer|remercier|bénir|adorer|invoquer|implorer|renier|offenser|honorer|glorifier|supplier</token>
+                    <marker>
+                        <token case_sensitive="yes">dieu<exception scope="next" postag="N .*|J .*|Z .*" postag_regexp="yes"/><exception scope="next" regexp="yes">de|du|des|d'|-</exception></token>
+                    </marker>
+                </pattern>
+                <message>Employé sans déterminant pour désigner l'être unique des religions monothéistes, « Dieu » prend une majuscule.</message>
+                <suggestion>Dieu</suggestion>
+                <example correction="Dieu">Oublie <marker>dieu</marker> et les bondieuseries.</example>
+                <example>Oublie Dieu et les bondieuseries.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes">croire|croyance|foi|confiance|espérer</token>
+                    <token>en</token>
+                    <marker>
+                        <token case_sensitive="yes">dieu<exception scope="next" postag="N .*|J .*|Z .*" postag_regexp="yes"/><exception scope="next" regexp="yes">de|du|des|d'|-</exception></token>
+                    </marker>
+                </pattern>
+                <message>Employé sans déterminant pour désigner l'être unique des religions monothéistes, « Dieu » prend une majuscule.</message>
+                <suggestion>Dieu</suggestion>
+                <example correction="Dieu">Elle croit en <marker>dieu</marker>.</example>
+                <example>Elle croit en Dieu.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token case_sensitive="yes">dieu<exception scope="previous" postag="D .*|J .*|P\+D .*|N .*" postag_regexp="yes"/><exception scope="previous" regexp="yes">de|d'|demi|-|ni|comme|en|tel|bon|nom|sacré</exception></token>
+                    </marker>
+                    <token regexp="yes">merci|sait|seul|soit|veuille|existe</token>
+                </pattern>
+                <message>Employé sans déterminant pour désigner l'être unique des religions monothéistes, « Dieu » prend une majuscule.</message>
+                <suggestion>Dieu</suggestion>
+                <example correction="Dieu">Tout va bien, <marker>dieu</marker> merci.</example>
+                <example>Tout va bien, Dieu merci.</example>
+                <example>Bon dieu !</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_MAJ_GEOGRAPHIE" name="noms géographiques et textes de loi : majuscule">
+            <rule>
+                <pattern>
+                    <token>océan</token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">pacifique|atlantique|indien|arctique|antarctique|austral</token>
+                    </marker>
+                </pattern>
+                <message>L'adjectif qui distingue un océan prend une majuscule.</message>
+                <suggestion><match no="2" case_conversion="startupper"/></suggestion>
+                <example correction="Pacifique">Ils ont traversé l'océan <marker>pacifique</marker>.</example>
+                <example>Ils ont traversé l'océan Pacifique.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>mer</token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">méditerranée|baltique|caspienne|adriatique|égée|ionienne|tyrrhénienne</token>
+                    </marker>
+                </pattern>
+                <message>Le nom ou l'adjectif qui distingue une mer prend une majuscule.</message>
+                <suggestion><match no="2" case_conversion="startupper"/></suggestion>
+                <example correction="Méditerranée">Ils ont traversé la mer <marker>méditerranée</marker>.</example>
+                <example>Ils ont traversé la mer Méditerranée.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" case_sensitive="yes">Amérique|Corée|Afrique|Irlande|Caroline|Dakota|Soudan</token>
+                    <token>du</token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">nord|sud</token>
+                    </marker>
+                </pattern>
+                <message>Dans un nom de pays ou de région, le point cardinal prend une majuscule.</message>
+                <suggestion><match no="3" case_conversion="startupper"/></suggestion>
+                <example correction="Sud">Il a visité toute l'Amérique du <marker>sud</marker>.</example>
+                <example>Il a visité toute l'Amérique du Sud.</example>
+                <example>Le sud de l'Amérique.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">le|du|au</token>
+                    <marker>
+                        <token case_sensitive="yes">code</token>
+                    </marker>
+                    <token regexp="yes">civil|pénal</token>
+                </pattern>
+                <message>Le titre d'un recueil de lois prend une majuscule : le Code civil, le Code pénal.</message>
+                <suggestion>Code</suggestion>
+                <example correction="Code">C'est écrit dans le <marker>code</marker> civil.</example>
+                <example>C'est écrit dans le Code civil.</example>
+                <example>Le pays adopte un code pénal, puis un code civil.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">à|a</token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">paris|bordeaux|cannes</token>
+                    </marker>
+                </pattern>
+                <message>Un nom de ville prend une majuscule.</message>
+                <suggestion><match no="2" case_conversion="startupper"/></suggestion>
+                <example correction="Paris">Je suis allé à <marker>paris</marker> en juillet.</example>
+                <example>Je suis allé à Paris en juillet.</example>
+                <example>Il a perdu ses paris.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token postag="Z [mfe] .*" postag_regexp="yes" regexp="yes" case_sensitive="yes">\p{Lu}\p{Ll}+</token>
+                    <token regexp="yes">et|ou</token>
+                    <marker>
+                        <token regexp="yes" case_sensitive="yes">jean|pierre|rose|marguerite|violette|capucine|clémence|constance|prudence|victoire|noël|pascal|martin|baptiste|aurore|océane|marine|léon|sylvain|blanche|franck|luc|marc|paul|marie|anne|louis|louise|jacques|michel|claude</token>
+                    </marker>
+                    <token postag="SENT_END|M .*|V .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Un prénom prend une majuscule.</message>
+                <suggestion><match no="3" case_conversion="startupper"/></suggestion>
+                <example correction="Jean">Je suis parti avec Marie et <marker>jean</marker>.</example>
+                <example>Je suis parti avec Marie et Jean.</example>
+            </rule>
+        </rulegroup>
+
+    </category>
+
+    <category id="GRM_PLEONASMES" name="Pléonasmes (Grammaria)" type="style">
+
+        <rulegroup id="GRM_PLEO_NOMS" name="pléonasmes : nom + complément redondant">
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">apparences?<exception scope="previous">en</exception></token>
+                        <token regexp="yes">extérieures?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : l'apparence est par définition extérieure.</message>
+                <suggestion>\1</suggestion>
+                <example correction="apparence">Son <marker>apparence extérieure</marker> est trompeuse.</example>
+                <example>Son apparence est trompeuse.</example>
+                <example>Cette erreur est en apparence extérieure à nos services.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">légères?</token>
+                        <token regexp="yes">collations?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : une collation est un repas léger.</message>
+                <suggestion>\2</suggestion>
+                <example correction="collation">Prenons une <marker>légère collation</marker>.</example>
+                <example>Prenons une collation.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">oublis?|erreurs?<exception scope="previous">en</exception></token>
+                        <token regexp="yes">involontaires?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un oubli, une erreur ne sont jamais volontaires.</message>
+                <suggestion>\1</suggestion>
+                <example correction="oubli">C'est un <marker>oubli involontaire</marker> de sa part.</example>
+                <example>C'est un oubli de sa part.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">panacées?<exception scope="previous">en</exception></token>
+                        <token regexp="yes">universelles?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : une panacée est un remède universel.</message>
+                <suggestion>\1</suggestion>
+                <example correction="panacée">Ce n'est pas une <marker>panacée universelle</marker>.</example>
+                <example>Ce n'est pas une panacée.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">faux</token>
+                        <token regexp="yes">prétextes?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un prétexte est une fausse raison.</message>
+                <suggestion>\2</suggestion>
+                <example correction="prétexte">Il est parti sous un <marker>faux prétexte</marker>.</example>
+                <example>Il est parti sous un prétexte.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">bips?<exception scope="previous">en</exception></token>
+                        <token regexp="yes">sonores?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un bip est un signal sonore.</message>
+                <suggestion>\1</suggestion>
+                <example correction="bip">Parlez après le <marker>bip sonore</marker>.</example>
+                <example>Parlez après le bip.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">dons?<exception scope="previous">en</exception></token>
+                        <token regexp="yes">gratuits?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un don est gratuit par définition.</message>
+                <suggestion>\1</suggestion>
+                <example correction="don">C'est un <marker>don gratuit</marker>.</example>
+                <example>C'est un don.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">principal|principale|principaux|principales</token>
+                        <token regexp="yes">protagonistes?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : le protagoniste est le personnage principal.</message>
+                <suggestion>\2</suggestion>
+                <example correction="protagoniste">C'est le <marker>principal protagoniste</marker> de l'affaire.</example>
+                <example>C'est le protagoniste de l'affaire.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">petites?</token>
+                        <token regexp="yes">maisonnettes?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : une maisonnette est une petite maison.</message>
+                <suggestion>\2</suggestion>
+                <example correction="maisonnette">Ils habitent une <marker>petite maisonnette</marker>.</example>
+                <example>Ils habitent une maisonnette.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">petits?</token>
+                        <token regexp="yes">nains?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un nain est petit par définition.</message>
+                <suggestion>\2</suggestion>
+                <example correction="nain">Le conte parle d'un <marker>petit nain</marker>.</example>
+                <example>Le conte parle d'un nain.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">premières?</token>
+                        <token regexp="yes">priorités?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : une priorité passe par définition en premier.</message>
+                <suggestion>\2</suggestion>
+                <example correction="priorité">C'est notre <marker>première priorité</marker>.</example>
+                <example>C'est notre priorité.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">unanimité<exception scope="previous">en</exception></token>
+                        <token regexp="yes">totale|complète|générale</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : l'unanimité est totale par définition.</message>
+                <suggestion>\1</suggestion>
+                <example correction="unanimité">Le texte a été voté à l'<marker>unanimité totale</marker>.</example>
+                <example>Le texte a été voté à l'unanimité.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">préavis<exception scope="previous">en</exception></token>
+                        <token regexp="yes">préalables?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un préavis est toujours préalable.</message>
+                <suggestion>\1</suggestion>
+                <example correction="préavis">Il est parti sans <marker>préavis préalable</marker>.</example>
+                <example>Il est parti sans préavis.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">coups?</token>
+                        <token>de</token>
+                        <token>foudre</token>
+                        <token regexp="yes">soudains?</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : un coup de foudre est toujours soudain.</message>
+                <suggestion>\1 de foudre</suggestion>
+                <example correction="coup de foudre">Ce fut un <marker>coup de foudre soudain</marker>.</example>
+                <example>Ce fut un coup de foudre.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>taux</token>
+                        <token>d'</token>
+                        <token>alcoolémie</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : l'alcoolémie est déjà le taux d'alcool dans le sang.</message>
+                <suggestion>alcoolémie</suggestion>
+                <suggestion>taux d'alcool</suggestion>
+                <example correction="alcoolémie|taux d'alcool">Son <marker>taux d'alcoolémie</marker> est très élevé.</example>
+                <example>Son alcoolémie est très élevée.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>au</token>
+                    <token>jour</token>
+                    <token>d'</token>
+                    <token>aujourd'hui</token>
+                </pattern>
+                <message>Pléonasme : « aujourd'hui » suffit.</message>
+                <suggestion>aujourd'hui</suggestion>
+                <example correction="Aujourd'hui"><marker>Au jour d'aujourd'hui</marker>, rien n'est décidé.</example>
+                <example>Aujourd'hui, rien n'est décidé.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_PLEO_VERBES" name="pléonasmes : verbe + complément redondant">
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">abolir|éradiquer|anéantir|exterminer</token>
+                        <token regexp="yes">totalement|complètement|entièrement</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : ce verbe exprime déjà une suppression totale.</message>
+                <suggestion>\1</suggestion>
+                <example correction="abolir">Il faut <marker>abolir totalement</marker> ces pratiques.</example>
+                <example>Il faut abolir ces pratiques.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">avancer|progresser</token>
+                        <token>en</token>
+                        <token>avant</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : on n'avance qu'en avant.</message>
+                <suggestion>\1</suggestion>
+                <example correction="avancer">Il faut <marker>avancer en avant</marker> sans hésiter.</example>
+                <example>Il faut avancer sans hésiter.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">reculer</token>
+                        <token>en</token>
+                        <token>arrière</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : on ne recule qu'en arrière.</message>
+                <suggestion>\1</suggestion>
+                <example correction="reculer">Il a dû <marker>reculer en arrière</marker>.</example>
+                <example>Il a dû reculer.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">descendre</token>
+                        <token>en</token>
+                        <token>bas<exception scope="next" regexp="yes">de|du|des|d'</exception></token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : on ne descend qu'en bas.</message>
+                <suggestion>\1</suggestion>
+                <example correction="descendre">Je vais <marker>descendre en bas</marker>.</example>
+                <example>Je vais descendre.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">sortir</token>
+                        <token>dehors</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : on ne sort que dehors.</message>
+                <suggestion>\1</suggestion>
+                <example correction="sortir">Les enfants veulent <marker>sortir dehors</marker>.</example>
+                <example>Les enfants veulent sortir.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">entraider</token>
+                        <token>mutuellement</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : s'entraider, c'est déjà s'aider mutuellement.</message>
+                <suggestion>\1</suggestion>
+                <example correction="entraider">Ils doivent s'<marker>entraider mutuellement</marker>.</example>
+                <example>Ils doivent s'entraider.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">entraider</token>
+                        <token>les</token>
+                        <token>uns</token>
+                        <token>les</token>
+                        <token>autres</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : s'entraider, c'est déjà s'aider les uns les autres.</message>
+                <suggestion>\1</suggestion>
+                <example correction="entraident">Ils s'<marker>entraident les uns les autres</marker>.</example>
+                <example>Ils s'entraident.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">rédiger</token>
+                        <token>par</token>
+                        <token>écrit</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : on ne rédige que par écrit.</message>
+                <suggestion>\1</suggestion>
+                <example correction="Rédigez"><marker>Rédigez par écrit</marker> une notice.</example>
+                <example>Rédigez une notice.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">prévoir|pronostiquer|anticiper|prédire|réserver|présager</token>
+                        <token regexp="yes">à|d'|par</token>
+                        <token min="0">l'</token>
+                        <token>avance</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : le verbe indique déjà que l'action se fait à l'avance.</message>
+                <suggestion>\1</suggestion>
+                <example correction="prévoir">Il faut <marker>prévoir à l'avance</marker> le matériel.</example>
+                <example>Il faut prévoir le matériel.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">ajourner</token>
+                        <token>à</token>
+                        <token>une</token>
+                        <token>date</token>
+                        <token>ultérieure</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : ajourner, c'est déjà renvoyer à une date ultérieure.</message>
+                <suggestion>\1</suggestion>
+                <example correction="ajournée">La séance a été <marker>ajournée à une date ultérieure</marker>.</example>
+                <example>La séance a été ajournée.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">répéter|réitérer|redire|recommencer</token>
+                        <token regexp="yes">de|à</token>
+                        <token>nouveau</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : le verbe exprime déjà la répétition.</message>
+                <suggestion>\1</suggestion>
+                <example correction="répéter">Il a dû <marker>répéter de nouveau</marker> sa question.</example>
+                <example>Il a dû répéter sa question.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">surprendre</token>
+                        <token>à</token>
+                        <token>l'</token>
+                        <token>improviste</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : surprendre, c'est déjà prendre à l'improviste.</message>
+                <suggestion>\1</suggestion>
+                <example correction="surpris">Il les a <marker>surpris à l'improviste</marker>.</example>
+                <example>Il les a surpris.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">exporter</token>
+                        <token>à</token>
+                        <token>l'</token>
+                        <token>étranger</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : on n'exporte qu'à l'étranger.</message>
+                <suggestion>\1</suggestion>
+                <example correction="exporter">Ils veulent <marker>exporter à l'étranger</marker>.</example>
+                <example>Ils veulent exporter.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">coopérer|cohabiter|collaborer</token>
+                        <token>ensemble</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : le préfixe « co- » dit déjà « ensemble ».</message>
+                <suggestion>\1</suggestion>
+                <example correction="coopérer">Les deux pays doivent <marker>coopérer ensemble</marker>.</example>
+                <example>Les deux pays doivent coopérer.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">dépêcher|hâter</token>
+                        <token regexp="yes">vite|rapidement</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : se dépêcher, c'est déjà faire vite.</message>
+                <suggestion>\1</suggestion>
+                <example correction="dépêcher">Il faut se <marker>dépêcher vite</marker>.</example>
+                <example>Il faut se dépêcher.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">préférer</token>
+                        <token>plutôt</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : préférer, c'est déjà aimer plutôt.</message>
+                <suggestion>\1</suggestion>
+                <example correction="préfère">Je <marker>préfère plutôt</marker> rester ici.</example>
+                <example>Je préfère rester ici.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">opter</token>
+                        <token>pour</token>
+                    </marker>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <token regexp="yes">options?</token>
+                </pattern>
+                <message>Pléonasme : opter, c'est choisir une option.</message>
+                <suggestion><match no="1" postag="V (.*)" postag_regexp="yes" postag_replace="V $1">choisir</match></suggestion>
+                <example correction="choisir">Je vais <marker>opter pour</marker> l'option deux.</example>
+                <example>Je vais choisir l'option deux.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>actuellement</token>
+                        <token>en</token>
+                        <token>train</token>
+                    </marker>
+                    <token regexp="yes">de|d'</token>
+                </pattern>
+                <message>Pléonasme : « en train de » indique déjà que l'action est en cours.</message>
+                <suggestion>en train</suggestion>
+                <example correction="en train">Ils sont <marker>actuellement en train</marker> de manger.</example>
+                <example>Ils sont en train de manger.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>incessamment</token>
+                        <token>sous</token>
+                        <token>peu</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : « incessamment » et « sous peu » ont le même sens.</message>
+                <suggestion>incessamment</suggestion>
+                <suggestion>sous peu</suggestion>
+                <example correction="incessamment|sous peu">Ils arrivent <marker>incessamment sous peu</marker>.</example>
+                <example>Ils arrivent sous peu.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>puis</token>
+                        <token>ensuite</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : « puis » et « ensuite » ont le même sens.</message>
+                <suggestion>puis</suggestion>
+                <suggestion>ensuite</suggestion>
+                <example correction="puis|ensuite">Il mange, <marker>puis ensuite</marker> il sort.</example>
+                <example>Il mange, puis il sort.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>comme</token>
+                        <token>par</token>
+                        <token>exemple</token>
+                    </marker>
+                </pattern>
+                <message>Pléonasme : « comme » et « par exemple » introduisent tous deux un exemple.</message>
+                <suggestion>comme</suggestion>
+                <suggestion>par exemple</suggestion>
+                <example correction="comme|par exemple">Des fruits <marker>comme par exemple</marker> la pomme.</example>
+                <example>Des fruits comme la pomme.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">si|aussi|très</token>
+                    <marker>
+                        <token regexp="yes">pires?</token>
+                    </marker>
+                </pattern>
+                <message>« Pire » est déjà un comparatif : il ne se combine pas avec « \1 ».</message>
+                <suggestion><match no="2" regexp_match="(?i)pire(s?)" regexp_replace="mauvais"/></suggestion>
+                <example correction="mauvais">Ils ne sont pas si <marker>pires</marker>.</example>
+                <example>Ils ne sont pas si mauvais.</example>
+            </rule>
+        </rulegroup>
+
+    </category>
+
+    <category id="GRM_LOCUTIONS" name="Locutions figées (Grammaria)" type="grammar">
+
+        <rulegroup id="GRM_LOC_NOMBRE_FIGE" name="locutions dont le nombre est fixe">
+            <rule>
+                <pattern>
+                    <token>entre<exception scope="previous" postag="R pers suj.*" postag_regexp="yes"/><exception scope="previous" regexp="yes">n'|y|en|on|qui|j'|je|tu|il|elle</exception></token>
+                    <marker>
+                        <token>autre</token>
+                    </marker>
+                    <token><exception regexp="yes">chose|part</exception></token>
+                </pattern>
+                <message>La locution « entre autres » s'écrit toujours au pluriel.</message>
+                <suggestion>autres</suggestion>
+                <example correction="autres">Il y a, entre <marker>autre</marker>, un problème de délai.</example>
+                <example>Il y a, entre autres, un problème de délai.</example>
+                <example>On entre autre chose dans la base.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>entre<exception scope="previous" postag="R pers suj.*|N .*" postag_regexp="yes"/><exception scope="previous" regexp="yes">n'|y|en|on|qui|j'|je|tu|il|elle</exception></token>
+                    <marker>
+                        <token>autre</token>
+                        <token>chose</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « entre autres choses », au pluriel.</message>
+                <suggestion>autres choses</suggestion>
+                <example correction="autres choses">Il y aura entre <marker>autre chose</marker> des répercussions.</example>
+                <example>Il y aura entre autres choses des répercussions.</example>
+                <example>On entre autre chose dans la base.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>nul</token>
+                    <token>et</token>
+                    <token>non</token>
+                    <marker>
+                        <token regexp="yes">avenue|avenus|avenues</token>
+                    </marker>
+                </pattern>
+                <message>Dans « nul et non avenu », les deux adjectifs s'accordent de la même façon.</message>
+                <suggestion>avenu</suggestion>
+                <example correction="avenu">C'est nul et non <marker>avenue</marker>.</example>
+                <example>C'est nul et non avenu.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>nulle</token>
+                    <token>et</token>
+                    <token>non</token>
+                    <marker>
+                        <token regexp="yes">avenu|avenus|avenues</token>
+                    </marker>
+                </pattern>
+                <message>Dans « nul et non avenu », les deux adjectifs s'accordent de la même façon.</message>
+                <suggestion>avenue</suggestion>
+                <example correction="avenue">Une tentative nulle et non <marker>avenu</marker>.</example>
+                <example>Une tentative nulle et non avenue.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>nuls</token>
+                    <token>et</token>
+                    <token>non</token>
+                    <marker>
+                        <token regexp="yes">avenu|avenue|avenues</token>
+                    </marker>
+                </pattern>
+                <message>Dans « nul et non avenu », les deux adjectifs s'accordent de la même façon.</message>
+                <suggestion>avenus</suggestion>
+                <example correction="avenus">Ces actes sont nuls et non <marker>avenu</marker>.</example>
+                <example>Ces actes sont nuls et non avenus.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>nulles</token>
+                    <token>et</token>
+                    <token>non</token>
+                    <marker>
+                        <token regexp="yes">avenu|avenue|avenus</token>
+                    </marker>
+                </pattern>
+                <message>Dans « nul et non avenu », les deux adjectifs s'accordent de la même façon.</message>
+                <suggestion>avenues</suggestion>
+                <example correction="avenues">Ces clauses sont nulles et non <marker>avenus</marker>.</example>
+                <example>Ces clauses sont nulles et non avenues.</example>
+            </rule>
+            <rule>
+                <antipattern>
+                    <token>en</token>
+                    <token>rangs</token>
+                    <token>serrés</token>
+                </antipattern>
+                <pattern>
+                    <marker>
+                        <token>en</token>
+                        <token regexp="yes">rangs?</token>
+                        <token regexp="yes">serrés?</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « en rangs serrés », au pluriel.</message>
+                <suggestion>en rangs serrés</suggestion>
+                <example correction="en rangs serrés">Ils défilèrent <marker>en rang serré</marker>.</example>
+                <example>Ils défilèrent en rangs serrés.</example>
+            </rule>
+            <rule>
+                <antipattern>
+                    <token>en</token>
+                    <token>bons</token>
+                    <token>termes</token>
+                </antipattern>
+                <pattern>
+                    <marker>
+                        <token>en</token>
+                        <token regexp="yes">bons?</token>
+                        <token regexp="yes">termes?</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « en bons termes », au pluriel.</message>
+                <suggestion>en bons termes</suggestion>
+                <example correction="en bons termes">Nous sommes à présent <marker>en bon terme</marker>.</example>
+                <example>Nous sommes à présent en bons termes.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>par</token>
+                    <marker>
+                        <token>intermittences</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « par intermittence », au singulier.</message>
+                <suggestion>intermittence</suggestion>
+                <example correction="intermittence">Elles ne viennent que par <marker>intermittences</marker>.</example>
+                <example>Elles ne viennent que par intermittence.</example>
+            </rule>
+            <rule>
+                <antipattern>
+                    <token>au</token>
+                    <token>pied</token>
+                    <token>levé</token>
+                </antipattern>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">au|aux</token>
+                        <token regexp="yes">pieds?</token>
+                        <token regexp="yes">levés?</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « au pied levé », au singulier.</message>
+                <suggestion>au pied levé</suggestion>
+                <example correction="au pied levé">Elle l'a remplacé <marker>aux pieds levés</marker>.</example>
+                <example>Elle l'a remplacé au pied levé.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>par</token>
+                    <marker>
+                        <token>soucis</token>
+                    </marker>
+                    <token regexp="yes">de|d'|du|des</token>
+                </pattern>
+                <message>On écrit « par souci de », au singulier.</message>
+                <suggestion>souci</suggestion>
+                <example correction="souci">Par <marker>soucis</marker> d'équité, chacun aura sa part.</example>
+                <example>Par souci d'équité, chacun aura sa part.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>à</token>
+                    <marker>
+                        <token regexp="yes">demis|demie|demies</token>
+                    </marker>
+                    <token postag="J .*|V .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Dans « à demi », « demi » est invariable.</message>
+                <suggestion>demi</suggestion>
+                <example correction="demi">Le plat est à <marker>demis</marker> cuit.</example>
+                <example>Le plat est à demi cuit.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>à</token>
+                    <marker>
+                        <token>parts<exception scope="next" postag="J .*|N .*|D .*|K" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>On écrit « à part », au singulier.</message>
+                <suggestion>part</suggestion>
+                <example correction="part">C'est un homme à <marker>parts</marker>.</example>
+                <example>C'est un homme à part.</example>
+                <example>Ils ont payé à parts égales.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>fois</token>
+                    <token>par</token>
+                    <marker>
+                        <token regexp="yes">ans|jours|semaines|heures|minutes|secondes|siècles|trimestres|semestres|années|décennies</token>
+                    </marker>
+                </pattern>
+                <message>Après « fois par », le nom de la période reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="s$" regexp_replace=""/></suggestion>
+                <example correction="an">Il vient vingt fois par <marker>ans</marker>.</example>
+                <example>Il vient vingt fois par an.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>d'</token>
+                    <token>entre</token>
+                    <marker>
+                        <token>elle</token>
+                    </marker>
+                </pattern>
+                <message>Après « d'entre », le pronom est au pluriel.</message>
+                <suggestion>elles</suggestion>
+                <example correction="elles">Plusieurs d'entre <marker>elle</marker> sont venues.</example>
+                <example>Plusieurs d'entre elles sont venues.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>bien</token>
+                    <token>d'</token>
+                    <marker>
+                        <token>autre</token>
+                    </marker>
+                    <token postag="V .*|SENT_END|M .*|C .*" postag_regexp="yes"><exception postag="N .*" postag_regexp="yes"/></token>
+                </pattern>
+                <message>On écrit « bien d'autres », au pluriel.</message>
+                <suggestion>autres</suggestion>
+                <example correction="autres">Eux et bien d'<marker>autre</marker> viendront.</example>
+                <example>Eux et bien d'autres viendront.</example>
+                <example>Il a bien d'autre part une idée.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>de</token>
+                    <marker>
+                        <token regexp="yes">telles|tels|tel</token>
+                        <token regexp="yes">sortes?</token>
+                    </marker>
+                    <token regexp="yes">que|qu'</token>
+                </pattern>
+                <message>La locution conjonctive est « de telle sorte que », au singulier.</message>
+                <suggestion>telle sorte</suggestion>
+                <example correction="telle sorte">Fais de <marker>telles sortes</marker> qu'on ne nous retrouve pas.</example>
+                <example>Fais de telle sorte qu'on ne nous retrouve pas.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token>de</token>
+                    <marker>
+                        <token>telle</token>
+                        <token>sortes</token>
+                    </marker>
+                    <token regexp="yes">que|qu'</token>
+                </pattern>
+                <message>La locution conjonctive est « de telle sorte que », au singulier.</message>
+                <suggestion>telle sorte</suggestion>
+                <example correction="telle sorte">Il agit de <marker>telle sortes</marker> que tout échoue.</example>
+                <example>Il agit de telle sorte que tout échoue.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">parler|causer|discuter</token>
+                    <marker>
+                        <token>affaire<exception scope="next" postag="J .*|N .*|D .*|V ppa.*" postag_regexp="yes"/><exception scope="next" regexp="yes">de|d'|du|des|que|qui</exception></token>
+                    </marker>
+                </pattern>
+                <message>On écrit « parler affaires », au pluriel.</message>
+                <suggestion>affaires</suggestion>
+                <example correction="affaires">Bon, causons <marker>affaire</marker>.</example>
+                <example>Bon, causons affaires.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_LOC_VERBE_NOM_SINGULIER" name="locutions verbales : le nom reste au singulier">
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">faire</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">plaisirs|peurs|hontes|envies|pitiés|rires</token>
+                    </marker>
+                    <token><exception postag="N .*|J .*" postag_regexp="yes"/><exception regexp="yes">de|d'|du|des</exception></token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="plaisir">Ça me fait <marker>plaisirs</marker>.</example>
+                <example>Ça me fait plaisir.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">faire</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">parties</token>
+                    </marker>
+                    <token regexp="yes">de|d'|du|des|intégrante</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="partie">Ils font <marker>parties</marker> de l'équipe.</example>
+                <example>Ils font partie de l'équipe.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">faire</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">faces|appels|références|allusions|attentions|confiances|obstacles|échos|suites</token>
+                    </marker>
+                    <token regexp="yes">à|au|aux</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="face">Ils font <marker>faces</marker> à la crise.</example>
+                <example>Ils font face à la crise.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">faire</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">preuves|fis|offices|figures|mines|états|usages|abstractions|montres</token>
+                    </marker>
+                    <token regexp="yes">de|d'|du|des</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="preuve">Il fait <marker>preuves</marker> de courage.</example>
+                <example>Il fait preuve de courage.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">avoir</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">lieux</token>
+                    </marker>
+                    <token><exception postag="N .*|J .*" postag_regexp="yes"/></token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="lieu">Les réunions ont <marker>lieux</marker> le lundi.</example>
+                <example>Les réunions ont lieu le lundi.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">avoir</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">besoins|envies|peurs|hontes|hâtes|pitiés|consciences|connaissances|horreurs</token>
+                    </marker>
+                    <token regexp="yes">de|d'|du|des</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="besoin">Ils ont <marker>besoins</marker> de repos.</example>
+                <example>Ils ont besoin de repos.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">avoir</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">droits|affaires</token>
+                    </marker>
+                    <token regexp="yes">à|au|aux</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="droit">Ils ont <marker>droits</marker> à une part.</example>
+                <example>Ils ont droit à une part.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">prendre</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">parts|gardes|goûts|plaisirs</token>
+                    </marker>
+                    <token regexp="yes">à|au|aux</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="part">Ils prennent <marker>parts</marker> au débat.</example>
+                <example>Ils prennent part au débat.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">prendre</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">soins|consciences|connaissances|possessions|notes|congés|actes</token>
+                    </marker>
+                    <token regexp="yes">de|d'|du|des</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="soin">Elle prend <marker>soins</marker> de lui.</example>
+                <example>Elle prend soin de lui.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">tenir|rendre</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">comptes</token>
+                    </marker>
+                    <token regexp="yes">de|d'|du|des</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="compte">Il tient <marker>comptes</marker> de tout.</example>
+                <example>Il tient compte de tout.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">rendre</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">visites|hommages|services</token>
+                    </marker>
+                    <token regexp="yes">à|au|aux</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="visite">Il rend <marker>visites</marker> à sa mère.</example>
+                <example>Il rend visite à sa mère.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">mettre</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">fins</token>
+                    </marker>
+                    <token regexp="yes">à|au|aux</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="fin">Cela met <marker>fins</marker> au débat.</example>
+                <example>Cela met fin au débat.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">donner</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">lieux|naissances|suites|raisons</token>
+                    </marker>
+                    <token regexp="yes">à|au|aux</token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="lieu">Cela donne <marker>lieux</marker> à des abus.</example>
+                <example>Cela donne lieu à des abus.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">porter</token>
+                    <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
+                    <marker>
+                        <token regexp="yes">plaintes|atteintes|préjudices</token>
+                    </marker>
+                    <token><exception postag="N .*|J .*" postag_regexp="yes"/></token>
+                </pattern>
+                <message>Dans cette locution verbale, le nom reste au singulier.</message>
+                <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
+                <example correction="plainte">Elle a porté <marker>plaintes</marker> hier.</example>
+                <example>Elle a porté plainte hier.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_LOC_ADVERBIALES" name="locutions adverbiales : singulier ou pluriel fixe">
+            <rule>
+                <regexp>\bsans (doute|cesse|relâche|encombre)s\b</regexp>
+                <message>Cette locution figée s'écrit « sans \1 ».</message>
+                <suggestion>sans \1</suggestion>
+                <example correction="sans doute">Il viendra <marker>sans doutes</marker> demain.</example>
+                <example>Il viendra sans doute demain.</example>
+            </rule>
+            <rule>
+                <regexp>\bde part et d['’]autres\b</regexp>
+                <message>Cette locution figée s'écrit « de part et d'autre ».</message>
+                <suggestion>de part et d'autre</suggestion>
+                <example correction="de part et d'autre">Des arbres poussent <marker>de part et d'autres</marker> de la route.</example>
+                <example>Des arbres poussent de part et d'autre de la route.</example>
+            </rule>
+            <rule>
+                <regexp>\ben fin de comptes\b</regexp>
+                <message>Cette locution figée s'écrit « en fin de compte ».</message>
+                <suggestion>en fin de compte</suggestion>
+                <example correction="En fin de compte"><marker>En fin de comptes</marker>, il a renoncé.</example>
+                <example>En fin de compte, il a renoncé.</example>
+            </rule>
+            <rule>
+                <regexp>\btout (?!compte fait\b)comptes? faits?\b</regexp>
+                <message>Cette locution figée s'écrit « tout compte fait ».</message>
+                <suggestion>tout compte fait</suggestion>
+                <example correction="Tout compte fait"><marker>Tout comptes faits</marker>, je reste.</example>
+                <example>Tout compte fait, je reste.</example>
+            </rule>
+            <rule>
+                <regexp>\ben vues (?=de\b|d['’])</regexp>
+                <message>Cette locution figée s'écrit « en vue ».</message>
+                <suggestion>en vue </suggestion>
+                <example correction="en vue ">Il révise <marker>en vues </marker>de l'examen.</example>
+                <example>Il révise en vue de l'examen.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;!\bet )\bà (court|moyen|long) termes\b</regexp>
+                <message>Cette locution figée s'écrit « à \1 terme ».</message>
+                <suggestion>à \1 terme</suggestion>
+                <example correction="à long terme">C'est rentable <marker>à long termes</marker>.</example>
+                <example>C'est rentable à long terme.</example>
+            </rule>
+            <rule>
+                <regexp>\bà hautes voix\b</regexp>
+                <message>Cette locution figée s'écrit « à haute voix ».</message>
+                <suggestion>à haute voix</suggestion>
+                <example correction="à haute voix">Il lit <marker>à hautes voix</marker>.</example>
+                <example>Il lit à haute voix.</example>
+            </rule>
+            <rule>
+                <regexp>\bà voix basses\b</regexp>
+                <message>Cette locution figée s'écrit « à voix basse ».</message>
+                <suggestion>à voix basse</suggestion>
+                <example correction="à voix basse">Ils parlent <marker>à voix basses</marker>.</example>
+                <example>Ils parlent à voix basse.</example>
+            </rule>
+            <rule>
+                <regexp>\bà temps (partiel|plein|complet)s\b</regexp>
+                <message>Cette locution figée s'écrit « à temps \1 ».</message>
+                <suggestion>à temps \1</suggestion>
+                <example correction="à temps partiel">Elles travaillent <marker>à temps partiels</marker>.</example>
+                <example>Elles travaillent à temps partiel.</example>
+            </rule>
+            <rule>
+                <regexp>\bà juste titres\b</regexp>
+                <message>Cette locution figée s'écrit « à juste titre ».</message>
+                <suggestion>à juste titre</suggestion>
+                <example correction="à juste titre">Il s'en plaint <marker>à juste titres</marker>.</example>
+                <example>Il s'en plaint à juste titre.</example>
+            </rule>
+            <rule>
+                <regexp>\bde (?!longue date\b)longues? dates?\b</regexp>
+                <message>Cette locution figée s'écrit « de longue date ».</message>
+                <suggestion>de longue date</suggestion>
+                <example correction="de longue date">Ce sont des amis <marker>de longues dates</marker>.</example>
+                <example>Ce sont des amis de longue date.</example>
+            </rule>
+            <rule>
+                <regexp>\bde temps à autres\b</regexp>
+                <message>Cette locution figée s'écrit « de temps à autre ».</message>
+                <suggestion>de temps à autre</suggestion>
+                <example correction="de temps à autre">Il passe <marker>de temps à autres</marker>.</example>
+                <example>Il passe de temps à autre.</example>
+            </rule>
+            <rule>
+                <regexp>\bpar (cœur|exemple|conséquent|hasard)s\b</regexp>
+                <message>Cette locution figée s'écrit « par \1 ».</message>
+                <suggestion>par \1</suggestion>
+                <example correction="par exemple">Prenons <marker>par exemples</marker> ce cas.</example>
+                <example>Prenons par exemple ce cas.</example>
+            </rule>
+            <rule>
+                <regexp>\bpar rapports (?=à\b|au\b|aux\b)</regexp>
+                <message>Cette locution figée s'écrit « par rapport ».</message>
+                <suggestion>par rapport </suggestion>
+                <example correction="par rapport ">C'est peu <marker>par rapports </marker>à hier.</example>
+                <example>C'est peu par rapport à hier.</example>
+            </rule>
+            <rule>
+                <regexp>\btout à coups\b</regexp>
+                <message>Cette locution figée s'écrit « tout à coup ».</message>
+                <suggestion>tout à coup</suggestion>
+                <example correction="Tout à coup"><marker>Tout à coups</marker>, il se leva.</example>
+                <example>Tout à coup, il se leva.</example>
+            </rule>
+            <rule>
+                <regexp>\btout de suites\b</regexp>
+                <message>Cette locution figée s'écrit « tout de suite ».</message>
+                <suggestion>tout de suite</suggestion>
+                <example correction="tout de suite">Viens <marker>tout de suites</marker>.</example>
+                <example>Viens tout de suite.</example>
+            </rule>
+            <rule>
+                <regexp>\btout à faits\b</regexp>
+                <message>Cette locution figée s'écrit « tout à fait ».</message>
+                <suggestion>tout à fait</suggestion>
+                <example correction="tout à fait">C'est <marker>tout à faits</marker> exact.</example>
+                <example>C'est tout à fait exact.</example>
+            </rule>
+            <rule>
+                <regexp>\btout à l['’]heures\b</regexp>
+                <message>Cette locution figée s'écrit « tout à l'heure ».</message>
+                <suggestion>tout à l'heure</suggestion>
+                <example correction="tout à l'heure">Je passerai <marker>tout à l'heures</marker>.</example>
+                <example>Je passerai tout à l'heure.</example>
+            </rule>
+            <rule>
+                <regexp>\bà nouveaux\b(?! \p{L}+[sx]\b)</regexp>
+                <message>Cette locution figée s'écrit « à nouveau ».</message>
+                <suggestion>à nouveau</suggestion>
+                <example correction="à nouveau">Il a <marker>à nouveaux</marker> échoué.</example>
+                <example>Il a à nouveau échoué.</example>
+            </rule>
+            <rule>
+                <regexp>\ben effets(?= ?[,.;:!?…]|$)</regexp>
+                <message>Cette locution figée s'écrit « en effet ».</message>
+                <suggestion>en effet</suggestion>
+                <example correction="en effet">Il avait raison, <marker>en effets</marker>.</example>
+                <example>Il avait raison, en effet.</example>
+            </rule>
+            <rule>
+                <regexp>\ben (pleur|larme)\b</regexp>
+                <message>Cette locution figée s'écrit « en \1s ».</message>
+                <suggestion>en \1s</suggestion>
+                <example correction="en larmes">Elle était <marker>en larme</marker>.</example>
+                <example>Elle était en larmes.</example>
+            </rule>
+            <rule>
+                <regexp>\ben lambeau\b</regexp>
+                <message>Cette locution figée s'écrit « en lambeaux ».</message>
+                <suggestion>en lambeaux</suggestion>
+                <example correction="en lambeaux">Sa veste est <marker>en lambeau</marker>.</example>
+                <example>Sa veste est en lambeaux.</example>
+            </rule>
+            <rule>
+                <regexp>\ben haillon\b</regexp>
+                <message>Cette locution figée s'écrit « en haillons ».</message>
+                <suggestion>en haillons</suggestion>
+                <example correction="en haillons">Un mendiant <marker>en haillon</marker>.</example>
+                <example>Un mendiant en haillons.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;!jusqu['’])\bà genou\b</regexp>
+                <message>Cette locution figée s'écrit « à genoux ».</message>
+                <suggestion>à genoux</suggestion>
+                <example correction="à genoux">Il se met <marker>à genou</marker>.</example>
+                <example>Il se met à genoux.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (tâton|reculon)\b</regexp>
+                <message>Cette locution figée s'écrit « à \1s ».</message>
+                <suggestion>à \1s</suggestion>
+                <example correction="à tâtons">Il avance <marker>à tâton</marker> dans le noir.</example>
+                <example>Il avance à tâtons dans le noir.</example>
+            </rule>
+            <rule>
+                <regexp>\bà bras ouvert\b</regexp>
+                <message>Cette locution figée s'écrit « à bras ouverts ».</message>
+                <suggestion>à bras ouverts</suggestion>
+                <example correction="à bras ouverts">Ils nous ont reçus <marker>à bras ouvert</marker>.</example>
+                <example>Ils nous ont reçus à bras ouverts.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!pieds joints\b)pieds? joints?\b</regexp>
+                <message>Cette locution figée s'écrit « à pieds joints ».</message>
+                <suggestion>à pieds joints</suggestion>
+                <example correction="à pieds joints">Il saute <marker>à pied joint</marker> dans la flaque.</example>
+                <example>Il saute à pieds joints dans la flaque.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!chaudes larmes\b)chaudes? larmes?\b</regexp>
+                <message>Cette locution figée s'écrit « à chaudes larmes ».</message>
+                <suggestion>à chaudes larmes</suggestion>
+                <example correction="à chaudes larmes">Elle pleure <marker>à chaude larme</marker>.</example>
+                <example>Elle pleure à chaudes larmes.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!pleins poumons\b)pleins? poumons?\b</regexp>
+                <message>Cette locution figée s'écrit « à pleins poumons ».</message>
+                <suggestion>à pleins poumons</suggestion>
+                <example correction="à pleins poumons">Il respire <marker>à plein poumon</marker>.</example>
+                <example>Il respire à pleins poumons.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!pleines dents\b)pleines? dents?\b</regexp>
+                <message>Cette locution figée s'écrit « à pleines dents ».</message>
+                <suggestion>à pleines dents</suggestion>
+                <example correction="à pleines dents">Il mord <marker>à pleine dent</marker> dans la pomme.</example>
+                <example>Il mord à pleines dents dans la pomme.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (grand|petit) pas\b</regexp>
+                <message>Cette locution figée s'écrit « à \1s pas ».</message>
+                <suggestion>à \1s pas</suggestion>
+                <example correction="à grands pas">Le projet avance <marker>à grand pas</marker>.</example>
+                <example>Le projet avance à grands pas.</example>
+            </rule>
+            <rule>
+                <regexp>\bà grand frais\b</regexp>
+                <message>Cette locution figée s'écrit « à grands frais ».</message>
+                <suggestion>à grands frais</suggestion>
+                <example correction="à grands frais">Il l'a restauré <marker>à grand frais</marker>.</example>
+                <example>Il l'a restauré à grands frais.</example>
+            </rule>
+            <rule>
+                <regexp>\bà tous égard\b</regexp>
+                <message>Cette locution figée s'écrit « à tous égards ».</message>
+                <suggestion>à tous égards</suggestion>
+                <example correction="à tous égards">C'est remarquable <marker>à tous égard</marker>.</example>
+                <example>C'est remarquable à tous égards.</example>
+            </rule>
+            <rule>
+                <regexp>\bau fur et à mesures\b</regexp>
+                <message>Cette locution figée s'écrit « au fur et à mesure ».</message>
+                <suggestion>au fur et à mesure</suggestion>
+                <example correction="au fur et à mesure">Il corrige <marker>au fur et à mesures</marker>.</example>
+                <example>Il corrige au fur et à mesure.</example>
+            </rule>
+            <rule>
+                <regexp>\bau préalables\b</regexp>
+                <message>Cette locution figée s'écrit « au préalable ».</message>
+                <suggestion>au préalable</suggestion>
+                <example correction="au préalable">Prévenez-moi <marker>au préalables</marker>.</example>
+                <example>Prévenez-moi au préalable.</example>
+            </rule>
+            <rule>
+                <regexp>\b((?:créé|inventé|monté|forgé|fabriqué|construit)e?s?) de (?:toute pièces?|toutes pièce)\b</regexp>
+                <message>Cette locution figée s'écrit « \1 de toutes pièces ».</message>
+                <suggestion>\1 de toutes pièces</suggestion>
+                <example correction="inventée de toutes pièces">Une histoire <marker>inventée de toute pièce</marker>.</example>
+                <example>Une histoire inventée de toutes pièces.</example>
+            </rule>
+            <rule>
+                <regexp>\bde (?!fond en comble\b)fonds? en combles?\b</regexp>
+                <message>Cette locution figée s'écrit « de fond en comble ».</message>
+                <suggestion>de fond en comble</suggestion>
+                <example correction="de fond en comble">Il a fouillé la maison <marker>de fonds en comble</marker>.</example>
+                <example>Il a fouillé la maison de fond en comble.</example>
+            </rule>
+            <rule>
+                <regexp>\bsoi-disant(?:e|s|es)\b</regexp>
+                <message>Cette locution figée s'écrit « soi-disant ».</message>
+                <suggestion>soi-disant</suggestion>
+                <example correction="soi-disant">Ces <marker>soi-disants</marker> experts se trompent.</example>
+                <example>Ces soi-disant experts se trompent.</example>
+            </rule>
+            <rule>
+                <regexp>\bquelques part\b|\bquelque parts\b</regexp>
+                <message>Cette locution figée s'écrit « quelque part ».</message>
+                <suggestion>quelque part</suggestion>
+                <example correction="quelque part">Je l'ai rangé <marker>quelques part</marker>.</example>
+                <example>Je l'ai rangé quelque part.</example>
+            </rule>
+            <rule>
+                <regexp>\bnul parts?\b|\bnulles? parts\b|\bnulles part\b</regexp>
+                <message>Cette locution figée s'écrit « nulle part ».</message>
+                <suggestion>nulle part</suggestion>
+                <example correction="nulle part">On ne le trouve <marker>nul part</marker>.</example>
+                <example>On ne le trouve nulle part.</example>
+            </rule>
+            <rule>
+                <regexp>\bd['’]autres part\b</regexp>
+                <message>Cette locution figée s'écrit « d'autre part ».</message>
+                <suggestion>d'autre part</suggestion>
+                <example correction="d'autre part">D'une part il pleut, <marker>d'autres part</marker> il fait froid.</example>
+                <example>D'une part il pleut, d'autre part il fait froid.</example>
+            </rule>
+            <rule>
+                <regexp>\bà tous prix\b</regexp>
+                <message>Cette locution figée s'écrit « à tout prix ».</message>
+                <suggestion>à tout prix</suggestion>
+                <example correction="à tout prix">Il veut gagner <marker>à tous prix</marker>.</example>
+                <example>Il veut gagner à tout prix.</example>
+            </rule>
+            <rule>
+                <regexp>\bde toute façons\b|\bde toutes façon\b</regexp>
+                <message>Cette locution figée s'écrit « de toute façon » ou « de toutes façons ».</message>
+                <suggestion>de toute façon</suggestion>
+                <suggestion>de toutes façons</suggestion>
+                <example correction="De toute façon|De toutes façons"><marker>De toute façons</marker>, il est trop tard.</example>
+                <example>De toute façon, il est trop tard.</example>
+            </rule>
+            <rule>
+                <regexp>\bde toute sortes\b|\bde toutes sorte\b</regexp>
+                <message>Cette locution figée s'écrit « de toutes sortes » ou « de toute sorte ».</message>
+                <suggestion>de toutes sortes</suggestion>
+                <suggestion>de toute sorte</suggestion>
+                <example correction="de toutes sortes|de toute sorte">Il vend des objets <marker>de toute sortes</marker>.</example>
+                <example>Il vend des objets de toutes sortes.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!toutes fins utiles\b)toutes? fins? utiles?\b</regexp>
+                <message>Cette locution figée s'écrit « à toutes fins utiles ».</message>
+                <suggestion>à toutes fins utiles</suggestion>
+                <example correction="à toutes fins utiles">Je vous l'envoie <marker>à toute fin utile</marker>.</example>
+                <example>Je vous l'envoie à toutes fins utiles.</example>
+            </rule>
+            <rule>
+                <regexp>\bà tout (moment|instant)s\b</regexp>
+                <message>Cette locution figée s'écrit « à tout \1 ».</message>
+                <suggestion>à tout \1</suggestion>
+                <example correction="à tout moment">Il peut arriver <marker>à tout moments</marker>.</example>
+                <example>Il peut arriver à tout moment.</example>
+            </rule>
+            <rule>
+                <regexp>\ben tout état de causes\b</regexp>
+                <message>Cette locution figée s'écrit « en tout état de cause ».</message>
+                <suggestion>en tout état de cause</suggestion>
+                <example correction="En tout état de cause"><marker>En tout état de causes</marker>, il faut agir.</example>
+                <example>En tout état de cause, il faut agir.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">mettre|remettre</token>
+                    <token postag="R pers obj.*|A" postag_regexp="yes" min="0" max="2"/>
+                    <token>sur</token>
+                    <marker>
+                        <token>pieds</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « mettre sur pied », au singulier.</message>
+                <suggestion>pied</suggestion>
+                <example correction="pied">Ils ont mis sur <marker>pieds</marker> un nouveau service.</example>
+                <example>Ils ont mis sur pied un nouveau service.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token postag="N . p" postag_regexp="yes"/>
+                    <marker>
+                        <token regexp="yes">bons?</token>
+                        <token>marchés</token>
+                    </marker>
+                </pattern>
+                <message>L'adjectif « bon marché » est invariable.</message>
+                <suggestion>bon marché</suggestion>
+                <example correction="bon marché">Ce sont des produits <marker>bons marchés</marker>.</example>
+                <example>Ce sont des produits bon marché.</example>
+                <example>Il a fait de bons marchés.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">ci-jointe|ci-joints|ci-jointes|ci-incluse|ci-incluses</token>
+                    </marker>
+                    <token regexp="yes">les|la|le|l'|des|une?|mes|ma|mon|nos|notre|vos|votre|plusieurs|deux|trois|copie|photocopie</token>
+                </pattern>
+                <message>Placé devant le nom et son déterminant, « ci-joint » (ou « ci-inclus ») reste invariable.</message>
+                <suggestion><match no="1" regexp_match="(?i)(ci-joint|ci-inclus).*" regexp_replace="$1"/></suggestion>
+                <example correction="ci-joint">Veuillez trouver <marker>ci-jointes</marker> les factures.</example>
+                <example>Veuillez trouver ci-joint les factures.</example>
+                <example>Les factures ci-jointes sont à régler.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_LOC_DIVERS" name="locutions figées déformées">
+            <rule>
+                <regexp>\b(?!autant que faire se peut\b)(?:autant|au tant|au temps|autan) que (?:faire|fer|fair) (?:se|ce) (?:peut|peux|peu)\b</regexp>
+                <message>La locution s'écrit « autant que faire se peut ».</message>
+                <suggestion>autant que faire se peut</suggestion>
+                <example correction="autant que faire se peut">On y arrivera, <marker>au temps que faire ce peu</marker>.</example>
+                <example>On y arrivera, autant que faire se peut.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>malgré</token>
+                        <token>que<exception scope="next" regexp="yes">j'|tu|il|elle|nous|vous|ils|elles</exception></token>
+                    </marker>
+                </pattern>
+                <message>« Malgré que » est critiqué dans la langue soignée : préférez « bien que » ou « quoique ».</message>
+                <suggestion>bien que</suggestion>
+                <suggestion>quoique</suggestion>
+                <example correction="bien que|quoique">Les chiffres sont bons, <marker>malgré que</marker> certains clients aient annulé.</example>
+                <example>Les chiffres sont bons, bien que certains clients aient annulé.</example>
+                <example>Malgré que j'en aie, je dois partir.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">je|j'</token>
+                    <token regexp="yes">vous|te|t'</token>
+                    <marker>
+                        <token>pris</token>
+                    </marker>
+                    <token regexp="yes">de|d'</token>
+                    <token postag="R pers obj.*|A" postag_regexp="yes" min="0" max="2"/>
+                    <token postag="V inf"/>
+                </pattern>
+                <message>Le verbe est « prier » : « je vous prie de… ».</message>
+                <suggestion>prie</suggestion>
+                <example correction="prie">Je vous <marker>pris</marker> d'agréer mes salutations distinguées.</example>
+                <example>Je vous prie d'agréer mes salutations distinguées.</example>
+                <example>Je vous ai pris de court.</example>
+            </rule>
+        </rulegroup>
+
+    </category>
+</rules>
