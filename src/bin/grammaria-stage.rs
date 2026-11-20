@@ -6,7 +6,8 @@
 //!   grammaria-stage match    TOKENS.jsonl   disambiguated dump -> rule matches
 //!
 //! `--assets DIR` names the LanguageTool resource directory (default
-//! `assets/fr/lt`).
+//! `assets/fr/lt`). `--rules native|xml` restricts `match` to the rules
+//! written in code or to those of the rule files (default: all).
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ use grammaria::api::json_escape;
 use grammaria::engine::checker::{CheckRule, Checker};
 use grammaria::engine::disambiguator::Disambiguator;
 use grammaria::engine::dump::{dump_sentences, sentences_from_dump};
+use grammaria::engine::native::french_native_rules;
 use grammaria::engine::pattern::Lang;
 use grammaria::engine::rule::{RuleContext, RuleFilter};
 use grammaria::engine::unifier::UnifierConfiguration;
@@ -26,16 +28,18 @@ fn no_filters(_: &str) -> Option<Arc<dyn RuleFilter>> {
 
 fn main() {
     let mut assets = PathBuf::from("assets/fr/lt");
+    let mut which_rules = String::from("all");
     let mut positional: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--assets" => assets = PathBuf::from(args.next().unwrap_or_default()),
+            "--rules" => which_rules = args.next().unwrap_or_default(),
             _ => positional.push(a),
         }
     }
     let (Some(mode), Some(file)) = (positional.first(), positional.get(1)) else {
-        eprintln!("usage: grammaria-stage (disambig|match) DUMP.jsonl [--assets DIR]");
+        eprintln!("usage: grammaria-stage (disambig|match) DUMP.jsonl [--assets DIR] [--rules native|xml]");
         std::process::exit(2);
     };
     let input = std::fs::read_to_string(file).expect("dump file");
@@ -47,18 +51,24 @@ fn main() {
     let mut dis_unifier = UnifierConfiguration::default();
     let disambiguator = Disambiguator::load(&assets, &no_filters, &mut dis_unifier).expect("disambiguation files");
     let mut rules: Vec<GrammarRule> = Vec::new();
-    if mode == "match" {
+    if mode == "match" && which_rules != "native" {
         for (name, style) in [("grammar.xml", false), ("style.xml", true)] {
             let xml = std::fs::read_to_string(assets.join(name)).expect("rule file");
             rules.extend(load_grammar(&xml, name, style, &no_filters, &mut unifier));
         }
     }
-    let rules: Vec<CheckRule> = rules
+    // LanguageTool's order: the rules written in code, then the rule files.
+    let mut native: Vec<CheckRule> = Vec::new();
+    if mode == "match" && which_rules != "xml" {
+        let rules = french_native_rules(&assets, None).expect("native rule data");
+        native.extend(rules.into_iter().map(CheckRule::Native));
+    }
+    let rules: Vec<CheckRule> = native
         .into_iter()
-        .map(|r| match r {
+        .chain(rules.into_iter().map(|r| match r {
             GrammarRule::Pattern(p) => CheckRule::Pattern(p),
             GrammarRule::Regex(r) => CheckRule::Regex(r),
-        })
+        }))
         .collect();
     let checker = Checker::new(rules, RuleContext { lang: Lang::default(), unifier, disambig_unifier: dis_unifier });
     let (ctx, disambiguator, checker) = (&checker.ctx, &disambiguator, &checker);
