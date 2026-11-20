@@ -115,6 +115,12 @@ fn build_rule_cache(assets: &str, out: &str) -> std::io::Result<()> {
     }
     let dest = Path::new(out).join("fr.rules");
     set.save_cache(&dest)?;
+    // The disambiguation rules are read verbatim at load time: ship them next
+    // to the rule cache so that a data directory is self-contained.
+    fs::copy(
+        Path::new(assets).join("languagetool-disambiguation.xml"),
+        Path::new(out).join("fr.disambig.xml"),
+    )?;
     eprintln!(
         "wrote {} ({} rules, {} bytes) in {:?}",
         dest.display(),

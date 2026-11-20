@@ -3,6 +3,7 @@
 //! Rule files and data are taken from LanguageTool (LGPL) and are re-implemented
 //! natively in Rust; see `THIRD_PARTY_LICENSES.md`.
 
+pub mod api;
 pub mod filters;
 pub mod lexicon;
 pub mod pattern;

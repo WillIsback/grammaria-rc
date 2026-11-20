@@ -56,6 +56,7 @@ assets/fr/*.xml,*.txt                 open-source data (LanguageTool, LGPL)
 data/fr.lex      double-array trie     475 097 word forms / 616 695 senses   ~37 MB
 data/fr.rules    compiled rule cache   6 947 rules                           ~7 MB
 data/fr.words    multiwords, hyphenated compounds, extra spellings           ~1 MB
+data/fr.disambig.xml  disambiguation rules, copied verbatim              ~0.4 MB
         │
         ▼  grammaria (runtime: ~0.14 s load, ~7 ms per sentence)
 tokenizer → tagger → chunker → disambiguator → rule engine → native filters
@@ -114,23 +115,36 @@ grammaria check --tagger article.txt
 echo "La toit fuit." | grammaria check --json -
 ```
 
+### Long-running mode
+
+`grammaria serve` loads the data once and answers requests on stdin, one JSON
+line each, so a host application pays the load time a single time:
+
+```sh
+$ printf '1 20\nJe mange un pomme. ' | grammaria serve --data data
+{"ready":true}
+{"id":1,"matches":[{"message":"Le déterminant s'accorde avec le nom \"pomme\".", ...}]}
+```
+
+A request is `<id> <byte length>\n` followed by that many bytes of UTF-8 text.
+Offsets in the reply are UTF-16 code units, as LanguageTool and JavaScript
+count them (`grammaria check --json` reports bytes).
+
 Exit status is `1` when problems were found, `0` when the text is clean.
 Set `GRAMMARIA_DATA=/path/to/data` to relocate the data directory.
 
 ## Library
 
 ```rust
-use grammaria::{rules, tagger::Tagger};
+use grammaria::api::{Engine, OffsetUnit};
 
-let tagger = Tagger::new(
-    std::path::Path::new("data/fr.lex"),
-    std::path::Path::new("data/fr.words"),
-    Some(std::path::Path::new("data/fr.disambig.xml")),
-)?;
-let rules = rules::RuleSet::load_cache("data/fr.rules").unwrap();
-for m in rules::check_text(tagger, &rules, "Cette événement est important.", false) {
+// Loads fr.lex, fr.words, fr.rules and fr.disambig.xml from the data directory.
+let engine = Engine::load(std::path::Path::new("data"))?;
+for m in engine.check("Cette événement est important.", false) {
     println!("{} {}: {} {:?}", m.offset, m.length, m.message, m.suggestions);
 }
+// LanguageTool-shaped `matches` array, offsets in UTF-16 code units.
+let json = engine.check_json("Cette événement est important.", false, OffsetUnit::Utf16);
 ```
 
 ## Evaluation

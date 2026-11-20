@@ -115,3 +115,37 @@ fn tagging_matches_language_tool_for_a_simple_sentence() {
     assert!(pos("Le").contains(&"D m s".to_string()));
     assert!(word("chat").contains(&"_GN_MS".to_string()));
 }
+
+#[test]
+fn engine_serves_framed_requests_with_utf16_offsets() {
+    let dir = data_dir().expect("data directory");
+    let engine = grammaria::api::Engine::load(&dir).expect("engine");
+    // "😀" is 4 bytes but 2 UTF-16 units: the match after it must be shifted.
+    let first = "😀 Je mange un pomme.";
+    let second = "Bonjour.";
+    let mut input = Vec::new();
+    for (id, text) in [(7, first), (8, second)] {
+        input.extend_from_slice(format!("{id} {}\n", text.len()).as_bytes());
+        input.extend_from_slice(text.as_bytes());
+    }
+    let mut output = Vec::new();
+    engine.serve(&input[..], &mut output, false).expect("serve");
+    let output = String::from_utf8(output).unwrap();
+    let lines: Vec<&str> = output.lines().collect();
+    assert_eq!(lines[0], "{\"ready\":true}");
+    assert!(lines[1].starts_with("{\"id\":7,\"matches\":[{"), "{}", lines[1]);
+    assert!(lines[1].contains("\"id\":\"D_N\""), "{}", lines[1]);
+    // "un pomme" starts at UTF-16 unit 12 (byte 14).
+    assert!(lines[1].contains("\"offset\":12,\"length\":8"), "{}", lines[1]);
+    assert_eq!(lines[2], "{\"id\":8,\"matches\":[]}");
+    assert_eq!(lines.len(), 3);
+}
+
+#[test]
+fn engine_serve_stops_on_a_malformed_header() {
+    let dir = data_dir().expect("data directory");
+    let engine = grammaria::api::Engine::load(&dir).expect("engine");
+    let mut output = Vec::new();
+    let err = engine.serve(&b"not a header\n"[..], &mut output, false).unwrap_err();
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}

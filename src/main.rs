@@ -1,13 +1,18 @@
 //! Grammaria command line interface.
 
-use std::io::Read;
 use std::path::{Path, PathBuf};
+
+use grammaria::api::{json_escape, matches_json, read_all, Engine, OffsetUnit};
 
 fn usage() {
     eprintln!(
         "grammaria {}\n\
          A fast French grammar and spelling checker (LanguageTool-compatible).\n\n\
-         USAGE:\n  grammaria check [OPTIONS] FILE...\n\n\
+         USAGE:\n  grammaria check [OPTIONS] FILE...\n\
+         \x20 grammaria serve [--style] [--data DIR]\n\n\
+         `serve` keeps the data loaded and answers framed requests on stdin\n\
+         (`<id> <byte length>\\n<text>`) with one JSON line each on stdout;\n\
+         offsets are UTF-16 code units.\n\n\
          OPTIONS:\n\
          \x20 --json             machine-readable output (LanguageTool --json format)\n\
          \x20 --tagger           print POS analysis instead of checking\n\
@@ -25,22 +30,6 @@ fn data_dir() -> PathBuf {
     PathBuf::from("data")
 }
 
-fn json_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 8);
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out
-}
-
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() || args[0] == "-h" || args[0] == "--help" {
@@ -50,8 +39,7 @@ fn main() {
     let mut json = false;
     let mut tagger_only = false;
     let mut style = false;
-    let mut rest_json: Option<String> = None;
-    let _ = &mut rest_json;
+    let serve = args[0] == "serve";
     let mut files: Vec<String> = Vec::new();
     let mut data: Option<String> = None;
     let mut i = 1;
@@ -103,20 +91,24 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let rules = load_rules(&dir);
+    let engine = Engine::from_parts(tg, load_rules(&dir));
+    if serve {
+        let stdin = std::io::stdin();
+        let stdout = std::io::stdout();
+        if let Err(e) = engine.serve(stdin.lock(), stdout.lock(), style) {
+            eprintln!("grammaria serve: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     let mut exit_code = 0;
     for f in &files {
         let text = if f == "-" {
-            let mut s = String::new();
-            std::io::stdin().read_to_string(&mut s).ok();
-            s
+            read_all(std::io::stdin())
         } else {
             std::fs::read_to_string(f).unwrap_or_default()
         };
-        if let Some(rest) = rest_json.as_ref() {
-            let _ = rest;
-        }
         if tagger_only {
             for (a, b) in grammaria::tokenizer::sentence_boundaries(&text) {
                 let s = tg.tag(&text[a..b], a);
@@ -124,7 +116,7 @@ fn main() {
             }
             continue;
         }
-        let matches = grammaria::rules::check_text(tg, &rules, &text, style);
+        let matches = engine.check(&text, style);
         if !matches.is_empty() {
             exit_code = 1;
         }
@@ -202,44 +194,11 @@ fn print_json(text: &str, matches: &[grammaria::rules::RuleMatch], file: &str) {
     out.push_str(",\"warnings\":{\"incompleteResults\":false}");
     out.push_str(",\"language\":{\"name\":\"French\",\"code\":\"fr\"}");
     out.push_str(&format!(",\"file\":\"{}\"", json_escape(file)));
-    out.push_str(",\"matches\":[");
-    for (i, m) in matches.iter().enumerate() {
-        if i > 0 {
-            out.push(',');
-        }
-        // `context` is a window around the match: LanguageTool pads it with the
-        // surrounding sentence; we use the containing sentence, clamped to a
-        // reasonable window so long sentences do not dominate the payload.
-        let (ctx_start, ctx_end) = context_window(text, m.offset, m.length);
-        let ctx_text = text.get(ctx_start..ctx_end).unwrap_or("");
-        out.push_str(&format!(
-            "{{\"message\":\"{}\",\"shortMessage\":\"{}\",\"replacements\":[{}],\"offset\":{},\"length\":{},\"context\":{{\"text\":\"{}\",\"offset\":{},\"length\":{}}},\"sentence\":\"{}\",\"type\":{{\"typeName\":\"{}\"}},\"rule\":{{\"id\":\"{}\",\"subId\":\"{}\",\"sourceFile\":\"{}\",\"description\":\"{}\",\"issueType\":\"{}\",\"category\":{{\"id\":\"{}\",\"name\":\"{}\"}}}}}}",
-            json_escape(&m.message),
-            json_escape(&m.short_message),
-            m.suggestions
-                .iter()
-                .map(|s| format!("{{\"value\":\"{}\"}}", json_escape(s)))
-                .collect::<Vec<_>>()
-                .join(","),
-            m.offset,
-            m.length,
-            json_escape(ctx_text),
-            m.offset.saturating_sub(ctx_start),
-            m.length,
-            json_escape(&m.sentence),
-            if m.is_style { "style" } else { "Other" },
-            json_escape(&m.rule_id),
-            json_escape(&m.full_rule_id),
-            if m.is_style { "style.xml" } else { "grammar.xml" },
-            json_escape(&m.category_name),
-            if m.is_style { "style" } else { "uncategorized" },
-            json_escape(&m.category_id),
-            json_escape(&m.category_name)
-        ));
-    }
+    out.push_str(",\"matches\":");
+    out.push_str(&matches_json(text, matches, OffsetUnit::Bytes));
     // `sentenceRanges` lets clients map offsets back to sentences;
     // `extendedSentenceRanges` mirrors LanguageTool's list of paragraph ranges.
-    out.push_str("],\"sentenceRanges\":");
+    out.push_str(",\"sentenceRanges\":");
     out.push_str(&json_ranges(text, false));
     out.push_str(",\"extendedSentenceRanges\":");
     out.push_str(&json_ranges(text, true));
@@ -287,41 +246,3 @@ fn json_ranges(text: &str, paragraphs: bool) -> String {
             .join(",")
     )
 }
-
-/// Context window used in the JSON `context` field: the containing sentence,
-/// trimmed when it is longer than `CONTEXT_MAX` characters.
-fn context_window(text: &str, offset: usize, _length: usize) -> (usize, usize) {
-    const CONTEXT_MAX: usize = 120;
-    let bytes = text.as_bytes();
-    let offset = offset.min(text.len());
-    // Sentence start: after the previous terminal punctuation.
-    let mut start = 0;
-    for i in (0..offset).rev() {
-        if matches!(bytes[i], b'.' | b'!' | b'?' | b'\n') {
-            start = i + 1;
-            break;
-        }
-    }
-    while start < offset && bytes[start] == b' ' {
-        start += 1;
-    }
-    let mut end = text.len();
-    for (i, c) in text.bytes().enumerate().skip(offset) {
-        if matches!(c, b'.' | b'!' | b'?' | b'\n') {
-            end = i + 1;
-            break;
-        }
-    }
-    if end - start > CONTEXT_MAX {
-        start = offset.saturating_sub(CONTEXT_MAX / 3);
-        end = (start + CONTEXT_MAX).min(end);
-        while start < offset && !text.is_char_boundary(start) {
-            start += 1;
-        }
-        while end > offset && !text.is_char_boundary(end) {
-            end -= 1;
-        }
-    }
-    (start, end)
-}
-
