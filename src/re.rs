@@ -888,28 +888,42 @@ fn set_matches_exact(set: &ClassSet, c: char) -> bool {
     }
 }
 
-fn set_matches(set: &ClassSet, c: char, ci: u8) -> bool {
-    if set_matches_exact(set, c) {
-        return true;
-    }
-    match ci {
-        0 => false,
-        1 => {
-            c.is_ascii_alphabetic()
-                && (set_matches_exact(set, c.to_ascii_lowercase()) || set_matches_exact(set, c.to_ascii_uppercase()))
-        }
-        _ => {
+/// A class member under case-insensitive matching (`ci`: 1 ASCII only,
+/// 2 Unicode): a range also accepts the chars whose other case is in it.
+fn item_matches_ci(item: &ClassItem, c: char, ci: u8) -> bool {
+    match item {
+        ClassItem::Range(a, b) => {
+            let within = |x: char| *a <= x && x <= *b;
+            if within(c) {
+                return true;
+            }
+            if ci == 1 {
+                return c.is_ascii_alphabetic() && (within(c.to_ascii_lowercase()) || within(c.to_ascii_uppercase()));
+            }
             let f = fold(c);
-            if f != c && set_matches_exact(set, f) {
+            if f != c && within(f) {
                 return true;
             }
             let mut up = c.to_uppercase();
             match (up.next(), up.next()) {
-                (Some(u), None) if u != c => set_matches_exact(set, u),
+                (Some(u), None) if u != c => within(u),
                 _ => false,
             }
         }
+        ClassItem::Set(s) => set_matches(s, c, ci),
+        other => item_matches(other, c),
     }
+}
+
+/// Class membership. As in Java, the case-insensitive variants belong to
+/// the members and the negation applies to their union: `(?i)[^a-z]`
+/// matches no letter of either case.
+fn set_matches(set: &ClassSet, c: char, ci: u8) -> bool {
+    if ci == 0 {
+        return set_matches_exact(set, c);
+    }
+    let hit = set.items.iter().any(|it| item_matches_ci(it, c, ci));
+    hit != set.neg && set.and.iter().all(|s| set_matches(s, c, ci))
 }
 
 struct Matcher<'a> {
@@ -1473,6 +1487,25 @@ mod tests {
         assert!(full("\\p{L}+", "œuvre"));
         assert!(!full("\\P{L}+", "a"));
         assert!(full("[\\p{L}\\-]+", "peut-être"));
+    }
+
+    #[test]
+    fn negated_classes_ignore_case_before_negating() {
+        // Java: the case variants are added to the class, then it is negated.
+        assert!(!full_i("[^a-z].*", "et"));
+        assert!(!full_i("[^a-z].*", "Et"));
+        assert!(full_i("[^a-z].*", "1er"));
+        assert!(!full_i(".*[^ae]", "commencera"));
+        assert!(!full_i(".*[^ae]", "COMMENCERA"));
+        assert!(full_i(".*[^ae]", "arriveras"));
+        assert!(!full_i("[^é]", "É"));
+        assert!(full_i("[a-z&&[^aeiou]]+", "BRT"));
+        assert!(!full_i("[a-z&&[^aeiou]]+", "BAT"));
+        // Without the flag nothing changes.
+        assert!(full("[^a-z].*", "Et"));
+        let ascii_only = Flags { case_insensitive: true, ..Flags::default() };
+        assert!(!Regex::new("[^a-z]", ascii_only).unwrap().is_full_match("E"));
+        assert!(Regex::new("[^é]", ascii_only).unwrap().is_full_match("É"));
     }
 
     #[test]
