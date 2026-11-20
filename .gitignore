@@ -16,3 +16,4 @@ data/*.gz
 
 # Agent worktrees (local tooling)
 /.claude/
+/eval/prose/*.txt
