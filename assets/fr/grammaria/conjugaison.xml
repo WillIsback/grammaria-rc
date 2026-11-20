@@ -242,7 +242,7 @@ corrections (subjonctif imparfait, puis présent).
             <rule>
                 <antipattern>
                     <token skip="4">bien</token>
-                    <token inflected="yes" regexp="yes">recevoir|donner|hériter|acquérir|acheter|vendre|posséder|léguer|céder|transmettre|obtenir</token>
+                    <token inflected="yes" regexp="yes">recevoir|donner|acquérir|acheter|vendre|posséder|léguer|céder|transmettre|obtenir</token>
                     <example>C'est un bien qu'il reçut après le décès de son oncle.</example>
                 </antipattern>
                 <pattern>
@@ -267,7 +267,7 @@ corrections (subjonctif imparfait, puis présent).
             <rule>
                 <antipattern>
                     <token skip="4">bien</token>
-                    <token inflected="yes" regexp="yes">recevoir|donner|hériter|acquérir|acheter|vendre|posséder|léguer|céder|transmettre|obtenir</token>
+                    <token inflected="yes" regexp="yes">recevoir|donner|acquérir|acheter|vendre|posséder|léguer|céder|transmettre|obtenir</token>
                     <example>C'est un bien qu'il reçut après le décès de son oncle.</example>
                 </antipattern>
                 <pattern>
@@ -2273,6 +2273,13 @@ corrections (subjonctif imparfait, puis présent).
                 <example>Vas-y sans moi.</example>
             </rule>
             <rule>
+                <antipattern>
+                    <token postag="SENT_START"/>
+                    <token regexp="yes">.*es</token>
+                    <token regexp="yes">de|d'|del|y|e|in|of|and</token>
+                    <token regexp="yes" case_sensitive="yes">[A-ZÀ-Ý].*</token>
+                    <example>Panes de España est un glossaire des pains espagnols.</example>
+                </antipattern>
                 <pattern raw_pos="yes">
                     <token postag="SENT_START"/>
                     <marker>
