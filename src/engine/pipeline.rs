@@ -78,6 +78,9 @@ pub struct French {
     pub analyzer: Arc<Analyzer>,
     pub disambiguator: Arc<Disambiguator>,
     pub checker: Checker,
+    /// Do not report as misspelt the unknown words that look like proper
+    /// nouns (see [`Profile::unknown_proper_nouns`]).
+    pub ignore_unknown_proper_nouns: bool,
 }
 
 /// `JLanguageTool.analyzeText(text).get(0)` for the filters.
@@ -157,7 +160,7 @@ impl French {
         }));
         let lang = Lang { synthesizer: Some(synthesizer), tagger: Some(tagger), speller };
         let checker = Checker::new(rules, RuleContext { lang, unifier, disambig_unifier });
-        Ok(French { analyzer, disambiguator, checker })
+        Ok(French { analyzer, disambiguator, checker, ignore_unknown_proper_nouns: false })
     }
 
     /// The rule files alone, without native rules, filters or spelling.
@@ -181,17 +184,22 @@ impl French {
                 by_default || named(&profile.on)
             }
         });
+        self.ignore_unknown_proper_nouns = profile.unknown_proper_nouns == ProperNouns::Ignore;
     }
 
-    /// `JLanguageTool.check` at the default level.
+    /// `JLanguageTool.check` at the default level, then this project's
+    /// policies.
     pub fn check(&self, text: &str) -> Vec<Found> {
-        self.checker.check(&self.analyze(text))
+        self.check_with_sentences(text).1
     }
 
     /// The same, with the analysed sentences the matches were found in.
     pub fn check_with_sentences(&self, text: &str) -> (Vec<Sentence>, Vec<Found>) {
         let sentences = self.analyze(text);
-        let found = self.checker.check(&sentences);
+        let mut found = self.checker.check(&sentences);
+        if self.ignore_unknown_proper_nouns {
+            found.retain(|m| self.checker.info(m.rule).id != SPELLING_RULE_ID || !looks_like_a_proper_noun(m, &sentences));
+        }
         (sentences, found)
     }
 }
@@ -253,6 +261,68 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
     Ok(french)
 }
 
+const SPELLING_RULE_ID: &str = "FR_SPELLING_RULE";
+
+/// Is this spelling match an unknown word that is probably a name: a
+/// capitalized word (`Fogg`, `Saint-Machin`) that is not the first word of
+/// its sentence or of a quotation, and that no suggestion corrects by
+/// accents or case alone (`Etat` stays an error: `État`)?
+fn looks_like_a_proper_noun(m: &Found, sentences: &[Sentence]) -> bool {
+    let mut start = 0;
+    for sentence in sentences {
+        let end = start + sentence.text.len();
+        if m.from_byte < start || m.from_byte >= end {
+            start = end;
+            continue;
+        }
+        let at = m.from_byte - start;
+        let Some(word) = sentence.text.get(at..(m.to_byte - start).min(sentence.text.len())) else { return false };
+        let capitalized = word.chars().next().is_some_and(char::is_uppercase)
+            && word.chars().skip(1).any(char::is_lowercase)
+            && word.split(['-', '\'', '’']).all(|part| part.chars().skip(1).all(|c| !c.is_uppercase()));
+        if !capitalized {
+            return false;
+        }
+        let bare = |s: &str| -> String { s.chars().flat_map(char::to_lowercase).map(strip_accent).collect() };
+        let target = bare(word);
+        if m.suggestions.iter().any(|s| bare(s) == target) {
+            return false;
+        }
+        // The word before it in its sentence: a name follows a word, a comma
+        // or an opening parenthesis; after anything else (nothing, a
+        // quotation mark, a dash, a colon) the capital may just open a
+        // sentence.
+        let previous = sentence.tokens.iter().filter(|t| !t.is_whitespace && !t.is_sent_start && t.start_pos < at).last();
+        return previous.is_some_and(|t| t.token.chars().any(char::is_alphanumeric) || matches!(&*t.token, "," | ";" | "(" | "'" | "’"));
+    }
+    false
+}
+
+/// The letter without its diacritic, for the common French ones.
+fn strip_accent(c: char) -> char {
+    match c {
+        'à' | 'â' | 'ä' | 'á' | 'ã' => 'a',
+        'é' | 'è' | 'ê' | 'ë' => 'e',
+        'î' | 'ï' | 'í' | 'ì' => 'i',
+        'ô' | 'ö' | 'ó' | 'ò' | 'õ' => 'o',
+        'ù' | 'û' | 'ü' | 'ú' => 'u',
+        'ç' => 'c',
+        'ÿ' => 'y',
+        'ñ' => 'n',
+        other => other,
+    }
+}
+
+/// What to do with the unknown words that look like proper nouns.
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProperNouns {
+    /// Report them as misspelt, as LanguageTool does.
+    #[default]
+    Report,
+    /// Leave them alone: in real texts nearly all of them are names.
+    Ignore,
+}
+
 /// This project's choice of rules, on top of LanguageTool's defaults: the
 /// file `grammaria/profile.txt` holds one `off RULE_ID` or `on RULE_ID` per
 /// line (a rule id or a full id such as `OU[40]`; `#` starts a comment).
@@ -260,6 +330,8 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
 pub struct Profile {
     pub off: Vec<String>,
     pub on: Vec<String>,
+    /// `unknown-proper-nouns ignore|report`.
+    pub unknown_proper_nouns: ProperNouns,
 }
 
 impl Profile {
@@ -271,6 +343,8 @@ impl Profile {
             match (words.next(), words.next()) {
                 (Some("off"), Some(id)) => profile.off.push(id.to_string()),
                 (Some("on"), Some(id)) => profile.on.push(id.to_string()),
+                (Some("unknown-proper-nouns"), Some("ignore")) => profile.unknown_proper_nouns = ProperNouns::Ignore,
+                (Some("unknown-proper-nouns"), Some("report")) => profile.unknown_proper_nouns = ProperNouns::Report,
                 _ => {}
             }
         }

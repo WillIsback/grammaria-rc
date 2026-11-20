@@ -15,3 +15,10 @@ off QUELQUE_TRUC            # 28 / 2   "dans quelque port" -> "quelques ports"
 off NOMBRES_EN_LETTRES_2    #  8 / 0   "à 7 reprises" -> "sept"
 off REP_PENDANT             #  7 / 0   "pendant" -> "durant"
 off REP_CAR                 #  5 / 0   "car il" -> "parce qu'il"
+
+# Unknown words that look like proper nouns — capitalized, not at the start of
+# a sentence or of a quotation, and not corrected by an accent alone ("Etat")
+# — are not reported as misspelt. On the same prose, 3 122 of the reference's
+# 3 783 spelling alarms are such words (Fogg, Pencroff, Allahabad…), against
+# 5 of the 14 134 errors of the benchmark.
+unknown-proper-nouns ignore
