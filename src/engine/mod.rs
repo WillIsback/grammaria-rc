@@ -29,6 +29,7 @@ pub mod pipeline;
 pub mod rule;
 pub mod sentences;
 pub mod soros;
+pub mod spelling;
 pub mod strtools;
 pub mod synth;
 pub mod tagger;

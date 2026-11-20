@@ -18,3 +18,4 @@ data/*.gz
 /.claude/
 /eval/prose/*.txt
 /eval/prose-ref/
+__pycache__/

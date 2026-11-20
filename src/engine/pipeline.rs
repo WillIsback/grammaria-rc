@@ -11,6 +11,7 @@ use super::disambiguator::Disambiguator;
 use super::filters::{FrenchFilters, SentenceAnalyzer};
 use super::pattern::{Lang, SpellChecker, WordTagger};
 use super::rule::{RuleContext, RuleFilter};
+use super::spelling::{FrenchSpelling, Tokenize};
 use super::synth::FrenchSynthesizer;
 use super::tagger::{FrenchTagger, WordDictionary};
 use super::token::{Readings, Sentence};
@@ -34,7 +35,7 @@ pub fn default_rule_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// The tagger dictionary (`french.dict`) read with Morfologik.
-pub struct MorfologikDictionary(pub Dictionary);
+pub struct MorfologikDictionary(pub Arc<Dictionary>);
 
 impl WordDictionary for MorfologikDictionary {
     fn lookup(&self, word: &str, out: &mut Vec<(String, String)>) {
@@ -48,6 +49,15 @@ impl WordTagger for FrenchTagger {
     fn tag_word(&self, word: &str) -> Readings {
         self.tag_token(word)
     }
+}
+
+/// What the extensions are built from.
+pub struct Loaded<'a> {
+    pub dir: &'a Path,
+    pub dictionary: &'a Arc<Dictionary>,
+    pub tagger: &'a Arc<FrenchTagger>,
+    pub synthesizer: &'a Arc<FrenchSynthesizer>,
+    pub analyzer: &'a Arc<Analyzer>,
 }
 
 /// What is plugged into the rule files: the Java-coded filters, the native
@@ -95,7 +105,7 @@ impl French {
     /// Loads everything from `dir` (LanguageTool's `resource/fr` and
     /// `rules/fr` files side by side). `extend` receives the tagger and the
     /// synthesizer and returns what is plugged into the rules.
-    pub fn load_with(dir: &Path, extend: impl FnOnce(&Path, &Arc<FrenchTagger>, &Arc<FrenchSynthesizer>) -> Extensions) -> io::Result<French> {
+    pub fn load_with(dir: &Path, extend: impl FnOnce(&Loaded) -> Extensions) -> io::Result<French> {
         French::load_rule_files(dir, &default_rule_files(dir), extend)
     }
 
@@ -104,15 +114,15 @@ impl French {
     pub fn load_rule_files(
         dir: &Path,
         rule_files: &[PathBuf],
-        extend: impl FnOnce(&Path, &Arc<FrenchTagger>, &Arc<FrenchSynthesizer>) -> Extensions,
+        extend: impl FnOnce(&Loaded) -> Extensions,
     ) -> io::Result<French> {
-        let dictionary = Dictionary::load(dir.join("french.dict"), dir.join("french.info"))?;
-        let tagger = Arc::new(FrenchTagger::new(Arc::new(MorfologikDictionary(dictionary)), dir)?);
+        let dictionary = Arc::new(Dictionary::load(dir.join("french.dict"), dir.join("french.info"))?);
+        let tagger = Arc::new(FrenchTagger::new(Arc::new(MorfologikDictionary(dictionary.clone())), dir)?);
         let srx = std::fs::read_to_string(dir.join("segment.srx"))?;
         let sentence_tokenizer = super::sentences::SrxSentenceTokenizer::new(&srx, "fr").map_err(io::Error::other)?;
         let analyzer = Arc::new(Analyzer::from_parts(tagger.clone(), sentence_tokenizer));
         let synthesizer = Arc::new(FrenchSynthesizer::load(dir)?);
-        let extensions = extend(dir, &tagger, &synthesizer);
+        let extensions = extend(&Loaded { dir, dictionary: &dictionary, tagger: &tagger, synthesizer: &synthesizer, analyzer: &analyzer });
         let factory = |class: &str| extensions.filters.iter().find_map(|f| f(class));
 
         // The disambiguation files are read while the grammar files are.
@@ -152,7 +162,7 @@ impl French {
 
     /// The rule files alone, without native rules, filters or spelling.
     pub fn load(dir: &Path) -> io::Result<French> {
-        French::load_with(dir, |_, _, _| Extensions::default())
+        French::load_with(dir, |_| Extensions::default())
     }
 
     /// `JLanguageTool.analyzeText`: the sentences of `text`, tagged and
@@ -200,7 +210,7 @@ pub fn load_french_lt(dir: &Path) -> io::Result<French> {
 
 fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Result<French> {
     let mut failure: Option<io::Error> = None;
-    let french = French::load_rule_files(dir, rule_files, |dir, _tagger, _synthesizer| {
+    let french = French::load_rule_files(dir, rule_files, |loaded| {
         let mut extensions = Extensions::default();
         let filters = FrenchFilters::new();
         let factory = filters.clone();
@@ -209,7 +219,23 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
             filters.set_rules(rules);
             filters.set_analyzer(Arc::new(FirstSentence { analyzer: analyzer.clone(), disambiguator: disambiguator.clone() }));
         }));
-        match super::native::french_native_rules(dir, None) {
+        // Spelling: the rule itself, the language's spell checker and the
+        // filters that ask it about their suggestions.
+        let analyzer = loaded.analyzer.clone();
+        let tokenize: Tokenize = Arc::new(move |text: &str| analyzer.word_tokenizer().tokenize(text));
+        let spelling = match FrenchSpelling::load(loaded.dir, loaded.dictionary.clone(), loaded.tagger.clone(), tokenize) {
+            Ok(spelling) => Some(spelling),
+            Err(e) => {
+                failure = Some(e);
+                None
+            }
+        };
+        let speller_rule = spelling.as_ref().map(|s| s.native_rule());
+        if let Some(spelling) = spelling {
+            extensions.speller = Some(spelling.spell_checker());
+            extensions.filters.push(Box::new(move |class| spelling.filter(class)));
+        }
+        match super::native::french_native_rules(loaded.dir, speller_rule) {
             Ok(rules) => extensions.native_rules = rules,
             Err(e) => failure = Some(e),
         }
@@ -254,5 +280,5 @@ impl Profile {
 
 /// The same checker with the given rule files only.
 pub fn load_french_with_rules(dir: &Path, rule_files: &[PathBuf]) -> io::Result<French> {
-    French::load_rule_files(dir, rule_files, |_, _, _| Extensions::default())
+    French::load_rule_files(dir, rule_files, |_| Extensions::default())
 }
