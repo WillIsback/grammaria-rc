@@ -15,7 +15,8 @@ use super::synth::FrenchSynthesizer;
 use super::tagger::{FrenchTagger, WordDictionary};
 use super::token::{Readings, Sentence};
 use super::unifier::UnifierConfiguration;
-use super::xmlrules::{load_grammar, GrammarRule};
+use super::fastload::load_grammar_parallel;
+use super::xmlrules::GrammarRule;
 use crate::morfologik::{Dictionary, WordData};
 
 /// LanguageTool's `grammar.xml` and `style.xml`, then this project's own rule
@@ -53,7 +54,7 @@ impl WordTagger for FrenchTagger {
 /// rules that run before the rule files, and the spell checker.
 #[derive(Default)]
 pub struct Extensions {
-    pub filters: Vec<Box<dyn Fn(&str) -> Option<Arc<dyn RuleFilter>>>>,
+    pub filters: Vec<Box<dyn Fn(&str) -> Option<Arc<dyn RuleFilter>> + Send + Sync>>,
     pub native_rules: Vec<Box<dyn NativeRule>>,
     pub speller: Option<Arc<dyn SpellChecker>>,
     /// Called once the rule files are read, for the filters that run rules
@@ -118,11 +119,12 @@ impl French {
         let disambiguator = Arc::new(Disambiguator::load(dir, &factory, &mut disambig_unifier)?);
         let mut unifier = UnifierConfiguration::default();
         let mut grammar_rules: Vec<GrammarRule> = Vec::new();
+        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(8);
         for path in rule_files {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("rules.xml");
             let style = name.contains("style");
             let xml = std::fs::read_to_string(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
-            grammar_rules.extend(load_grammar(&xml, name, style, &factory, &mut unifier));
+            grammar_rules.extend(load_grammar_parallel(&xml, name, style, &factory, &mut unifier, threads));
         }
         let Extensions { native_rules, speller, rules_loaded, .. } = extensions;
         if let Some(loaded) = rules_loaded {
