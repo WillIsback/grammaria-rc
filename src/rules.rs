@@ -829,14 +829,56 @@ pub fn check_text(
     text: &str,
     style_checking: bool,
 ) -> Vec<RuleMatch> {
-    let mut out = Vec::new();
-    for (a, b) in crate::tokenizer::sentence_boundaries(text) {
-        let s = tagger.tag(&text[a..b], a);
-        if s.tokens.is_empty() {
-            continue;
+    let bounds = crate::tokenizer::sentence_boundaries(text);
+
+    // Sentences are independent and both the tagger and the rule set are
+    // read-only, so they can be checked in parallel. Small inputs stay on the
+    // calling thread: spawning costs more than it saves below a few sentences.
+    const MIN_SENTENCES: usize = 40;
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
+
+    if threads <= 1 || bounds.len() < MIN_SENTENCES {
+        let mut out = Vec::new();
+        for (a, b) in bounds {
+            let s = tagger.tag(&text[a..b], a);
+            if s.tokens.is_empty() {
+                continue;
+            }
+            out.extend(rules.check_sentence(&s, style_checking));
         }
-        out.extend(rules.check_sentence(&s, style_checking));
+        out.sort_by_key(|m| m.offset);
+        return out;
     }
+
+    // Split the sentence list into contiguous chunks of ~equal size; each
+    // worker checks its chunk and returns its matches.
+    let chunk = bounds.len().div_ceil(threads);
+    let mut out: Vec<RuleMatch> = std::thread::scope(|scope| {
+        let mut handles = Vec::new();
+        for part in bounds.chunks(chunk) {
+            handles.push(scope.spawn(move || {
+                let mut local = Vec::new();
+                for (a, b) in part {
+                    let s = tagger.tag(&text[*a..*b], *a);
+                    if s.tokens.is_empty() {
+                        continue;
+                    }
+                    local.extend(rules.check_sentence(&s, style_checking));
+                }
+                local
+            }));
+        }
+        let mut all = Vec::new();
+        for h in handles {
+            match h.join() {
+                Ok(v) => all.extend(v),
+                Err(_) => {}
+            }
+        }
+        all
+    });
     out.sort_by_key(|m| m.offset);
     out
 }
