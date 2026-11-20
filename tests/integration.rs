@@ -108,6 +108,6 @@ fn engine_serve_stops_on_a_malformed_header() {
 
 #[test]
 fn own_rule_files_are_loaded() {
-    let matches = check("Lave-toi les mains avant de mangé.");
+    let matches = check("Elle semble être totalement ruiné.");
     assert!(matches.iter().any(|m| m.rule_id.starts_with("GRM_")), "{:?}", matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>());
 }

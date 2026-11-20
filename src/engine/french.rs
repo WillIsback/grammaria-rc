@@ -154,5 +154,19 @@ pub fn rule_priority(info: &RuleInfo) -> i32 {
     if info.priority != 0 {
         return info.priority;
     }
-    priority_for_id(&info.category_id)
+    let by_category = priority_for_id(&info.category_id);
+    if by_category != 0 {
+        return by_category;
+    }
+    // This project's own rules (`GRM_...`) yield to a LanguageTool rule of
+    // ordinary priority on the same words, so that an error LanguageTool
+    // finds keeps LanguageTool's rule id and suggestions; they still win
+    // over style and spelling rules, whose priorities are well below.
+    if info.id.starts_with(OWN_RULE_PREFIX) {
+        return -1;
+    }
+    0
 }
+
+/// Prefix of the ids of this project's own rules.
+pub const OWN_RULE_PREFIX: &str = "GRM_";
