@@ -2,10 +2,35 @@
 //! (which rules and filters rely on), plus UTF-16 length helpers: LanguageTool
 //! counts positions in Java `char`s.
 
-/// `Character.isLetter`.
+/// `Character.isLetter` (general category L). The Alphabetic property is
+/// wider: it also has the letter-like numbers and symbols (roman numerals,
+/// circled letters), which are not letters.
 #[inline]
 pub fn is_letter(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphabetic();
+    }
     c.is_alphabetic()
+        && !matches!(c,
+            '\u{345}' | '\u{16ee}'..='\u{16f0}' | '\u{2160}'..='\u{2182}' | '\u{2185}'..='\u{2188}'
+            | '\u{24b6}'..='\u{24e9}' | '\u{3007}' | '\u{3021}'..='\u{3029}' | '\u{3038}'..='\u{303a}'
+            | '\u{1f130}'..='\u{1f149}' | '\u{1f150}'..='\u{1f169}' | '\u{1f170}'..='\u{1f189}')
+}
+
+/// `Character.isSpaceChar`: the Unicode space, line and paragraph separators.
+#[inline]
+pub fn java_is_space_char(c: char) -> bool {
+    matches!(c, ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+}
+
+/// What `\b` takes for a word character in a Java pattern (see
+/// [`crate::re::is_word_boundary_char`]).
+#[inline]
+pub fn is_regex_word_char(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric() || c == '_';
+    }
+    crate::re::is_word_boundary_char(c)
 }
 
 /// `StringTools.isWhitespace`: an all-whitespace token (Java `trim()` removes
@@ -129,22 +154,45 @@ pub fn lowercase_first_char_if_capitalized(s: &str) -> String {
     }
 }
 
-/// `StringTools.convertToTitleCaseIteratingChars`: uppercase the first letter
-/// and every letter that follows a non-letter, lowercase the others.
+/// `Character.toTitleCase(char)`: the one-char upper case, except for the
+/// digraph letters, which have a title case of their own, and the Georgian
+/// letters, which are their own title case. Java maps `char`s, so a
+/// supplementary character is left alone.
+fn title_char(c: char) -> char {
+    match c {
+        'Ǆ' | 'ǅ' | 'ǆ' => 'ǅ',
+        'Ǉ' | 'ǈ' | 'ǉ' => 'ǈ',
+        'Ǌ' | 'ǋ' | 'ǌ' => 'ǋ',
+        'Ǳ' | 'ǲ' | 'ǳ' => 'ǲ',
+        '\u{10d0}'..='\u{10fa}' | '\u{10fd}'..='\u{10ff}' => c,
+        c if c as u32 >= 0x10000 => c,
+        c => upper_char(c),
+    }
+}
+
+/// `Character.toLowerCase(char)`.
+fn java_lower_char(c: char) -> char {
+    match c {
+        'İ' => 'i',
+        c if c as u32 >= 0x10000 => c,
+        c => lower_char(c),
+    }
+}
+
+/// `StringTools.convertToTitleCaseIteratingChars`: title-case the first char
+/// and every char that follows a space or a hyphen, lowercase the others.
 pub fn convert_to_title_case_iterating_chars(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
-    let mut upper_next = true;
+    let mut convert_next = true;
     for c in s.chars() {
-        if c.is_alphabetic() {
-            if upper_next {
-                out.push(upper_char(c));
-            } else {
-                out.push(lower_char(c));
-            }
-            upper_next = false;
-        } else {
+        if java_is_space_char(c) || c == '-' {
+            convert_next = true;
             out.push(c);
-            upper_next = true;
+        } else if convert_next {
+            out.push(title_char(c));
+            convert_next = false;
+        } else {
+            out.push(java_lower_char(c));
         }
     }
     out
@@ -164,20 +212,17 @@ pub fn preserve_case(input: &str, model: &str) -> String {
     input.to_string()
 }
 
-/// `StringTools.isEmoji`: a token made of pictographs, their joiners and
-/// variation selectors.
+/// `StringTools.isEmoji`: a word with a character outside the Basic
+/// Multilingual Plane (two Java `char`s) that is not made only of letters,
+/// digits, punctuation and spaces (`^[\p{L}\d\p{P}\p{Zs}]+$`).
 pub fn is_emoji(s: &str) -> bool {
-    !s.is_empty()
-        && s.chars().any(is_emoji_char)
-        && s.chars().all(|c| is_emoji_char(c) || matches!(c, '\u{200d}' | '\u{fe0f}' | '\u{fe0e}' | '\u{20e3}'))
-}
-
-fn is_emoji_char(c: char) -> bool {
-    matches!(c,
-        '\u{1f000}'..='\u{1faff}' | '\u{2600}'..='\u{27bf}' | '\u{2b00}'..='\u{2bff}'
-        | '\u{2190}'..='\u{21ff}' | '\u{2300}'..='\u{23ff}' | '\u{25a0}'..='\u{25ff}'
-        | '\u{2900}'..='\u{297f}' | '\u{3030}' | '\u{303d}' | '\u{3297}' | '\u{3299}'
-        | '\u{e0020}'..='\u{e007f}' | '\u{1f1e6}'..='\u{1f1ff}' | '\u{a9}' | '\u{ae}' | '\u{203c}' | '\u{2049}' | '\u{2122}' | '\u{2139}')
+    if !s.chars().any(|c| c as u32 >= 0x10000) {
+        return false;
+    }
+    static WORD_FOR_SPELLER: std::sync::OnceLock<crate::re::Regex> = std::sync::OnceLock::new();
+    let re = WORD_FOR_SPELLER
+        .get_or_init(|| crate::re::Regex::new("^[\\p{L}\\d\\p{P}\\p{Zs}]+$", crate::re::Flags::default()).expect("valid pattern"));
+    !re.is_full_match(s)
 }
 
 /// Length in UTF-16 code units (`String.length()` in Java).
@@ -245,8 +290,15 @@ mod tests {
         assert_eq!(uppercase_first_char("«école"), "«École");
         assert_eq!(lowercase_first_char("École"), "école");
         assert_eq!(convert_to_title_case_iterating_chars("jean-pierre"), "Jean-Pierre");
+        assert_eq!(convert_to_title_case_iterating_chars("l'homme DE fer"), "L'homme De Fer");
+        assert_eq!(convert_to_title_case_iterating_chars("ÉTATS-UNIS"), "États-Unis");
         assert_eq!(preserve_case("chat", "Chien"), "Chat");
         assert_eq!(preserve_case("chat", "CHIEN"), "CHAT");
+        assert!(is_emoji("😂"));
+        assert!(is_emoji("a😂"));
+        assert!(!is_emoji("❤\u{fe0f}"), "no char outside the BMP");
+        assert!(!is_emoji("𝒶"), "a letter outside the BMP is not an emoji");
+        assert!(is_letter('é') && is_letter('ª') && !is_letter('Ⅷ') && !is_letter('ⓐ') && !is_letter('1'));
         assert!(equals_ignore_case("École", "éCOLE"));
         assert!(!equals_ignore_case("a", "à"));
     }

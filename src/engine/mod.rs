@@ -11,5 +11,9 @@
 //! Each stage is checked against a reference implementation by the benchmark
 //! in `tools/bench/`.
 
+pub mod analysis;
+pub mod sentences;
 pub mod strtools;
+pub mod tagger;
 pub mod token;
+pub mod tokenize;
