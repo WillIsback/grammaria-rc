@@ -823,6 +823,82 @@ pub fn apply_case_conversion(text: &str, mode: Option<&str>, original: &str) -> 
 }
 
 /// Check a whole document: split into sentences, tag, and run all rules.
+/// Incremental checker: keeps per-sentence results between runs so that
+/// editing one paragraph of a document does not re-tag and re-check the rest.
+///
+/// A sentence is identified by its exact text; its matches are offset-adjusted
+/// when it moves. This mirrors how LanguageTool's own command line and the
+/// `--line-by-line` IDE integration behave, and is what makes repeated checks
+/// of a large document cheap once a single paragraph changes.
+pub struct Checker<'a> {
+    tagger: &'a crate::tagger::Tagger,
+    rules: &'a RuleSet,
+    /// Sentence text -> matches recorded for it (offsets relative to the
+    /// sentence start).
+    cache: std::collections::HashMap<String, Vec<RuleMatch>>,
+    /// Statistics from the last `check` call.
+    pub reused: usize,
+    pub computed: usize,
+}
+
+impl<'a> Checker<'a> {
+    pub fn new(tagger: &'a crate::tagger::Tagger, rules: &'a RuleSet) -> Checker<'a> {
+        Checker {
+            tagger,
+            rules,
+            cache: std::collections::HashMap::new(),
+            reused: 0,
+            computed: 0,
+        }
+    }
+
+    /// Forget every cached sentence.
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+
+    /// Check `text`, reusing the cached analysis of unchanged sentences.
+    pub fn check(&mut self, text: &str, style_checking: bool) -> Vec<RuleMatch> {
+        let bounds = crate::tokenizer::sentence_boundaries(text);
+        self.reused = 0;
+        self.computed = 0;
+        let mut out: Vec<RuleMatch> = Vec::new();
+        for (a, b) in bounds {
+            let sentence_text = &text[a..b];
+            if sentence_text.trim().is_empty() {
+                continue;
+            }
+            let matches = match self.cache.get(sentence_text) {
+                Some(cached) => {
+                    self.reused += 1;
+                    cached.clone()
+                }
+                None => {
+                    self.computed += 1;
+                    let s = self.tagger.tag(sentence_text, a);
+                    let mut m = if s.tokens.is_empty() {
+                        Vec::new()
+                    } else {
+                        self.rules.check_sentence(&s, style_checking)
+                    };
+                    // Store offsets relative to the sentence.
+                    for r in &mut m {
+                        r.offset = r.offset.saturating_sub(a);
+                    }
+                    self.cache.insert(sentence_text.to_string(), m.clone());
+                    m
+                }
+            };
+            for mut r in matches {
+                r.offset += a;
+                out.push(r);
+            }
+        }
+        out.sort_by_key(|m| m.offset);
+        out
+    }
+}
+
 pub fn check_text(
     tagger: &crate::tagger::Tagger,
     rules: &RuleSet,

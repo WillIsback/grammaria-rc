@@ -13,6 +13,8 @@ fn usage() {
          \x20 --tagger           print POS analysis instead of checking\n\
          \x20 --style            also run style rules\n\
          \x20 --data DIR         data directory (default: ./data or $GRAMMARIA_DATA)\n\
+         \x20 --watch SECS       re-check the file every SECS seconds, reusing the\n\
+         \x20                    cached analysis of unchanged sentences\n\
          \x20 -                   read from stdin\n",
         env!("CARGO_PKG_VERSION")
     );
@@ -49,6 +51,7 @@ fn main() {
     }
     let mut json = false;
     let mut tagger_only = false;
+    let mut watch: Option<u64> = None;
     let mut style = false;
     let mut rest_json: Option<String> = None;
     let _ = &mut rest_json;
@@ -59,6 +62,10 @@ fn main() {
         match args[i].as_str() {
             "--json" => json = true,
             "--tagger" => tagger_only = true,
+            "--watch" => {
+                i += 1;
+                watch = args.get(i).and_then(|v| v.parse().ok());
+            }
             "--style" => style = true,
             "--data" => {
                 i += 1;
@@ -104,6 +111,40 @@ fn main() {
         }
     };
     let rules = load_rules(&dir);
+
+    // `--watch`: re-check the file on an interval, reusing the cached analysis
+    // of sentences that did not change. Only one file is supported.
+    if let Some(secs) = watch {
+        let path = files.first().cloned().unwrap_or_else(|| "-".to_string());
+        let mut checker = grammaria::rules::Checker::new(tg, &rules);
+        let mut last: Option<String> = None;
+        loop {
+            let text = if path == "-" {
+                String::new()
+            } else {
+                std::fs::read_to_string(&path).unwrap_or_default()
+            };
+            if path == "-" {
+                eprintln!("grammaria: --watch needs a file, not stdin");
+                break;
+            }
+            if last.as_deref() != Some(text.as_str()) {
+                let matches = checker.check(&text, style);
+                if json {
+                    print_json(&text, &matches, &path);
+                } else {
+                    print_text(&text, &matches);
+                    eprintln!(
+                        "  ({} sentences reused, {} re-checked)",
+                        checker.reused, checker.computed
+                    );
+                }
+                last = Some(text);
+            }
+            std::thread::sleep(std::time::Duration::from_secs(secs.max(1)));
+        }
+        return;
+    }
 
     let mut exit_code = 0;
     for f in &files {

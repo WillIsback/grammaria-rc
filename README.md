@@ -107,6 +107,9 @@ grammaria check --json article.txt
 # also run style rules
 grammaria check --style --json article.txt
 
+# re-check a file on an interval, reusing the analysis of unchanged sentences
+grammaria check --watch 1 article.txt
+
 # inspect the POS analysis (LanguageTool --verbose format)
 grammaria check --tagger article.txt
 
