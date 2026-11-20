@@ -233,6 +233,8 @@ pub struct Performer<'r> {
     unified_tokens: Option<Vec<Readings>>,
     /// `translateElementNo` for rules built from phrases.
     element_no: Option<&'r [usize]>,
+    /// Scratch buffer of `match_from`.
+    positions: Vec<usize>,
 }
 
 impl<'r> Performer<'r> {
@@ -257,6 +259,7 @@ impl<'r> Performer<'r> {
             neutral_readings: HashMap::new(),
             unified_tokens: None,
             element_no,
+            positions: Vec::new(),
         }
     }
 
@@ -300,7 +303,11 @@ impl<'r> Performer<'r> {
     /// `matchFrom`: the match starting at `start_index`, if any.
     pub fn match_from(&mut self, start_index: usize, tokens: &[&Readings]) -> Option<PatternMatch> {
         let pattern_size = self.matchers.len();
-        let mut token_positions = vec![0usize; pattern_size];
+        // Most attempts fail on the first element: the positions are kept
+        // in a buffer of the performer and only copied out for a match.
+        let mut token_positions = std::mem::take(&mut self.positions);
+        token_positions.clear();
+        token_positions.resize(pattern_size, 0);
         let n = tokens.len() as i64;
         let mut skip_shift_total: i64 = 0;
         let mut all_elements_match = false;
@@ -380,17 +387,19 @@ impl<'r> Performer<'r> {
                 break;
             }
         }
-        if all_elements_match && matching_tokens == pattern_size && self.test_unification() && first_match_token >= 0 {
-            return Some(PatternMatch {
-                token_positions,
-                first_match_token: first_match_token as usize,
-                last_match_token: last_match_token as usize,
-                first_marker_match_token: (first_marker_match_token >= 0).then_some(first_marker_match_token as usize),
-                last_marker_match_token: (last_marker_match_token >= 0).then_some(last_marker_match_token as usize),
-                unified_tokens: self.unified_tokens.take(),
-            });
+        let matched = all_elements_match && matching_tokens == pattern_size && self.test_unification() && first_match_token >= 0;
+        if !matched {
+            self.positions = token_positions;
+            return None;
         }
-        None
+        Some(PatternMatch {
+            token_positions,
+            first_match_token: first_match_token as usize,
+            last_match_token: last_match_token as usize,
+            first_marker_match_token: (first_marker_match_token >= 0).then_some(first_marker_match_token as usize),
+            last_marker_match_token: (last_marker_match_token >= 0).then_some(last_marker_match_token as usize),
+            unified_tokens: self.unified_tokens.take(),
+        })
     }
 
     /// `testAllReadings`: does pattern element `k` accept `tokens[token_no]`?

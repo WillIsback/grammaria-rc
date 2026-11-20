@@ -139,7 +139,8 @@ impl StringMatcher {
     pub fn possible_values(&self) -> Option<Vec<String>> {
         match &self.kind {
             Kind::Equals => Some(vec![self.pattern.to_string()]),
-            Kind::Regex(r) => r.possible_values(),
+            // A regex with a finite value set was made a `Set` or `Equals`.
+            Kind::Regex(_) => None,
             Kind::Set(_, values) => Some(values.as_ref().clone()),
             Kind::Never => None,
         }

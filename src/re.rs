@@ -184,7 +184,8 @@ enum Node {
     Concat(Vec<Node>),
     /// The alternatives and, for a long list, what each can begin with: an
     /// alternative that cannot start with the next char is not run.
-    Alt(Vec<Node>, Option<Box<AltIndex>>),
+    /// The index of a long alternation is built the first time it is run.
+    Alt(Vec<Node>, OnceLock<Option<Box<AltIndex>>>),
     Repeat(Box<Node>, u32, u32, Greed),
     /// `width`: minimal and maximal length of what the body can match, when
     /// the maximum is finite (bounds the start positions of a look-behind).
@@ -294,8 +295,7 @@ impl<'a> Parser<'a> {
         if alts.len() == 1 {
             return Ok(alts.pop().unwrap());
         }
-        let index = (alts.len() >= 4 && alts.len() <= u16::MAX as usize).then(|| Box::new(AltIndex::new(&alts)));
-        Ok(Node::Alt(alts, index))
+        Ok(Node::Alt(alts, OnceLock::new()))
     }
 
     fn skip_comments(&mut self) {
@@ -1342,7 +1342,7 @@ impl<'a> Matcher<'a> {
                 ok
             }
             Node::Concat(items) => self.seq(items, pos, k),
-            Node::Alt(alts, None) => {
+            Node::Alt(alts, index) if alts.len() < 4 || alts.len() > u16::MAX as usize || index.get_or_init(|| Some(Box::new(AltIndex::new(alts)))).is_none() => {
                 for a in alts {
                     if self.run(a, pos, k) {
                         return true;
@@ -1350,7 +1350,8 @@ impl<'a> Matcher<'a> {
                 }
                 false
             }
-            Node::Alt(alts, Some(index)) => {
+            Node::Alt(alts, index) => {
+                let Some(Some(index)) = index.get() else { return false };
                 let next = self.input.get(pos).copied();
                 if let (Some(c), Some(table)) = (next.filter(char::is_ascii), &index.table) {
                     let range = table.offsets[c as usize] as usize..table.offsets[c as usize + 1] as usize;
@@ -1959,7 +1960,10 @@ impl Regex {
                         let mut next = Vec::with_capacity(out.len() * part.len());
                         for a in &out {
                             for b in &part {
-                                next.push(format!("{a}{b}"));
+                                let mut joined = String::with_capacity(a.len() + b.len());
+                                joined.push_str(a);
+                                joined.push_str(b);
+                                next.push(joined);
                             }
                         }
                         out = next;
