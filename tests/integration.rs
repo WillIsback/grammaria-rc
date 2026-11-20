@@ -1,172 +1,113 @@
-//! End-to-end tests over the shipped data set.
-//!
-//! These tests need the generated `data/` directory (`cargo run --release --bin
-//! grammaria-build`); they are skipped automatically when it is missing so that
-//! `cargo test` still works in a bare checkout.
+//! End-to-end tests of the public API on the shipped assets.
 
-use std::path::Path;
+use std::path::PathBuf;
+use std::sync::OnceLock;
 
-fn data_dir() -> Option<std::path::PathBuf> {
-    let d = std::env::var("GRAMMARIA_DATA")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("data"));
-    if d.join("fr.lex").exists() && d.join("fr.rules").exists() {
-        Some(d)
-    } else {
-        None
-    }
+use grammaria::api::{Engine, Match, OffsetUnit};
+
+fn engine() -> &'static Engine {
+    static ENGINE: OnceLock<Engine> = OnceLock::new();
+    ENGINE.get_or_init(|| {
+        let dir = std::env::var("GRAMMARIA_DATA").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr"));
+        Engine::load(&dir).expect("the shipped assets load")
+    })
 }
 
-fn check(text: &str) -> Vec<grammaria::rules::RuleMatch> {
-    let dir = data_dir().expect("data directory");
-    let tagger = grammaria::tagger::Tagger::new(
-        &dir.join("fr.lex"),
-        &dir.join("fr.words"),
-        Some(&dir.join("fr.disambig.xml")),
-    )
-    .expect("tagger");
-    let rules = grammaria::rules::RuleSet::load_cache(dir.join("fr.rules")).expect("rules");
-    grammaria::rules::check_text(tagger, &rules, text, false)
+fn check(text: &str) -> Vec<Match> {
+    engine().check(text, true)
+}
+
+fn found<'a>(matches: &'a [Match], rule: &str) -> Option<&'a Match> {
+    matches.iter().find(|m| m.rule_id == rule)
 }
 
 #[test]
-fn determiner_agreement_is_found_with_suggestions() {
-    let m = check("Cette événement est très important.");
-    let hit = m
-        .iter()
-        .find(|x| x.rule_id == "D_N")
-        .unwrap_or_else(|| panic!("D_N not reported: {m:?}"));
-    assert_eq!(&"Cette événement est très important."[hit.offset..hit.offset + hit.length], "Cette événement");
-    assert!(
-        hit.suggestions.iter().any(|s| s.eq_ignore_ascii_case("ce événement")),
-        "suggestions: {:?}",
-        hit.suggestions
-    );
+fn subject_verb_agreement_is_found_with_its_correction() {
+    let text = "Les enfants mange des pommes.";
+    let matches = check(text);
+    let m = found(&matches, "ACCORD_SUJET_VERBE").expect("agreement error");
+    assert_eq!(&text[m.offset..m.offset + m.length], "mange");
+    assert_eq!(m.suggestions, ["mangent"]);
+    assert_eq!(m.sentence, text);
 }
 
 #[test]
-fn gender_mismatch_repairs_the_determiner() {
-    let m = check("La toit fuit.");
-    let hit = m.iter().find(|x| x.rule_id == "D_N").expect("D_N not reported");
-    assert!(
-        hit.suggestions.iter().any(|s| s.eq_ignore_ascii_case("le toit")),
-        "suggestions: {:?}",
-        hit.suggestions
-    );
-}
-
-#[test]
-fn number_mismatch_repairs_the_noun() {
-    let m = check("Les voiture roulent vite.");
-    let hit = m.iter().find(|x| x.rule_id == "D_N").expect("D_N not reported");
-    assert!(
-        hit.suggestions.iter().any(|s| s.eq_ignore_ascii_case("les voitures")),
-        "suggestions: {:?}",
-        hit.suggestions
-    );
+fn infinitive_after_auxiliary_is_found() {
+    let matches = check("Elle a manger trois pommes.");
+    let m = found(&matches, "R_VAVOIR_VINF").expect("participle expected");
+    assert_eq!(m.suggestions, ["mangé"]);
 }
 
 #[test]
 fn correct_text_is_clean() {
-    // A handful of ordinary, correct sentences must not produce matches
-    // (each of these used to be a false positive during development).
-    for s in [
-        "Le chat mange la souris dans le jardin.",
-        "Il a plu toute la nuit.",
-        "Les enfants jouent dans la cour.",
-        "Tout coule et rien ne demeure.",
-        "Elle a pris sa décision sans réfléchir.",
-        "Les résultats de l'enquête ont été publiés.",
+    for text in [
+        "Les enfants mangent des pommes.",
+        "Elle a mangé trois pommes hier soir.",
+        "Nous sommes arrivés à la gare avant le départ du train.",
+        "Il faut que tu viennes demain, car la réunion est importante.",
     ] {
-        let m = check(s);
-        assert!(m.is_empty(), "{s:?} produced {m:?}");
+        let matches = check(text);
+        assert!(matches.is_empty(), "{text}: {:?}", matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>());
     }
 }
 
 #[test]
-fn tagging_matches_language_tool_for_a_simple_sentence() {
-    let dir = data_dir().expect("data directory");
-    let tagger = grammaria::tagger::Tagger::new(
-        &dir.join("fr.lex"),
-        &dir.join("fr.words"),
-        Some(&dir.join("fr.disambig.xml")),
-    )
-    .expect("tagger");
-    let s = tagger.tag("Le chat mange la souris.", 0);
-    let word = |w: &str| {
-        s.tokens
-            .iter()
-            .find(|t| t.text == w)
-            .unwrap_or_else(|| panic!("token {w} missing"))
-            .tags
-            .clone()
-    };
-    // LanguageTool reports `<S> Le[le/D m s,Le/_GN_MS] chat[chat/N m s,chat/_GN_MS]
-    // mange[...]`; the `_GN_*` nominal-group chunk tags are part of the
-    // analysis, so we compare the POS readings without them.
-    let pos = |w: &str| -> Vec<String> {
-        word(w)
-            .into_iter()
-            .filter(|t| !t.starts_with("_GN_"))
-            .collect()
-    };
-    assert_eq!(pos("chat"), vec!["N m s"]);
-    assert!(pos("mange").contains(&"V ind pres 3 s".to_string()));
-    assert!(pos("Le").contains(&"D m s".to_string()));
-    assert!(word("chat").contains(&"_GN_MS".to_string()));
+fn offsets_are_bytes_and_utf16_units_on_request() {
+    let text = "Été comme hiver, les enfants mange des pommes.";
+    let matches = check(text);
+    let m = found(&matches, "ACCORD_SUJET_VERBE").expect("agreement error");
+    assert_eq!(m.offset, text.find("mange").unwrap());
+    let json = engine().check_json(text, true, OffsetUnit::Utf16);
+    // "Été" is 5 bytes and 3 UTF-16 units.
+    assert!(json.contains(&format!("\"offset\":{}", m.offset - 2)), "{json}");
+}
+
+#[test]
+fn typographic_apostrophes_do_not_shift_positions() {
+    let text = "Aujourd’hui, les enfants mange des pommes.";
+    let matches = check(text);
+    let m = found(&matches, "ACCORD_SUJET_VERBE").expect("agreement error");
+    assert_eq!(&text[m.offset..m.offset + m.length], "mange");
+}
+
+#[test]
+fn analysis_tags_a_simple_sentence() {
+    let sentences = engine().analyze("Le chat dort.");
+    assert_eq!(sentences.len(), 1);
+    let words: Vec<(&str, Vec<&str>)> = sentences[0]
+        .tokens
+        .iter()
+        .filter(|t| !t.is_whitespace)
+        .map(|t| (&*t.token, t.readings.iter().filter_map(|r| r.pos()).collect()))
+        .collect();
+    let tags = |word: &str| &words.iter().find(|w| w.0 == word).expect("token").1;
+    assert!(tags("Le").contains(&"D m s"), "{words:?}");
+    assert!(tags("chat").contains(&"N m s"), "{words:?}");
+    assert!(tags("dort").contains(&"V ind pres 3 s"), "{words:?}");
 }
 
 #[test]
 fn engine_serves_framed_requests_with_utf16_offsets() {
-    let dir = data_dir().expect("data directory");
-    let engine = grammaria::api::Engine::load(&dir).expect("engine");
-    // "😀" is 4 bytes but 2 UTF-16 units: the match after it must be shifted.
-    let first = "😀 Je mange un pomme.";
-    let second = "Bonjour.";
-    let mut input = Vec::new();
-    for (id, text) in [(7, first), (8, second)] {
-        input.extend_from_slice(format!("{id} {}\n", text.len()).as_bytes());
-        input.extend_from_slice(text.as_bytes());
-    }
-    let mut output = Vec::new();
-    engine.serve(&input[..], &mut output, false).expect("serve");
-    let output = String::from_utf8(output).unwrap();
-    let lines: Vec<&str> = output.lines().collect();
-    assert_eq!(lines[0], "{\"ready\":true}");
-    assert!(lines[1].starts_with("{\"id\":7,\"matches\":[{"), "{}", lines[1]);
-    assert!(lines[1].contains("\"id\":\"D_N\""), "{}", lines[1]);
-    // "un pomme" starts at UTF-16 unit 12 (byte 14).
-    assert!(lines[1].contains("\"offset\":12,\"length\":8"), "{}", lines[1]);
-    assert_eq!(lines[2], "{\"id\":8,\"matches\":[]}");
-    assert_eq!(lines.len(), 3);
+    let text = "Les enfants mange.";
+    let input = format!("7 {}\n{}", text.len(), text);
+    let mut out = Vec::new();
+    engine().serve(input.as_bytes(), &mut out, true).unwrap();
+    let out = String::from_utf8(out).unwrap();
+    let mut lines = out.lines();
+    assert_eq!(lines.next(), Some("{\"ready\":true}"));
+    let answer = lines.next().unwrap();
+    assert!(answer.starts_with("{\"id\":7,\"matches\":["), "{answer}");
+    assert!(answer.contains("ACCORD_SUJET_VERBE"), "{answer}");
 }
 
 #[test]
 fn engine_serve_stops_on_a_malformed_header() {
-    let dir = data_dir().expect("data directory");
-    let engine = grammaria::api::Engine::load(&dir).expect("engine");
-    let mut output = Vec::new();
-    let err = engine.serve(&b"not a header\n"[..], &mut output, false).unwrap_err();
-    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    let mut out = Vec::new();
+    assert!(engine().serve("not a header\n".as_bytes(), &mut out, true).is_err());
 }
 
 #[test]
-fn disambiguation_keeps_tags_and_lemmas_aligned() {
-    // These sentences used to abort the process: a `replace` disambiguation
-    // cleared every lemma but kept the readings it did not replace, and the
-    // next `add` of a surviving tag indexed `lemmas` out of bounds.
-    for text in [
-        "Les enfants était content de leur vacances.",
-        "Leur parents, eux, sont rester à l'ombre.",
-    ] {
-        let _ = check(text);
-        let dir = data_dir().expect("data directory");
-        let engine = grammaria::api::Engine::load(&dir).expect("engine");
-        for (a, b) in grammaria::tokenizer::sentence_boundaries(text) {
-            let s = engine.tagger().tag(&text[a..b], a);
-            for tok in &s.tokens {
-                assert_eq!(tok.tags.len(), tok.lemmas.len(), "token {:?} in {text:?}", tok.text);
-            }
-        }
-    }
+fn own_rule_files_are_loaded() {
+    let matches = check("Lave-toi les mains avant de mangé.");
+    assert!(matches.iter().any(|m| m.rule_id.starts_with("GRM_")), "{:?}", matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>());
 }

@@ -155,7 +155,7 @@ fn dictionary_can_be_shared_between_threads() {
 fn text_dump_is_found_by_lookup() {
     let d = french();
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr/languagetool-pos-dict.txt");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("eval/sources/languagetool-pos-dict.txt");
     let text = std::fs::read_to_string(path).expect("languagetool-pos-dict.txt");
     let mut session = d.lookup_session();
     let mut out = Vec::new();
@@ -648,7 +648,7 @@ fn bench_load_and_lookup() {
     );
 
     let path =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr/languagetool-pos-dict.txt");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("eval/sources/languagetool-pos-dict.txt");
     let text = std::fs::read_to_string(path).unwrap();
     let mut forms: Vec<&str> = text.lines().filter_map(|l| l.split('\t').next()).collect();
     forms.dedup();

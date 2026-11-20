@@ -127,6 +127,13 @@ impl French {
     pub fn check(&self, text: &str) -> Vec<Found> {
         self.checker.check(&self.analyze(text))
     }
+
+    /// The same, with the analysed sentences the matches were found in.
+    pub fn check_with_sentences(&self, text: &str) -> (Vec<Sentence>, Vec<Found>) {
+        let sentences = self.analyze(text);
+        let found = self.checker.check(&sentences);
+        (sentences, found)
+    }
 }
 
 /// The French checker with everything this crate implements plugged in.

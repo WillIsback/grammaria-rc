@@ -8,63 +8,124 @@
 use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::rules::{RuleMatch, RuleSet};
-use crate::tagger::Tagger;
+use crate::engine::pipeline::{load_french, French};
+use crate::engine::token::Sentence;
 
 /// Unit of the `offset`/`length` fields in the JSON output.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OffsetUnit {
-    /// UTF-8 bytes, as the rule engine reports them.
+    /// UTF-8 bytes, as Rust strings are indexed.
     Bytes,
     /// UTF-16 code units, as LanguageTool (Java) and JavaScript strings count.
     Utf16,
 }
 
-/// A loaded checker: tagger (lexicon, word lists, disambiguation) and rules.
-pub struct Engine {
-    tagger: &'static Tagger,
-    rules: RuleSet,
+/// A problem found in a text.
+#[derive(Clone, Debug)]
+pub struct Match {
+    /// Rule id (`ACCORD_SUJET_VERBE`), its number in the rule group, and
+    /// both together (`ACCORD_SUJET_VERBE[3]`).
+    pub rule_id: String,
+    pub sub_id: Option<String>,
+    pub full_rule_id: String,
+    /// The rule's name, as its author described it.
+    pub description: String,
+    pub message: String,
+    pub short_message: String,
+    /// Proposed corrections, best first.
+    pub suggestions: Vec<String>,
+    /// Position in the text, in UTF-8 bytes.
+    pub offset: usize,
+    pub length: usize,
+    pub category_id: String,
+    pub category_name: String,
+    /// `misspelling`, `grammar`, `typographical`, `style`, `uncategorized`...
+    pub issue_type: String,
+    /// The rule comes from a style rule file.
+    pub is_style: bool,
+    pub source_file: String,
+    pub url: Option<String>,
+    /// The sentence the problem is in.
+    pub sentence: String,
 }
 
-/// File names accepted for the disambiguation rules inside a data directory.
-const DISAMBIG_NAMES: [&str; 2] = ["fr.disambig.xml", "languagetool-disambiguation.xml"];
+/// A loaded checker: dictionaries, disambiguation and rules.
+pub struct Engine {
+    french: French,
+}
+
+/// The directory of LanguageTool's French resources inside a data directory:
+/// `DIR/lt` (with this project's own rules in `DIR/grammaria`), or `DIR`
+/// itself when it holds the files directly.
+pub fn resource_dir(dir: &Path) -> PathBuf {
+    let lt = dir.join("lt");
+    if lt.join("grammar.xml").exists() {
+        lt
+    } else {
+        dir.to_path_buf()
+    }
+}
 
 impl Engine {
-    /// Load the engine from a data directory holding `fr.lex`, `fr.words`,
-    /// `fr.rules` and the disambiguation XML (`fr.disambig.xml`).
-    ///
-    /// The lexicon is process-global: a second `load` reuses the first one.
+    /// Load the engine from a data directory: `lt/` holds LanguageTool's
+    /// French resources (`french.dict`, `grammar.xml`, `disambiguation.xml`,
+    /// ...) and `grammaria/` this project's own rule files.
     pub fn load(dir: &Path) -> std::io::Result<Engine> {
-        let disambig: Option<PathBuf> = DISAMBIG_NAMES
-            .iter()
-            .map(|n| dir.join(n))
-            .find(|p| p.exists());
-        let tagger = Tagger::new(&dir.join("fr.lex"), &dir.join("fr.words"), disambig.as_deref())?;
-        let rules = RuleSet::load_cache(dir.join("fr.rules")).ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("missing or invalid rule cache: {}", dir.join("fr.rules").display()),
-            )
-        })?;
-        Ok(Engine { tagger, rules })
+        Ok(Engine { french: load_french(&resource_dir(dir))? })
     }
 
-    /// Build an engine from already loaded parts (the CLI's XML fallback).
-    pub fn from_parts(tagger: &'static Tagger, rules: RuleSet) -> Engine {
-        Engine { tagger, rules }
+    /// The underlying pipeline (analysis, disambiguation, rules).
+    pub fn french(&self) -> &French {
+        &self.french
     }
 
-    pub fn tagger(&self) -> &'static Tagger {
-        self.tagger
+    /// The sentences of a text, tokenized, tagged and disambiguated.
+    pub fn analyze(&self, text: &str) -> Vec<Sentence> {
+        self.french.analyze(text)
     }
 
-    pub fn rules(&self) -> &RuleSet {
-        &self.rules
-    }
-
-    /// Check a document. Offsets of the returned matches are UTF-8 bytes.
-    pub fn check(&self, text: &str, style: bool) -> Vec<RuleMatch> {
-        crate::rules::check_text(self.tagger, &self.rules, text, style)
+    /// Check a document. `style` keeps the matches of the style rule file
+    /// (wordiness, repetitions, register); LanguageTool reports them by
+    /// default.
+    pub fn check(&self, text: &str, style: bool) -> Vec<Match> {
+        let (sentences, found) = self.french.check_with_sentences(text);
+        // Byte offset at which each sentence starts.
+        let mut starts = Vec::with_capacity(sentences.len());
+        let mut at = 0;
+        for s in &sentences {
+            starts.push(at);
+            at += s.text.len();
+        }
+        let mut matches = Vec::with_capacity(found.len());
+        for f in found {
+            let info = self.french.checker.info(f.rule);
+            if info.is_style_file && !style {
+                continue;
+            }
+            let sentence = match starts.binary_search(&f.from_byte) {
+                Ok(i) => i,
+                Err(i) => i.saturating_sub(1),
+            };
+            matches.push(Match {
+                rule_id: info.id.clone(),
+                sub_id: info.sub_id.clone(),
+                full_rule_id: info.full_id(),
+                description: info.description.clone(),
+                message: f.message,
+                short_message: f.short_message,
+                suggestions: f.suggestions,
+                offset: f.from_byte,
+                length: f.to_byte.saturating_sub(f.from_byte),
+                category_id: info.category_id.clone(),
+                category_name: info.category_name.clone(),
+                issue_type: info.issue_type.clone(),
+                is_style: info.is_style_file,
+                source_file: info.source_file.clone(),
+                url: info.url.clone(),
+                sentence: sentences.get(sentence).map(|s| s.text.trim().to_string()).unwrap_or_default(),
+            });
+        }
+        matches
     }
 
     /// Check a document and return the `matches` JSON array.
@@ -157,7 +218,7 @@ fn floor_boundary(text: &str, i: usize) -> usize {
 
 /// The `matches` array of LanguageTool's `--json` response: each match carries
 /// its `context`, `sentence`, `type` and full `rule` descriptor.
-pub fn matches_json(text: &str, matches: &[RuleMatch], unit: OffsetUnit) -> String {
+pub fn matches_json(text: &str, matches: &[Match], unit: OffsetUnit) -> String {
     let mut out = String::from("[");
     // Matches come sorted by offset: convert byte offsets to UTF-16 units
     // incrementally instead of rescanning the document for each match.
@@ -190,27 +251,28 @@ pub fn matches_json(text: &str, matches: &[RuleMatch], unit: OffsetUnit) -> Stri
             OffsetUnit::Bytes => start.saturating_sub(ctx_start),
             OffsetUnit::Utf16 => utf16_len(text.get(ctx_start..start).unwrap_or("")),
         };
+        let url = match &m.url {
+            Some(u) => format!(",\"urls\":[{{\"value\":\"{}\"}}]", json_escape(u)),
+            None => String::new(),
+        };
         out.push_str(&format!(
-            "{{\"message\":\"{}\",\"shortMessage\":\"{}\",\"replacements\":[{}],\"offset\":{},\"length\":{},\"context\":{{\"text\":\"{}\",\"offset\":{},\"length\":{}}},\"sentence\":\"{}\",\"type\":{{\"typeName\":\"{}\"}},\"rule\":{{\"id\":\"{}\",\"subId\":\"{}\",\"sourceFile\":\"{}\",\"description\":\"{}\",\"issueType\":\"{}\",\"category\":{{\"id\":\"{}\",\"name\":\"{}\"}}}}}}",
+            "{{\"message\":\"{}\",\"shortMessage\":\"{}\",\"replacements\":[{}],\"offset\":{},\"length\":{},\"context\":{{\"text\":\"{}\",\"offset\":{},\"length\":{}}},\"sentence\":\"{}\",\"type\":{{\"typeName\":\"{}\"}},\"rule\":{{\"id\":\"{}\",\"subId\":\"{}\",\"sourceFile\":\"{}\",\"description\":\"{}\",\"issueType\":\"{}\"{},\"category\":{{\"id\":\"{}\",\"name\":\"{}\"}}}}}}",
             json_escape(&m.message),
             json_escape(&m.short_message),
-            m.suggestions
-                .iter()
-                .map(|s| format!("{{\"value\":\"{}\"}}", json_escape(s)))
-                .collect::<Vec<_>>()
-                .join(","),
+            m.suggestions.iter().map(|s| format!("{{\"value\":\"{}\"}}", json_escape(s))).collect::<Vec<_>>().join(","),
             offset,
             length,
             json_escape(ctx_text),
             ctx_offset,
             length,
             json_escape(&m.sentence),
-            if m.is_style { "style" } else { "Other" },
+            if m.issue_type == "misspelling" { "UnknownWord" } else { "Other" },
             json_escape(&m.rule_id),
-            json_escape(&m.full_rule_id),
-            if m.is_style { "style.xml" } else { "grammar.xml" },
-            json_escape(&m.category_name),
-            if m.is_style { "style" } else { "uncategorized" },
+            json_escape(m.sub_id.as_deref().unwrap_or("")),
+            json_escape(&m.source_file),
+            json_escape(&m.description),
+            json_escape(&m.issue_type),
+            url,
             json_escape(&m.category_id),
             json_escape(&m.category_name)
         ));
@@ -267,10 +329,12 @@ pub fn read_all<R: Read>(mut input: R) -> String {
 mod tests {
     use super::*;
 
-    fn m(offset: usize, length: usize) -> RuleMatch {
-        RuleMatch {
+    fn m(offset: usize, length: usize) -> Match {
+        Match {
             rule_id: "R".into(),
+            sub_id: Some("1".into()),
             full_rule_id: "R[1]".into(),
+            description: "A rule".into(),
             message: "msg \"x\"".into(),
             short_message: String::new(),
             suggestions: vec!["a".into()],
@@ -278,9 +342,10 @@ mod tests {
             length,
             category_id: "CAT".into(),
             category_name: "Cat".into(),
-            priority: crate::rules::Priority::Medium,
+            issue_type: "grammar".into(),
             is_style: false,
-            urls: Vec::new(),
+            source_file: "grammar.xml".into(),
+            url: None,
             sentence: String::new(),
         }
     }

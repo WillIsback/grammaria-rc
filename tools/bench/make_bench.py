@@ -68,7 +68,7 @@ OPTION_RE = re.compile(r"^__([a-z0-9_]+)__\s+")
 
 
 def grammalecte_tests():
-    path = os.path.join(ROOT, "assets", "fr", "grammalecte_rules.grx")
+    path = os.path.join(ROOT, "eval", "sources", "grammalecte_rules.grx")
     items = []
     rule = ""
     seen = set()

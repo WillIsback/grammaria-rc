@@ -7,7 +7,7 @@ import sys
 
 root = sys.argv[1]
 pairs = []
-with open(root + "/assets/fr/languagetool-pos-dict.txt", encoding="utf-8") as f:
+with open(root + "/eval/sources/languagetool-pos-dict.txt", encoding="utf-8") as f:
     for i, line in enumerate(f):
         if i % 1500 == 0:
             form, lemma, _ = line.rstrip("\n").split("\t")

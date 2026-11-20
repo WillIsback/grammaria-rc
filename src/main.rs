@@ -1,35 +1,37 @@
-//! Grammaria command line interface.
+use std::path::PathBuf;
 
-use std::path::{Path, PathBuf};
-
-use grammaria::api::{json_escape, matches_json, read_all, Engine, OffsetUnit};
+use grammaria::api::{json_escape, matches_json, read_all, Engine, Match, OffsetUnit};
 
 fn usage() {
     eprintln!(
         "grammaria {}\n\
          A fast French grammar and spelling checker (LanguageTool-compatible).\n\n\
          USAGE:\n  grammaria check [OPTIONS] FILE...\n\
-         \x20 grammaria serve [--style] [--data DIR]\n\n\
+         \x20 grammaria serve [--no-style] [--data DIR]\n\n\
          `serve` keeps the data loaded and answers framed requests on stdin\n\
          (`<id> <byte length>\\n<text>`) with one JSON line each on stdout;\n\
          offsets are UTF-16 code units.\n\n\
          OPTIONS:\n\
          \x20 --json             machine-readable output (LanguageTool --json format)\n\
-         \x20 --tagger           print POS analysis instead of checking\n\
-         \x20 --style            also run style rules\n\
-         \x20 --data DIR         data directory (default: ./data or $GRAMMARIA_DATA)\n\
-         \x20 --watch SECS       re-check the file every SECS seconds, reusing the\n\
-         \x20                    cached analysis of unchanged sentences\n\
+         \x20 --tagger           print the analysis (tokens and tags) instead of checking\n\
+         \x20 --no-style         leave out the style rules (wordiness, repetitions, register)\n\
+         \x20 --data DIR         data directory (default: $GRAMMARIA_DATA, ./data or ./assets/fr)\n\
+         \x20 --watch SECS       re-check the file every SECS seconds when it changed\n\
          \x20 -                   read from stdin\n",
         env!("CARGO_PKG_VERSION")
     );
 }
 
+/// `$GRAMMARIA_DATA`, else `./data`, else the assets of a source checkout.
 fn data_dir() -> PathBuf {
     if let Ok(d) = std::env::var("GRAMMARIA_DATA") {
         return PathBuf::from(d);
     }
-    PathBuf::from("data")
+    let data = PathBuf::from("data");
+    if data.join("lt").join("grammar.xml").exists() || data.join("grammar.xml").exists() {
+        return data;
+    }
+    PathBuf::from("assets/fr")
 }
 
 fn main() {
@@ -41,7 +43,7 @@ fn main() {
     let mut json = false;
     let mut tagger_only = false;
     let mut watch: Option<u64> = None;
-    let mut style = false;
+    let mut style = true;
     let serve = args[0] == "serve";
     let mut files: Vec<String> = Vec::new();
     let mut data: Option<String> = None;
@@ -54,7 +56,10 @@ fn main() {
                 i += 1;
                 watch = args.get(i).and_then(|v| v.parse().ok());
             }
+            // Style rules are on by default, as in LanguageTool; `--style`
+            // is accepted for older command lines.
             "--style" => style = true,
+            "--no-style" => style = false,
             "--data" => {
                 i += 1;
                 data = args.get(i).cloned();
@@ -64,41 +69,18 @@ fn main() {
         i += 1;
     }
     let dir = data.map(PathBuf::from).unwrap_or_else(data_dir);
-    // The disambiguation XML is shipped verbatim in `assets/fr/` (generated
-    // data directories also carry a copy).
-    let disambig = ["fr.disambig.xml", "languagetool-disambiguation.xml"]
-        .iter()
-        .find_map(|n| {
-            let p = dir.join(n);
-            if p.exists() { Some(p) } else { None }
-        })
-        .or_else(|| {
-            let p = Path::new("assets/fr/languagetool-disambiguation.xml");
-            if p.exists() { Some(p.to_path_buf()) } else { None }
-        });
-    let tg = match grammaria::tagger::Tagger::new(
-        &dir.join("fr.lex"),
-        &dir.join("fr.words"),
-        disambig.as_deref(),
-    ) {
-        Ok(t) => t,
+    let engine = match Engine::load(&dir) {
+        Ok(e) => e,
         Err(e) => {
-            let lex = dir.join("fr.lex");
-            if !lex.exists() {
-                eprintln!(
-                    "grammaria: no language data in {} (missing fr.lex).\n\
-                     Build it once from the shipped assets:\n\
-                     \x20 cargo run --release --bin grammaria-build -- --out {}",
-                    dir.display(),
-                    dir.display()
-                );
-            } else {
-                eprintln!("grammaria: cannot load data from {}: {e}", dir.display());
-            }
+            eprintln!(
+                "grammaria: cannot load the language data from {}: {e}\n\
+                 The data directory holds `lt/` (LanguageTool's French resources) and `grammaria/` (this\n\
+                 project's rules); `grammaria-build --out DIR` makes one from the shipped assets.",
+                dir.display()
+            );
             std::process::exit(1);
         }
     };
-    let engine = Engine::from_parts(tg, load_rules(&dir));
     if serve {
         let stdin = std::io::stdin();
         let stdout = std::io::stdout();
@@ -109,52 +91,33 @@ fn main() {
         return;
     }
 
-    // `--watch`: re-check the file on an interval, reusing the cached analysis
-    // of sentences that did not change. Only one file is supported.
     if let Some(secs) = watch {
         let path = files.first().cloned().unwrap_or_else(|| "-".to_string());
-        let mut checker = grammaria::rules::Checker::new(tg, engine.rules());
+        if path == "-" {
+            eprintln!("grammaria: --watch needs a file, not stdin");
+            std::process::exit(2);
+        }
         let mut last: Option<String> = None;
         loop {
-            let text = if path == "-" {
-                String::new()
-            } else {
-                std::fs::read_to_string(&path).unwrap_or_default()
-            };
-            if path == "-" {
-                eprintln!("grammaria: --watch needs a file, not stdin");
-                break;
-            }
+            let text = std::fs::read_to_string(&path).unwrap_or_default();
             if last.as_deref() != Some(text.as_str()) {
-                let matches = checker.check(&text, style);
+                let matches = engine.check(&text, style);
                 if json {
-                    print_json(&text, &matches, &path);
+                    print_json(&engine, &text, &matches, &path);
                 } else {
                     print_text(&text, &matches);
-                    eprintln!(
-                        "  ({} sentences reused, {} re-checked)",
-                        checker.reused, checker.computed
-                    );
                 }
                 last = Some(text);
             }
             std::thread::sleep(std::time::Duration::from_secs(secs.max(1)));
         }
-        return;
     }
 
     let mut exit_code = 0;
     for f in &files {
-        let text = if f == "-" {
-            read_all(std::io::stdin())
-        } else {
-            std::fs::read_to_string(f).unwrap_or_default()
-        };
+        let text = if f == "-" { read_all(std::io::stdin()) } else { std::fs::read_to_string(f).unwrap_or_default() };
         if tagger_only {
-            for (a, b) in grammaria::tokenizer::sentence_boundaries(&text) {
-                let s = tg.tag(&text[a..b], a);
-                println!("{}", tg.verbose(&s));
-            }
+            print_analysis(&engine, &text);
             continue;
         }
         let matches = engine.check(&text, style);
@@ -162,7 +125,7 @@ fn main() {
             exit_code = 1;
         }
         if json {
-            print_json(&text, &matches, &f);
+            print_json(&engine, &text, &matches, f);
         } else {
             print_text(&text, &matches);
         }
@@ -172,61 +135,47 @@ fn main() {
     }
 }
 
-fn load_rules(dir: &Path) -> grammaria::rules::RuleSet {
-    // Fast path: the precompiled binary rule cache.
-    if let Some(set) = grammaria::rules::RuleSet::load_cache(dir.join("fr.rules")) {
-        return set;
-    }
-    // Fallback: parse the XML rule files directly.
-    let mut set = grammaria::rules::RuleSet::default();
-    for (file, asset, is_style) in [
-        ("fr.grammar.xml", "assets/fr/languagetool-grammar.xml", false),
-        ("fr.style.xml", "assets/fr/languagetool-style.xml", true),
-    ] {
-        // Prefer the data directory (generated copies), fall back to the
-        // shipped assets so a fresh clone works without a data build.
-        let xml = std::fs::read_to_string(dir.join(file))
-            .or_else(|_| std::fs::read_to_string(asset))
-            .ok();
-        if let Some(xml) = xml {
-            let s = grammaria::rules::RuleSet::parse(&xml, is_style);
-            set.rules.extend(s.rules);
-            set.unification.extend(s.unification);
-            set.phrases.extend(s.phrases);
+/// One token per line: `token<TAB>lemma/TAG lemma/TAG ...`, a blank line
+/// between sentences.
+fn print_analysis(engine: &Engine, text: &str) {
+    for sentence in engine.analyze(text) {
+        for token in &sentence.tokens {
+            if token.is_whitespace && !token.is_sent_start {
+                continue;
+            }
+            let readings: Vec<String> =
+                token.readings.iter().map(|r| format!("{}/{}", r.lemma.as_deref().unwrap_or("-"), r.pos().unwrap_or("-"))).collect();
+            println!("{}\t{}", token.token, readings.join(" "));
         }
+        println!();
     }
-    set
 }
 
-fn print_text(text: &str, matches: &[grammaria::rules::RuleMatch]) {
+fn print_text(text: &str, matches: &[Match]) {
     for m in matches {
-        let ctx_start = text[..m.offset.min(text.len())].rfind('\n').map(|i| i + 1).unwrap_or(0);
-        let ctx_end = text[m.offset.min(text.len())..]
-            .find('\n')
-            .map(|i| i + m.offset)
-            .unwrap_or(text.len());
+        let offset = m.offset.min(text.len());
+        let ctx_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let ctx_end = text[offset..].find('\n').map(|i| i + offset).unwrap_or(text.len());
         let context = &text[ctx_start..ctx_end];
-        let rel = m.offset.saturating_sub(ctx_start);
         println!(
             "{}:{}: {} [{}]{}",
             m.offset,
             m.length,
             context.trim(),
             m.rule_id,
-            if m.suggestions.is_empty() {
-                String::new()
-            } else {
-                format!("  suggestions: {}", m.suggestions.join(", "))
-            }
+            if m.suggestions.is_empty() { String::new() } else { format!("  suggestions: {}", m.suggestions.join(", ")) }
         );
-        println!("  {}", m.message);
-        let _ = rel;
+        println!("  {}", strip_markup(&m.message));
     }
 }
 
-fn print_json(text: &str, matches: &[grammaria::rules::RuleMatch], file: &str) {
-    // Mirrors LanguageTool's `--json` response object so that the output can be
-    // consumed by the same clients: `software`, `warnings`, `language` and
+/// A message without its `<suggestion>` tags.
+fn strip_markup(message: &str) -> String {
+    message.replace("<suggestion>", "« ").replace("</suggestion>", " »")
+}
+
+fn print_json(engine: &Engine, text: &str, matches: &[Match], file: &str) {
+    // LanguageTool's `--json` envelope: `software`, `language` and
     // `matches[]`, where each match carries its `context`, `sentence`, `type`
     // and full `rule` descriptor.
     let mut out = String::from("{\"software\":{\"name\":\"Grammaria\",\"version\":\"");
@@ -237,53 +186,9 @@ fn print_json(text: &str, matches: &[grammaria::rules::RuleMatch], file: &str) {
     out.push_str(&format!(",\"file\":\"{}\"", json_escape(file)));
     out.push_str(",\"matches\":");
     out.push_str(&matches_json(text, matches, OffsetUnit::Bytes));
-    // `sentenceRanges` lets clients map offsets back to sentences;
-    // `extendedSentenceRanges` mirrors LanguageTool's list of paragraph ranges.
-    out.push_str(",\"sentenceRanges\":");
-    out.push_str(&json_ranges(text, false));
-    out.push_str(",\"extendedSentenceRanges\":");
-    out.push_str(&json_ranges(text, true));
+    // `sentenceRanges` lets clients map offsets back to sentences.
+    let ranges: Vec<String> = engine.french().analyzer.sentence_ranges(text).iter().map(|(a, b)| format!("[{a},{b}]")).collect();
+    out.push_str(&format!(",\"sentenceRanges\":[{}]", ranges.join(",")));
     out.push('}');
     println!("{out}");
-}
-
-/// `[[from, to], ...]` character ranges of the sentences (or paragraphs) in
-/// `text`, as LanguageTool reports them.
-fn json_ranges(text: &str, paragraphs: bool) -> String {
-    let bytes = text.as_bytes();
-    let mut ranges: Vec<(usize, usize)> = Vec::new();
-    let mut start = 0usize;
-    let terminators: &[u8] = if paragraphs { b"\n" } else { b".!?\n" };
-    for (i, &c) in bytes.iter().enumerate() {
-        if terminators.contains(&c) {
-            let mut end = i + 1;
-            if paragraphs {
-                // Include the newline itself for paragraph ranges.
-                while end < bytes.len() && bytes[end] == b'\n' {
-                    end += 1;
-                }
-            }
-            // Skip runs that contain no non-whitespace text (e.g. the space
-            // between two sentences), so every range names real content.
-            if end > start && text[start..end].trim().is_empty() {
-                start = end;
-                continue;
-            }
-            if end > start {
-                ranges.push((start, end));
-            }
-            start = end;
-        }
-    }
-    if start < bytes.len() && !text[start..].trim().is_empty() {
-        ranges.push((start, bytes.len()));
-    }
-    format!(
-        "[{}]",
-        ranges
-            .iter()
-            .map(|(a, b)| format!("[{a},{b}]"))
-            .collect::<Vec<_>>()
-            .join(",")
-    )
 }

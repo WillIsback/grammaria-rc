@@ -15,7 +15,7 @@ root, out, n_random, speller_name = sys.argv[1], sys.argv[2], int(sys.argv[3]), 
 
 forms = []
 prev = None
-with open(root + "/assets/fr/languagetool-pos-dict.txt", encoding="utf-8") as f:
+with open(root + "/eval/sources/languagetool-pos-dict.txt", encoding="utf-8") as f:
     for line in f:
         form = line.split("\t", 1)[0]
         if form != prev:
@@ -38,7 +38,7 @@ with open(out + "/lookup_words.txt", "w", encoding="utf-8") as f:
 # Keys are "lemma|tag"; take them from the tagger dump, plus keys that do not
 # exist.
 keys = []
-with open(root + "/assets/fr/languagetool-pos-dict.txt", encoding="utf-8") as f:
+with open(root + "/eval/sources/languagetool-pos-dict.txt", encoding="utf-8") as f:
     for i, line in enumerate(f):
         if i % 900 == 0:
             form, lemma, tag = line.rstrip("\n").split("\t")
