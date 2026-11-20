@@ -11,7 +11,9 @@
 //! only; `--all-rules` also runs the rules that are off by default or
 //! reserved to the picky level; `--lt-only` runs LanguageTool's rules alone,
 //! without this project's rule files and profile (for comparisons with the
-//! reference); `--time` prints load and run times on stderr and
+//! reference); `--time` prints load and run times on stderr,
+//! `--passes N` checks the texts N times (the first N-1 on one thread, each
+//! timed) and
 //! `--slow MS` the texts that took at least MS milliseconds.
 
 use std::path::PathBuf;
@@ -42,6 +44,7 @@ fn unescape(line: &str) -> String {
 fn main() {
     let mut assets = PathBuf::from("assets/fr/lt");
     let mut time = false;
+    let mut passes = 1usize;
     let mut slow: Option<u128> = None;
     let mut all_rules = false;
     let mut lt_only = false;
@@ -52,6 +55,7 @@ fn main() {
         match a.as_str() {
             "--assets" => assets = PathBuf::from(args.next().unwrap_or_default()),
             "--time" => time = true,
+            "--passes" => passes = args.next().and_then(|v| v.parse().ok()).unwrap_or(1),
             "--slow" => slow = args.next().and_then(|v| v.parse().ok()),
             "--all-rules" => all_rules = true,
             "--lt-only" => lt_only = true,
@@ -89,6 +93,20 @@ fn main() {
         .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1));
     let chunk = texts.len().div_ceil(threads).max(1);
     let french: &French = &french;
+    // Extra passes over the same texts, timed one by one: the first pays for
+    // cold caches, the later ones show the steady state.
+    for pass in 1..passes {
+        let started = std::time::Instant::now();
+        let first_text = texts.first().map(|t| {
+            let s = std::time::Instant::now();
+            line(french, mode, t);
+            s.elapsed()
+        });
+        for text in texts.iter().skip(1) {
+            line(french, mode, text);
+        }
+        eprintln!("pass {pass}: {:?} (first text {:?})", started.elapsed(), first_text.unwrap_or_default());
+    }
     let started = std::time::Instant::now();
     let out: Vec<String> = std::thread::scope(|scope| {
         let handles: Vec<_> = texts
