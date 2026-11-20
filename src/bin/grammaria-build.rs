@@ -18,13 +18,17 @@ pub const DEFAULT_OUT: &str = "data";
 fn main() -> std::io::Result<()> {
     let mut assets = DEFAULT_ASSETS.to_string();
     let mut out = DEFAULT_OUT.to_string();
+    let mut only: Option<String> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--assets" => assets = args.next().unwrap_or(assets),
             "--out" => out = args.next().unwrap_or(out),
+            // Rebuild a single stage. The lexicon conversion dominates the
+            // full build (~8 min), so rule changes only need `--only rules`.
+            "--only" => only = args.next(),
             "-h" | "--help" => {
-                println!("usage: grammaria-build [--assets DIR] [--out DIR]");
+                println!("usage: grammaria-build [--assets DIR] [--out DIR] [--only rules|words|lexicon]");
                 return Ok(());
             }
             other => {
@@ -35,9 +39,20 @@ fn main() -> std::io::Result<()> {
     }
     fs::create_dir_all(&out)?;
     let t0 = std::time::Instant::now();
-    build_lexicon(&assets, &out)?;
-    build_word_lists(&assets, &out)?;
-    build_rule_cache(&assets, &out)?;
+    match only.as_deref() {
+        Some("rules") => build_rule_cache(&assets, &out)?,
+        Some("words") => build_word_lists(&assets, &out)?,
+        Some("lexicon") => build_lexicon(&assets, &out)?,
+        None => {
+            build_lexicon(&assets, &out)?;
+            build_word_lists(&assets, &out)?;
+            build_rule_cache(&assets, &out)?;
+        }
+        Some(other) => {
+            eprintln!("unknown stage for --only: {other} (use rules, words or lexicon)");
+            std::process::exit(2);
+        }
+    }
     eprintln!("built assets in {:?}", t0.elapsed());
     Ok(())
 }

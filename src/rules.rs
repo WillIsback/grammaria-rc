@@ -206,6 +206,13 @@ const VALIDATING_FILTERS: &[&str] = &[
     "NewYearDateFilter",
     "FrenchNumberInWordFilter",
     "MakeContractionsFilter",
+    // `FindSuggestionsFilter` looks a word up in the morphological dictionary
+    // to find real-word corrections matching a desired postag (`wordFrom:3
+    // desiredPostag:V.*(ind|sub).*1.s`). LanguageTool only reports the rule
+    // when such a correction exists, so without the dictionary lookup we would
+    // fire on ordinary text ("Je vous envoie les documents ci-joint." is clean
+    // in LT but matches `SUJET_AUXILIAIRE[1]` for us). It therefore validates.
+    "FindSuggestionsFilter",
 ];
 
 /// Expand a first-token regex into the set of literal keys it can match, when

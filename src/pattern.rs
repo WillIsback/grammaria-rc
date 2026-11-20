@@ -192,9 +192,29 @@ impl TokenPattern {
     }
 
     /// Does this token pattern (used as an `<exception>`) match `toks[idx]`?
-    /// Exception regexes use `find` semantics in LanguageTool, so
+    ///
+    /// A `scope="current"` exception uses `find` semantics in LanguageTool, so
     /// `<exception regexp="yes">publié</exception>` also excludes `publiés`.
+    ///
+    /// A `scope="previous"`/`"next"` exception is evaluated by LanguageTool's
+    /// `PatternTokenMatcher.isMatchedByPreviousException` / scope-next checks,
+    /// which reuse the *element* matcher -- i.e. a whole-token match. That
+    /// distinction matters: `PRONOMS_PERSONNELS_MINUSCULE` has
+    /// `<exception scope="previous" regexp="yes">...|pour|par|...</exception>`
+    /// and LT still reports "pourquoi Je", because `pour` must not swallow
+    /// `pourquoi`.
     pub fn matches_as_exception(&self, toks: &[AnalyzedToken], idx: usize) -> bool {
+        self.matches_as_exception_scoped(toks, idx, true)
+    }
+
+    /// `whole_token`: use whole-token (element) semantics for the surface form
+    /// instead of `find` semantics.
+    pub fn matches_as_exception_scoped(
+        &self,
+        toks: &[AnalyzedToken],
+        idx: usize,
+        find_form: bool,
+    ) -> bool {
         let tok = &toks[idx];
         if let Some(lit) = &self.text {
             if !crate::strutil::eq_ignore_case(lit, &tok.text) {
@@ -202,7 +222,14 @@ impl TokenPattern {
             }
         }
         if let Some(re) = &self.regex {
-            if !re.is_match(&tok.text) {
+            let hit = if find_form {
+                re.is_match(&tok.text)
+            } else if self.case_sensitive {
+                re.is_full_match(&tok.text)
+            } else {
+                re.is_full_match_ignore_case(&tok.text)
+            };
+            if !hit {
                 return false;
             }
         }
@@ -235,7 +262,10 @@ impl TokenPattern {
                 }
             };
             if let Some(t) = target {
-                if ex.pattern.matches_as_exception(toks, t) {
+                // `scope="current"` keeps LanguageTool's `find` semantics;
+                // previous/next scopes reuse the element matcher (whole token).
+                let find_form = matches!(ex.scope, Scope::Current);
+                if ex.pattern.matches_as_exception_scoped(toks, t, find_form) {
                     return false;
                 }
             }

@@ -829,14 +829,56 @@ pub fn convert_token_disambig(n: &XmlNode) -> TokenPattern {
 
 /// Public wrapper used by the grammar rule loader.
 pub fn convert_children_public(node: &XmlNode, out: &mut Vec<PatternElem>) {
+    let before = out.len();
     convert_children(node, out);
+    // `<pattern case_sensitive="yes">` applies to every token element inside
+    // it (LanguageTool keeps `caseSensitive` as a handler field set on
+    // `<pattern>` and reads it when each `<token>` is finalised).
+    if node.attr("case_sensitive") == Some("yes") {
+        mark_case_sensitive(&mut out[before..]);
+    }
 }
 
 /// Convert a `<pattern>`/`<antipattern>` element into a `Pattern`.
 pub fn convert_pattern(node: &XmlNode) -> Pattern {
     let mut elems = Vec::new();
     convert_children(node, &mut elems);
+    // `<pattern case_sensitive="yes">` applies to every token element inside
+    // it (LanguageTool's `XMLRuleHandler`: `caseSensitive` is a handler field
+    // set on `<pattern>` and read when each `<token>` is finalised).
+    if node.attr("case_sensitive") == Some("yes") {
+        mark_case_sensitive(&mut elems);
+    }
     Pattern { elems }
+}
+
+/// Recursively set `case_sensitive` on every token pattern in `elems`.
+fn mark_case_sensitive(elems: &mut [PatternElem]) {
+    for e in elems {
+        match e {
+            PatternElem::Token(t) => {
+                t.case_sensitive = true;
+                for ex in &mut t.exceptions {
+                    ex.pattern.case_sensitive = true;
+                }
+            }
+            PatternElem::Seq(v) => mark_case_sensitive(v),
+            PatternElem::And(v) => {
+                for t in v {
+                    t.case_sensitive = true;
+                    for ex in &mut t.exceptions {
+                        ex.pattern.case_sensitive = true;
+                    }
+                }
+            }
+            PatternElem::Or(alts) => {
+                for a in alts {
+                    mark_case_sensitive(a);
+                }
+            }
+            PatternElem::Unify { inner, .. } => mark_case_sensitive(inner),
+        }
+    }
 }
 
 
