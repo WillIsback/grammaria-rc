@@ -2228,6 +2228,25 @@ mod tests {
     }
 
     #[test]
+    fn negated_classes_ignore_case_before_negating() {
+        // Java: the case variants are added to the class, then it is negated.
+        assert!(!full_i("[^a-z].*", "et"));
+        assert!(!full_i("[^a-z].*", "Et"));
+        assert!(full_i("[^a-z].*", "1er"));
+        assert!(!full_i(".*[^ae]", "commencera"));
+        assert!(!full_i(".*[^ae]", "COMMENCERA"));
+        assert!(full_i(".*[^ae]", "arriveras"));
+        assert!(!full_i("[^é]", "É"));
+        assert!(full_i("[a-z&&[^aeiou]]+", "BRT"));
+        assert!(!full_i("[a-z&&[^aeiou]]+", "BAT"));
+        // Without the flag nothing changes.
+        assert!(full("[^a-z].*", "Et"));
+        let ascii_only = Flags { case_insensitive: true, ..Flags::default() };
+        assert!(!Regex::new("[^a-z]", ascii_only).unwrap().is_full_match("E"));
+        assert!(Regex::new("[^é]", ascii_only).unwrap().is_full_match("É"));
+    }
+
+    #[test]
     fn matches_is_whole_string_and_find_is_anywhere() {
         assert!(!full("pour", "pourquoi"));
         assert!(find("pour", "pourquoi"));

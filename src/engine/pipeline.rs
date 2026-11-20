@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::analysis::Analyzer;
 use super::checker::{CheckRule, Checker, Found, NativeRule};
 use super::disambiguator::Disambiguator;
+use super::filters::{FrenchFilters, SentenceAnalyzer};
 use super::pattern::{Lang, SpellChecker, WordTagger};
 use super::rule::{RuleContext, RuleFilter};
 use super::synth::FrenchSynthesizer;
@@ -55,12 +56,38 @@ pub struct Extensions {
     pub filters: Vec<Box<dyn Fn(&str) -> Option<Arc<dyn RuleFilter>>>>,
     pub native_rules: Vec<Box<dyn NativeRule>>,
     pub speller: Option<Arc<dyn SpellChecker>>,
+    /// Called once the rule files are read, for the filters that run rules
+    /// on a corrected text.
+    pub rules_loaded: Option<RulesLoaded>,
 }
 
+pub type RulesLoaded = Box<dyn FnOnce(&[GrammarRule], &Arc<Analyzer>, &Arc<Disambiguator>)>;
+
 pub struct French {
-    pub analyzer: Analyzer,
-    pub disambiguator: Disambiguator,
+    pub analyzer: Arc<Analyzer>,
+    pub disambiguator: Arc<Disambiguator>,
     pub checker: Checker,
+}
+
+/// `JLanguageTool.analyzeText(text).get(0)` for the filters.
+struct FirstSentence {
+    analyzer: Arc<Analyzer>,
+    disambiguator: Arc<Disambiguator>,
+}
+
+impl SentenceAnalyzer for FirstSentence {
+    fn analyze(&self, text: &str, ctx: &RuleContext) -> Option<Sentence> {
+        analyze(&self.analyzer, &self.disambiguator, text, ctx).into_iter().next()
+    }
+}
+
+/// `JLanguageTool.analyzeText`.
+fn analyze(analyzer: &Analyzer, disambiguator: &Disambiguator, text: &str, ctx: &RuleContext) -> Vec<Sentence> {
+    analyzer.analyze_with(text, |raw| {
+        let pre = raw.tokens.clone();
+        let Sentence { text, tokens, .. } = raw;
+        disambiguator.disambiguate(Sentence::new(text, tokens, pre), ctx)
+    })
 }
 
 impl French {
@@ -82,27 +109,30 @@ impl French {
         let tagger = Arc::new(FrenchTagger::new(Arc::new(MorfologikDictionary(dictionary)), dir)?);
         let srx = std::fs::read_to_string(dir.join("segment.srx"))?;
         let sentence_tokenizer = super::sentences::SrxSentenceTokenizer::new(&srx, "fr").map_err(io::Error::other)?;
-        let analyzer = Analyzer::from_parts(tagger.clone(), sentence_tokenizer);
+        let analyzer = Arc::new(Analyzer::from_parts(tagger.clone(), sentence_tokenizer));
         let synthesizer = Arc::new(FrenchSynthesizer::load(dir)?);
         let extensions = extend(dir, &tagger, &synthesizer);
         let factory = |class: &str| extensions.filters.iter().find_map(|f| f(class));
 
         let mut disambig_unifier = UnifierConfiguration::default();
-        let disambiguator = Disambiguator::load(dir, &factory, &mut disambig_unifier)?;
+        let disambiguator = Arc::new(Disambiguator::load(dir, &factory, &mut disambig_unifier)?);
         let mut unifier = UnifierConfiguration::default();
-        let mut xml_rules: Vec<CheckRule> = Vec::new();
+        let mut grammar_rules: Vec<GrammarRule> = Vec::new();
         for path in rule_files {
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("rules.xml");
             let style = name.contains("style");
             let xml = std::fs::read_to_string(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
-            xml_rules.extend(load_grammar(&xml, name, style, &factory, &mut unifier).into_iter().map(|r| match r {
-                GrammarRule::Pattern(p) => CheckRule::Pattern(p),
-                GrammarRule::Regex(r) => CheckRule::Regex(r),
-            }));
+            grammar_rules.extend(load_grammar(&xml, name, style, &factory, &mut unifier));
         }
-        let Extensions { native_rules, speller, .. } = extensions;
+        let Extensions { native_rules, speller, rules_loaded, .. } = extensions;
+        if let Some(loaded) = rules_loaded {
+            loaded(&grammar_rules, &analyzer, &disambiguator);
+        }
         let mut rules: Vec<CheckRule> = native_rules.into_iter().map(CheckRule::Native).collect();
-        rules.extend(xml_rules);
+        rules.extend(grammar_rules.into_iter().map(|r| match r {
+            GrammarRule::Pattern(p) => CheckRule::Pattern(p),
+            GrammarRule::Regex(r) => CheckRule::Regex(r),
+        }));
         let lang = Lang { synthesizer: Some(synthesizer), tagger: Some(tagger), speller };
         let checker = Checker::new(rules, RuleContext { lang, unifier, disambig_unifier });
         Ok(French { analyzer, disambiguator, checker })
@@ -116,11 +146,7 @@ impl French {
     /// `JLanguageTool.analyzeText`: the sentences of `text`, tagged and
     /// disambiguated.
     pub fn analyze(&self, text: &str) -> Vec<Sentence> {
-        self.analyzer.analyze_with(text, |raw| {
-            let pre = raw.tokens.clone();
-            let Sentence { text, tokens, .. } = raw;
-            self.disambiguator.disambiguate(Sentence::new(text, tokens, pre), &self.checker.ctx)
-        })
+        analyze(&self.analyzer, &self.disambiguator, text, &self.checker.ctx)
     }
 
     /// `JLanguageTool.check` at the default level.
@@ -141,6 +167,13 @@ pub fn load_french(dir: &Path) -> io::Result<French> {
     let mut failure: Option<io::Error> = None;
     let french = French::load_with(dir, |dir, _tagger, _synthesizer| {
         let mut extensions = Extensions::default();
+        let filters = FrenchFilters::new();
+        let factory = filters.clone();
+        extensions.filters.push(Box::new(move |class| factory.filter(class)));
+        extensions.rules_loaded = Some(Box::new(move |rules, analyzer, disambiguator| {
+            filters.set_rules(rules);
+            filters.set_analyzer(Arc::new(FirstSentence { analyzer: analyzer.clone(), disambiguator: disambiguator.clone() }));
+        }));
         match super::native::french_native_rules(dir, None) {
             Ok(rules) => extensions.native_rules = rules,
             Err(e) => failure = Some(e),
