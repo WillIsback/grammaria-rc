@@ -7,7 +7,8 @@
 //!   grammaria-run matches TEXTS.txt   rule matches
 //!
 //! `--assets DIR` names the LanguageTool resource directory (default
-//! `assets/fr/lt`); `--time` prints load and run times on stderr.
+//! `assets/fr/lt`); `--rules FILE` (repeatable) checks with these rule files
+//! only; `--time` prints load and run times on stderr.
 
 use std::path::PathBuf;
 
@@ -37,21 +38,28 @@ fn unescape(line: &str) -> String {
 fn main() {
     let mut assets = PathBuf::from("assets/fr/lt");
     let mut time = false;
+    let mut rule_files: Vec<PathBuf> = Vec::new();
     let mut positional: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--assets" => assets = PathBuf::from(args.next().unwrap_or_default()),
             "--time" => time = true,
+            "--rules" => rule_files.push(PathBuf::from(args.next().unwrap_or_default())),
             _ => positional.push(a),
         }
     }
     let (Some(mode), Some(file)) = (positional.first(), positional.get(1)) else {
-        eprintln!("usage: grammaria-run (raw|tokens|matches) TEXTS.txt [--assets DIR] [--time]");
+        eprintln!("usage: grammaria-run (raw|tokens|matches) TEXTS.txt [--assets DIR] [--rules FILE]... [--time]");
         std::process::exit(2);
     };
     let started = std::time::Instant::now();
-    let french = grammaria::engine::pipeline::load_french(&assets).unwrap_or_else(|e| {
+    let loading = if rule_files.is_empty() {
+        grammaria::engine::pipeline::load_french(&assets)
+    } else {
+        grammaria::engine::pipeline::load_french_with_rules(&assets, &rule_files)
+    };
+    let french = loading.unwrap_or_else(|e| {
         eprintln!("grammaria-run: cannot load {}: {e}", assets.display());
         std::process::exit(1);
     });

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Règles propres à Grammaria, au format des règles de LanguageTool.
+Licence : MPL-2.0 (comme le reste de la bibliothèque).
+
+Chaque règle porte ses exemples : une phrase fautive avec <marker> et
+l'attribut correction, et au moins une phrase correcte proche. Les exemples
+sont vérifiés par tools/rules/test_rules.py.
+-->
+<rules lang="fr">
+    <category id="GRM_CONJUGAISON" name="Conjugaison (Grammaria)" type="grammar">
+        <rulegroup id="GRM_AFIN_DE_INFINITIF" name="afin de, avant de + participe au lieu de l'infinitif">
+            <rule>
+                <pattern>
+                    <token regexp="yes">afin|avant</token>
+                    <token regexp="yes">de|d'</token>
+                    <token postag="R pers obj.*" postag_regexp="yes" min="0" max="2"/>
+                    <marker>
+                        <token postag="V ppa.*" postag_regexp="yes" regexp="yes">.*(é|ée|és|ées)
+                            <exception postag="V inf"/></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 », le verbe se met à l'infinitif.</message>
+                <suggestion><match no="4" postag="V ppa.*" postag_regexp="yes" postag_replace="V inf"/></suggestion>
+                <example correction="terminer">Il s'est levé tôt afin de <marker>terminé</marker> son travail.</example>
+                <example correction="manger">Lave-toi les mains avant de <marker>mangé</marker>.</example>
+                <example>Lave-toi les mains avant de manger.</example>
+            </rule>
+        </rulegroup>
+    </category>
+</rules>

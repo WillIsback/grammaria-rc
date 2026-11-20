@@ -2,7 +2,7 @@
 //! LanguageTool's resource directory (what `JLanguageTool` does for French).
 
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::analysis::Analyzer;
@@ -16,6 +16,20 @@ use super::token::{Readings, Sentence};
 use super::unifier::UnifierConfiguration;
 use super::xmlrules::{load_grammar, GrammarRule};
 use crate::morfologik::{Dictionary, WordData};
+
+/// LanguageTool's `grammar.xml` and `style.xml`, then this project's own rule
+/// files: every `*.xml` of the sibling directory `grammaria`, in name order.
+pub fn default_rule_files(dir: &Path) -> Vec<PathBuf> {
+    let mut files = vec![dir.join("grammar.xml"), dir.join("style.xml")];
+    if let Some(own) = dir.parent().map(|p| p.join("grammaria")) {
+        if let Ok(entries) = std::fs::read_dir(&own) {
+            let mut extra: Vec<PathBuf> = entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "xml")).collect();
+            extra.sort();
+            files.extend(extra);
+        }
+    }
+    files
+}
 
 /// The tagger dictionary (`french.dict`) read with Morfologik.
 pub struct MorfologikDictionary(pub Dictionary);
@@ -54,6 +68,16 @@ impl French {
     /// `rules/fr` files side by side). `extend` receives the tagger and the
     /// synthesizer and returns what is plugged into the rules.
     pub fn load_with(dir: &Path, extend: impl FnOnce(&Path, &Arc<FrenchTagger>, &Arc<FrenchSynthesizer>) -> Extensions) -> io::Result<French> {
+        French::load_rule_files(dir, &default_rule_files(dir), extend)
+    }
+
+    /// Same, with the given grammar rule files instead of the default ones
+    /// (to try a rule file on its own, for instance).
+    pub fn load_rule_files(
+        dir: &Path,
+        rule_files: &[PathBuf],
+        extend: impl FnOnce(&Path, &Arc<FrenchTagger>, &Arc<FrenchSynthesizer>) -> Extensions,
+    ) -> io::Result<French> {
         let dictionary = Dictionary::load(dir.join("french.dict"), dir.join("french.info"))?;
         let tagger = Arc::new(FrenchTagger::new(Arc::new(MorfologikDictionary(dictionary)), dir)?);
         let srx = std::fs::read_to_string(dir.join("segment.srx"))?;
@@ -67,8 +91,10 @@ impl French {
         let disambiguator = Disambiguator::load(dir, &factory, &mut disambig_unifier)?;
         let mut unifier = UnifierConfiguration::default();
         let mut xml_rules: Vec<CheckRule> = Vec::new();
-        for (name, style) in [("grammar.xml", false), ("style.xml", true)] {
-            let xml = std::fs::read_to_string(dir.join(name))?;
+        for path in rule_files {
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("rules.xml");
+            let style = name.contains("style");
+            let xml = std::fs::read_to_string(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
             xml_rules.extend(load_grammar(&xml, name, style, &factory, &mut unifier).into_iter().map(|r| match r {
                 GrammarRule::Pattern(p) => CheckRule::Pattern(p),
                 GrammarRule::Regex(r) => CheckRule::Regex(r),
@@ -106,4 +132,9 @@ impl French {
 /// The French checker with everything this crate implements plugged in.
 pub fn load_french(dir: &Path) -> io::Result<French> {
     French::load(dir)
+}
+
+/// The same checker with the given rule files only.
+pub fn load_french_with_rules(dir: &Path, rule_files: &[PathBuf]) -> io::Result<French> {
+    French::load_rule_files(dir, rule_files, |_, _, _| Extensions::default())
 }
