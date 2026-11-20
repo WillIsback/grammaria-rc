@@ -21,6 +21,7 @@ pub mod json;
 pub mod pattern;
 pub mod performer;
 pub mod rule;
+pub mod spelling;
 pub mod strtools;
 pub mod synth;
 pub mod token;

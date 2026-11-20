@@ -17,6 +17,7 @@ use grammaria::engine::disambiguator::Disambiguator;
 use grammaria::engine::dump::{dump_sentences, sentences_from_dump, sentences_from_dumps};
 use grammaria::engine::pattern::Lang;
 use grammaria::engine::rule::{RuleContext, RuleFilter};
+use grammaria::engine::spelling::FrenchSpelling;
 use grammaria::engine::synth::FrenchSynthesizer;
 use grammaria::engine::unifier::UnifierConfiguration;
 use grammaria::engine::xmlrules::{load_grammar, GrammarRule};
@@ -52,22 +53,31 @@ fn main() {
     let mut dis_unifier = UnifierConfiguration::default();
     let disambiguator = Disambiguator::load(&assets, &no_filters, &mut dis_unifier).expect("disambiguation files");
     let mut rules: Vec<GrammarRule> = Vec::new();
-    if mode == "match" {
-        for (name, style) in [("grammar.xml", false), ("style.xml", true)] {
-            let xml = std::fs::read_to_string(assets.join(name)).expect("rule file");
-            rules.extend(load_grammar(&xml, name, style, &no_filters, &mut unifier));
-        }
-    }
     let mut lang = Lang::default();
     if let Ok(synth) = FrenchSynthesizer::load(&assets) {
         lang.synthesizer = Some(Arc::new(synth));
     }
-    let rules: Vec<CheckRule> = rules
+    // Native rules, in the order of `French.getRelevantRules`.
+    let mut native: Vec<CheckRule> = Vec::new();
+    if mode == "match" {
+        // The spelling rule, the language's speller and tagger, and the rule
+        // filters that need them.
+        let spelling = FrenchSpelling::load_with_stopgaps(&assets).expect("spelling resources");
+        native.push(CheckRule::Native(spelling.native_rule()));
+        lang.speller = Some(spelling.spell_checker());
+        lang.tagger = Some(spelling.tagger.clone());
+        let filters = |class: &str| spelling.filter(class).or_else(|| no_filters(class));
+        for (name, style) in [("grammar.xml", false), ("style.xml", true)] {
+            let xml = std::fs::read_to_string(assets.join(name)).expect("rule file");
+            rules.extend(load_grammar(&xml, name, style, &filters, &mut unifier));
+        }
+    }
+    let rules: Vec<CheckRule> = native
         .into_iter()
-        .map(|r| match r {
+        .chain(rules.into_iter().map(|r| match r {
             GrammarRule::Pattern(p) => CheckRule::Pattern(p),
             GrammarRule::Regex(r) => CheckRule::Regex(r),
-        })
+        }))
         .collect();
     let checker = Checker::new(rules, RuleContext { lang, unifier, disambig_unifier: dis_unifier });
     let (ctx, disambiguator, checker) = (&checker.ctx, &disambiguator, &checker);
