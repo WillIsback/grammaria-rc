@@ -1,0 +1,1729 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+Règles propres à Grammaria, au format des règles de LanguageTool.
+Licence : MPL-2.0 (comme le reste de la bibliothèque).
+
+Accords dans le groupe nominal : déterminant, adjectifs et nom ; adjectif en
+apposition ; compléments du nom de nombre fixe ; noms collectifs ; numéraux ;
+mots invariables pris pour des adjectifs.
+
+Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
+-->
+<!DOCTYPE rules [
+    <!-- noms qui, en tête de phrase avant une virgule, sont le plus souvent des compléments de temps ou de lieu -->
+    <!ENTITY noms_circonstanciels "jours?|soirs?|matins?|nuits?|lendemain|surlendemain|veille|fois|instants?|moments?|semaines?|mois|ans?|années?|hivers?|étés?|printemps|automnes?|lundis?|mardis?|mercredis?|jeudis?|vendredis?|samedis?|dimanches?|heures?|minutes?|secondes?|matinées?|soirées?|journées?|après-midi|temps|époques?|siècles?|côtés?|parts?|aube|crépuscule|week-ends?|reste|plupart|cas|fin|début">
+    <!-- noms de personnes courants, au singulier -->
+    <!ENTITY humains_sing "homme|femme|enfant|fille|garçon|personne|individu|amie?|copain|copine|collègue|voisine?|élève|étudiante?|lycéen|lycéenne|collégien|écolier|professeur|enseignante?|chercheur|chercheuse|ingénieur|médecin|infirmière|infirmier|patiente?|soldat|policier|gendarme|pompier|officier|marin|pilote|ouvrier|ouvrière|paysan|paysanne|agriculteur|travailleur|travailleuse|salariée?|employée?|chômeur|cliente?|consommateur|utilisateur|utilisatrice|internaute|lecteur|lectrice|spectateur|spectatrice|auditeur|visiteur|touriste|voyageur|passager|passante?|habitante?|citoyen|citoyenne|électeur|militante?|manifestante?|gréviste|partisan|opposante?|députée?|sénateur|élue?|journaliste|artiste|musicien|musicienne|chanteur|chanteuse|danseur|danseuse|acteur|actrice|comédien|écrivain|auteur|peintre|joueur|joueuse|sportif|athlète|supporter|coureur|nageur|cycliste|skieur|randonneur|chasseur|pêcheur|passionnée?|amateur|bénévole|experte?|spécialiste|professionnel|débutante?|participante?|candidate?|concurrente?|adhérente?|membre|réfugiée?|migrante?|immigrée?|étranger|prisonnier|détenue?|otage|victime|blessée?|survivante?|témoin|bandit|voleur|criminel|terroriste|malfaiteur|rebelle|insurgé|pirate|idiote?|imbécile|crétin|abruti|voyou|gamine?|gosse|adolescente?|adulte|parent|cousine?|pèlerin|moine|prêtre|chrétien|musulman|juif">
+    <!-- noms dénombrables courants après un nom de nombre (dizaine, centaine…) -->
+    <!ENTITY unites_sing "euro|dollar|franc|mètre|kilomètre|centimètre|kilo|gramme|litre|an|année|jour|heure|minute|seconde|semaine|page|exemplaire|pièce|maison|livre|mot|ligne|kilogramme|tonne|hectare|degré|siècle|ville|village|pays|voiture|film|article|membre">
+    <!ENTITY noms_collectifs "groupes?|bandes?|foules?|multitudes?|poignées?|équipes?|troupes?|couples?|majorité|minorité|générations?|communautés?|associations?|syndicats?|collectifs?|cohortes?|hordes?|meutes?|nuées?|légions?|délégations?|panels?|comités?|familles?|rassemblements?|séries?|listes?|tas">
+    <!ENTITY noms_de_nombre "dizaines?|douzaines?|quinzaines?|vingtaines?|trentaines?|quarantaines?|cinquantaines?|soixantaines?|centaines?|milliers?|millions?|milliards?">
+    <!ENTITY fruits_sing "pomme|poire|tomate|carotte|orange|fraise|cerise|banane|pêche|prune|abricot|oignon|haricot|patate|courgette|aubergine|noisette|amande|olive|champignon|citron|clémentine|mandarine|framboise|figue|datte|châtaigne|marron|lentille|fève|navet|poireau|poivron|concombre|mirabelle|groseille|myrtille|mûre|échalote|artichaut|endive|betterave|cornichon|pruneau|nectarine|mangue|kiwi|pamplemousse">
+    <!ENTITY nombres_lettres "deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|vingt|trente|quarante|cinquante|soixante|cent|cents|mille">
+    <!ENTITY mois "janvier|février|mars|avril|mai|juin|juillet|août|aout|septembre|octobre|novembre|décembre">
+]>
+<rules lang="fr">
+    <unification feature="number">
+        <equivalence type="sg">
+            <token postag=".* sp?" postag_regexp="yes"/>
+        </equivalence>
+        <equivalence type="pl">
+            <token postag=".* s?p" postag_regexp="yes"/>
+        </equivalence>
+    </unification>
+    <unification feature="gender">
+        <equivalence type="masc">
+            <token postag=".* [me] [sp][sp]?" postag_regexp="yes"/>
+        </equivalence>
+        <equivalence type="fem">
+            <token postag=".* [fe] [sp][sp]?" postag_regexp="yes"/>
+        </equivalence>
+    </unification>
+
+    <category id="GRM_GROUPE_NOMINAL" name="Accords dans le groupe nominal (Grammaria)" type="grammar">
+
+        <rulegroup id="GRM_ADJ_ET_ADJ_NOM" name="adjectif et adjectif + nom : accord en genre et en nombre">
+            <rule>
+                <!-- genre : « l'amoureuse et merveilleux imbécile » -->
+                <pattern raw_pos="yes">
+                    <token postag="D .*|P\+D .*|SENT_START" postag_regexp="yes"/>
+                    <marker>
+                        <unify negate="yes">
+                            <feature id="gender"/>
+                            <token postag="J .*" postag_regexp="yes">
+                                <exception postag="V .*|A|D .*|P" postag_regexp="yes"/></token>
+                            <unify-ignore>
+                                <token>et</token>
+                            </unify-ignore>
+                            <token postag="J .*" postag_regexp="yes">
+                                <exception postag="V .*|A|D .*|P" postag_regexp="yes"/>
+                                <exception regexp="yes">autres?|bon|bonne</exception></token>
+                            <token postag="N .*" postag_regexp="yes">
+                                <exception postag="V .*|A|D .*|P" postag_regexp="yes"/></token>
+                        </unify>
+                    </marker>
+                </pattern>
+                <message>Les adjectifs « \2 » et « \4 » et le nom « \5 » n'ont pas le même genre : deux adjectifs coordonnés devant un nom s'accordent avec lui.</message>
+                <example correction="">Voici l'<marker>amoureuse et merveilleux imbécile</marker> dont je parlais.</example>
+                <example correction="">Leurs <marker>ignorantes et grands crétins</marker> de voisins.</example>
+                <example>Voici l'amoureux et merveilleux imbécile dont je parlais.</example>
+                <example>Une seule et même personne a tout fait.</example>
+                <example>Elle est belle et bon nombre de gens le disent.</example>
+                <example>Les planètes naines et petits corps du Système solaire.</example>
+                <example>Les universités publiques et autres établissements de la ville.</example>
+            </rule>
+            <rule>
+                <!-- nombre, premier adjectif au pluriel : « les grandes et belle maisons », « les ignorants et sot individu » -->
+                <pattern raw_pos="yes">
+                    <token postag="D .*|P\+D .*|SENT_START" postag_regexp="yes"/>
+                    <marker>
+                        <unify negate="yes">
+                            <feature id="number"/>
+                            <token postag="J . p" postag_regexp="yes">
+                                <exception postag="V .*|A|D .*|P" postag_regexp="yes"/></token>
+                            <unify-ignore>
+                                <token>et</token>
+                            </unify-ignore>
+                            <token postag="J .*" postag_regexp="yes">
+                                <exception postag="V .*|A|D .*|P" postag_regexp="yes"/>
+                                <exception regexp="yes">autres?|bon|bonne</exception></token>
+                            <token postag="N .*" postag_regexp="yes">
+                                <exception postag="V .*|A|D .*|P" postag_regexp="yes"/></token>
+                        </unify>
+                    </marker>
+                </pattern>
+                <message>« \2 » est au pluriel, mais « \4 » ou « \5 » est au singulier : les adjectifs coordonnés et le nom s'accordent en nombre.</message>
+                <example correction="">Ce sont de <marker>petites et vulgaire femmes</marker>.</example>
+                <example correction="">Quelles <marker>prétentieuses et sottes femme</marker> que voilà !</example>
+                <example>Ce sont de petites et vulgaires femmes.</example>
+            </rule>
+            <rule>
+                <!-- nombre, premier adjectif au singulier, second au pluriel : « le petit et vulgaires individu » -->
+                <pattern raw_pos="yes">
+                    <token postag="D .*|P\+D .*|SENT_START" postag_regexp="yes"/>
+                    <marker>
+                        <token postag="J . s" postag_regexp="yes">
+                            <exception postag="V .*|A|D .*|P|J . s?p" postag_regexp="yes"/></token>
+                        <token>et</token>
+                        <token postag="J . p" postag_regexp="yes">
+                            <exception postag="V .*|A|D .*|P|J . sp?" postag_regexp="yes"/></token>
+                        <token postag="N .*" postag_regexp="yes">
+                            <exception postag="V .*|A|D .*|P" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« \2 » est au singulier et « \4 » au pluriel : deux adjectifs coordonnés devant un nom ont le même nombre que lui.</message>
+                <example correction="">C'est un <marker>petit et vulgaires individu</marker>.</example>
+                <example>C'est un petit et vulgaire individu.</example>
+                <example>Les douzième et treizième siècles.</example>
+            </rule>
+            <rule>
+                <!-- déterminant singulier, nom au pluriel : « le prétentieux et sot hommes » -->
+                <pattern raw_pos="yes">
+                    <token postag="D . s" postag_regexp="yes">
+                        <exception postag="D . s?p" postag_regexp="yes"/></token>
+                    <token postag="J . sp?" postag_regexp="yes">
+                        <exception postag="V (ind|sub|con|imp|inf).*|A|D .*|P" postag_regexp="yes"/></token>
+                    <token>et</token>
+                    <token postag="J . sp?" postag_regexp="yes">
+                        <exception postag="V (ind|sub|con|imp|inf).*|A|D .*|P" postag_regexp="yes"/></token>
+                    <marker>
+                        <token postag="N . p" postag_regexp="yes">
+                            <exception postag="V .*|A|D .*|P|N . sp?|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 », le nom « \5 » se met au singulier.</message>
+                <suggestion><match no="5" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="homme">Le prétentieux et sot <marker>hommes</marker> que voilà.</example>
+                <example correction="homme">Son ignorant et sot <marker>hommes</marker> de mari.</example>
+                <example>Le prétentieux et sot homme que voilà.</example>
+            </rule>
+            <rule>
+                <!-- déterminant pluriel, nom au singulier : « quels prétentieux et sots homme » -->
+                <pattern raw_pos="yes">
+                    <token postag="D . p" postag_regexp="yes">
+                        <exception postag="D . sp?|P.*|A|R pers.*" postag_regexp="yes"/></token>
+                    <token postag="J . s?p" postag_regexp="yes">
+                        <exception postag="V (ind|sub|con|imp|inf).*|A|D .*|P" postag_regexp="yes"/></token>
+                    <token>et</token>
+                    <token postag="J .*" postag_regexp="yes">
+                        <exception postag="V (ind|sub|con|imp|inf).*|A|D .*|P" postag_regexp="yes"/></token>
+                    <marker>
+                        <token postag="N . s" postag_regexp="yes">
+                            <exception postag="V .*|A|D .*|P|N . s?p|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 », le nom « \5 » se met au pluriel.</message>
+                <suggestion><match no="5" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="hommes">Quels prétentieux et sots <marker>homme</marker> que voilà !</example>
+                <example>Quels prétentieux et sots hommes que voilà !</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_APPOSITION_DEBUT_PHRASE" name="groupe nominal en tête de phrase, virgule, adjectif ou participe : accord">
+            <antipattern>
+                <!-- « La nuit, épuisés, ils… » : l'adjectif se rapporte au sujet qui suit -->
+                <token postag="SENT_START"/>
+                <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                <token postag="N .*" postag_regexp="yes"/>
+                <token>,</token>
+                <token postag="A" min="0" max="3"/>
+                <token postag="J .*|V ppa .*" postag_regexp="yes"/>
+                <token min="0" max="10"><exception regexp="yes">[,;:.!?]</exception></token>
+                <token>,</token>
+                <token postag="R pers suj.*|D .*|P\+D .*|Z .*|R dem.*|R .*" postag_regexp="yes"/>
+            </antipattern>
+            <antipattern>
+                <!-- « Le lac, étendue d'eau douce, … » : nom en apposition -->
+                <token postag="SENT_START"/>
+                <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                <token postag="N .*" postag_regexp="yes"/>
+                <token>,</token>
+                <token postag="A" min="0" max="3"/>
+                <token postag="N .*" postag_regexp="yes"/>
+                <token regexp="yes">de|d'|du|des|qui|que|qu'|où|dont</token>
+            </antipattern>
+            <antipattern>
+                <!-- « Les bonbons, bouchées et pralines… » : énumération de noms -->
+                <token postag="SENT_START"/>
+                <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                <token postag="N .*" postag_regexp="yes"/>
+                <token>,</token>
+                <token postag="N .*" postag_regexp="yes"/>
+                <token regexp="yes">et|ou|,</token>
+                <token postag="N .*" postag_regexp="yes"><exception postag="J .*|V ppa .*" postag_regexp="yes"/></token>
+            </antipattern>
+            <rule>
+                <!-- nom masculin singulier -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <token postag="N m s"><exception postag="N [fe] .*|N m s?p|V .*" postag_regexp="yes"/><exception regexp="yes">&noms_circonstanciels;</exception></token>
+                    <token>,</token>
+                    <token postag="A" min="0" max="3"/>
+                    <marker>
+                        <token postag="J f .*|V ppa f .*|J [me] p|V ppa m p" postag_regexp="yes">
+                            <exception postag="J [me] sp?|V ppa m sp?|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« \6 » se rapporte à « \3 », masculin singulier, et s'accorde avec lui.</message>
+                <suggestion><match no="6" postag="(J|V ppa) .*" postag_regexp="yes" postag_replace="$1 [me] s"/></suggestion>
+                <example correction="blessé">L'homme, <marker>blessés</marker> dans son orgueil, quitta la salle.</example>
+                <example correction="remercié">Le tyran, <marker>remerciée</marker> par la foule.</example>
+                <example>L'homme, blessé dans son orgueil, quitta la salle.</example>
+                <example>Le soir, épuisés, ils rentrèrent chez eux.</example>
+                <example>Le repas, servis par deux domestiques, ils le prirent en silence.</example>
+            </rule>
+            <rule>
+                <!-- nom féminin singulier -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <token postag="N f s"><exception postag="N [me] .*|N f s?p|V .*" postag_regexp="yes"/><exception regexp="yes">&noms_circonstanciels;</exception></token>
+                    <token>,</token>
+                    <token postag="A" min="0" max="3"/>
+                    <marker>
+                        <token postag="J m .*|V ppa m .*|J [fe] p|V ppa f p" postag_regexp="yes">
+                            <exception postag="J [fe] sp?|V ppa f sp?|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« \6 » se rapporte à « \3 », féminin singulier, et s'accorde avec lui.</message>
+                <suggestion><match no="6" postag="(J|V ppa) .*" postag_regexp="yes" postag_replace="$1 [fe] s"/></suggestion>
+                <example correction="blessée">La femme, <marker>blessées</marker> dans son orgueil, quitta la salle.</example>
+                <example correction="ébranlée">Ton âme, <marker>ébranlé</marker> par ce récit.</example>
+                <example>La femme, blessée dans son orgueil, quitta la salle.</example>
+                <example>La nuit, fatigués, ils s'endormirent.</example>
+            </rule>
+            <rule>
+                <!-- nom masculin pluriel : genre -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <token postag="N m p"><exception postag="N [fe] .*|N m sp?|V .*" postag_regexp="yes"/><exception regexp="yes">&noms_circonstanciels;</exception></token>
+                    <token>,</token>
+                    <token postag="A" min="0" max="3"/>
+                    <marker>
+                        <token postag="J f .*|V ppa f .*" postag_regexp="yes">
+                            <exception postag="J [me] .*|V ppa m .*|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« \6 » se rapporte à « \3 », masculin pluriel, et s'accorde avec lui.</message>
+                <suggestion><match no="6" postag="(J|V ppa) .*" postag_regexp="yes" postag_replace="$1 [me] s?p"/></suggestion>
+                <example correction="blessés">Des hommes, <marker>blessée</marker> dans leur orgueil, quittèrent la salle.</example>
+                <example>Des hommes, blessés dans leur orgueil, quittèrent la salle.</example>
+            </rule>
+            <rule>
+                <!-- nom féminin pluriel : genre -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <token postag="N f p"><exception postag="N [me] .*|N f sp?|V .*" postag_regexp="yes"/><exception regexp="yes">&noms_circonstanciels;</exception></token>
+                    <token>,</token>
+                    <token postag="A" min="0" max="3"/>
+                    <marker>
+                        <token postag="J m .*|V ppa m .*" postag_regexp="yes">
+                            <exception postag="J [fe] .*|V ppa f .*|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« \6 » se rapporte à « \3 », féminin pluriel, et s'accorde avec lui.</message>
+                <suggestion><match no="6" postag="(J|V ppa) .*" postag_regexp="yes" postag_replace="$1 [fe] s?p"/></suggestion>
+                <example correction="blessées">Certaines femmes, <marker>blessés</marker> par ces propos, sortirent.</example>
+                <example>Certaines femmes, blessées par ces propos, sortirent.</example>
+            </rule>
+            <rule>
+                <!-- nom pluriel, adjectif singulier (sauf énumération distributive : « les drapeaux, noir et blanc, … ») -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token postag="D .*|P\+D .*" postag_regexp="yes"/>
+                    <token postag="N . p" postag_regexp="yes"><exception postag="N . sp?|V .*" postag_regexp="yes"/><exception regexp="yes">&noms_circonstanciels;</exception></token>
+                    <token>,</token>
+                    <token postag="A" min="0" max="3"/>
+                    <marker>
+                        <token postag="J . s|V ppa . s" postag_regexp="yes">
+                            <exception postag="J . s?p|V ppa . s?p|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/>
+                            <exception scope="next" regexp="yes">et|ou|,</exception></token>
+                    </marker>
+                </pattern>
+                <message>« \6 » se rapporte à « \3 », au pluriel, et s'accorde avec lui.</message>
+                <suggestion><match no="6" postag="(J|V ppa) (.) s" postag_regexp="yes" postag_replace="$1 $2 p"/></suggestion>
+                <example correction="blessés">Deux soldats, <marker>blessé</marker> par deux fois.</example>
+                <example>Deux soldats, blessés par deux fois.</example>
+                <example>Les deux soleils, noir et blanc, constituaient un symbole marquant.</example>
+            </rule>
+            <rule>
+                <!-- prénom en tête de phrase, adjectif au pluriel -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <token postag="Z [mf] sp?" postag_regexp="yes" regexp="yes" case_sensitive="yes">\p{Lu}\p{Ll}+</token>
+                    <token>,</token>
+                    <token postag="A" min="0" max="2"/>
+                    <marker>
+                        <token postag="J . p|V ppa . p" postag_regexp="yes">
+                            <exception postag="J . sp?|V ppa . sp?|N [mf] .*|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*|J .*|Z .*" postag_regexp="yes"/></token>
+                    </marker>
+                    <token><exception regexp="yes">et|ou|,</exception></token>
+                </pattern>
+                <message>« \5 » se rapporte à « \2 » : le singulier s'impose.</message>
+                <suggestion><match no="5" postag="(J|V ppa) (.) p" postag_regexp="yes" postag_replace="$1 $2 s"/></suggestion>
+                <example correction="victorieuse">Clarisse, <marker>victorieuses</marker> aux Jeux, rentra au pays.</example>
+                <example>Clarisse, victorieuse aux Jeux, rentra au pays.</example>
+                <example>Luc, médecin et historien, vit à Lyon.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_DET_ADJ_EPICENE_NOM" name="déterminant + adjectif sans marque de genre + nom de l'autre genre">
+            <rule>
+                <pattern raw_pos="yes">
+                    <marker>
+                        <token regexp="yes">le|un|ce|cet|aucun|nul|quel|ledit</token>
+                    </marker>
+                    <token postag="J e s">
+                        <exception postag="J [mf] .*|N .*|V .*|A|D .*|R .*|P" postag_regexp="yes"/></token>
+                    <token postag="N f s">
+                        <exception postag="N [me] .*|N f s?p|V .*|J .*|A|D .*|R .*|P" postag_regexp="yes"/>
+                        <exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
+                </pattern>
+                <message>« \3 » est un nom féminin : le déterminant « \1 » doit être au féminin.</message>
+                <suggestion><match no="1" postag="D . s" postag_regexp="yes" postag_replace="D f s"/></suggestion>
+                <example correction="la">Et <marker>le</marker> gigantesque explosion n'a rien arrangé.</example>
+                <example correction="une">Il fait preuve d'<marker>un</marker> quelconque élégance.</example>
+                <example>Et la gigantesque explosion n'a rien arrangé.</example>
+                <example>Le brave porte une veste.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <marker>
+                        <token regexp="yes">la|une|cette|aucune|nulle|quelle|ladite</token>
+                    </marker>
+                    <token postag="J e s">
+                        <exception postag="J [mf] .*|N .*|V .*|A|D .*|R .*|P" postag_regexp="yes"/></token>
+                    <token postag="N m sp?" postag_regexp="yes">
+                        <exception postag="N [fe] .*|V .*|J .*|A|D .*|R .*|P" postag_regexp="yes"/>
+                        <exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
+                </pattern>
+                <message>« \3 » est un nom masculin : le déterminant « \1 » doit être au masculin.</message>
+                <suggestion><match no="1" postag="D . s" postag_regexp="yes" postag_replace="D m s"/></suggestion>
+                <example correction="un">C'est <marker>une</marker> gigantesque porte-avions.</example>
+                <example correction="le">Voici <marker>la</marker> magnifique château.</example>
+                <example>C'est un gigantesque porte-avions.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_CE_SONT_DE_ADJ_NOM" name="ce sont de + adjectif + nom au singulier">
+            <rule>
+                <pattern>
+                    <token>ce</token>
+                    <token regexp="yes">sont|furent|étaient|seront|seraient</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token postag="[JN] . s" postag_regexp="yes">
+                            <exception postag="[JN] . s?p|V .*|A|D .*" postag_regexp="yes"/></token>
+                        <token postag="N . s" postag_regexp="yes">
+                            <exception postag="N . s?p|V .*|A" postag_regexp="yes"/>
+                            <exception regexp="yes">augure|foi|goût|humeur|qualité|taille|naissance|aloi|guerre</exception></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 », le groupe nominal est au pluriel.</message>
+                <suggestion><match no="4" postag="([JN]) (.) s" postag_regexp="yes" postag_replace="$1 $2 p"/> <match no="5" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="grands jouets">Ce sont de <marker>grand jouet</marker>.</example>
+                <example>Ce sont de grands jouets.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_QUEL_EST_DET" name="quel/quelle est + déterminant de l'autre genre">
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>quel</token>
+                    </marker>
+                    <token regexp="yes">est|était|sera|serait|fut</token>
+                    <token regexp="yes">la|une|cette|ma|ta|sa</token>
+                    <token postag="[JN] .*" postag_regexp="yes"/>
+                </pattern>
+                <message>« Quel » s'accorde avec le nom féminin qui suit le verbe.</message>
+                <suggestion><match no="1" case_conversion="preserve">quelle</match></suggestion>
+                <example correction="Quelle"><marker>Quel</marker> est la politique du gouvernement ?</example>
+                <example>Quelle est la politique du gouvernement ?</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>quelle</token>
+                    </marker>
+                    <token regexp="yes">est|était|sera|serait|fut</token>
+                    <token regexp="yes">le|un|ce|cet</token>
+                    <token postag="[JN] .*" postag_regexp="yes"/>
+                </pattern>
+                <message>« Quelle » s'accorde avec le nom masculin qui suit le verbe.</message>
+                <suggestion><match no="1" case_conversion="preserve">quel</match></suggestion>
+                <example correction="Quel"><marker>Quelle</marker> est le prix de ce livre ?</example>
+                <example>Quel est le prix de ce livre ?</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_DET_SING_NOM_PLUR" name="déterminant singulier + nom au pluriel">
+            <rule>
+                <pattern>
+                    <token regexp="yes">aucune?</token>
+                    <marker>
+                        <token postag="N . p" postag_regexp="yes">
+                            <exception postag="N . sp?|V .*|J .*" postag_regexp="yes"/>
+                            <exception regexp="yes">frais|funérailles|obsèques|représailles|fiançailles|honoraires|pourparlers|gens|mœurs|vacances|ténèbres|archives|environs|alentours|agissements|arrhes|condoléances|entrailles|victuailles|vivres|dommages-intérêts</exception></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 », le nom se met au singulier (sauf s'il n'a pas de singulier).</message>
+                <suggestion><match no="2" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="accord">Aucun <marker>accords</marker> n'y changera rien.</example>
+                <example>Aucun accord n'y changera rien.</example>
+                <example>Sans aucuns frais.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token>au</token>
+                        <token postag="N . p" postag_regexp="yes" regexp="yes" case_sensitive="yes">\p{Ll}.*
+                            <exception postag="N . sp?|V .*|J .*|A" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« Au » est singulier et « \2 » pluriel.</message>
+                <suggestion>aux \2</suggestion>
+                <suggestion>au <match no="2" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="aux pères|au père">Donne <marker>au pères</marker> la parole.</example>
+                <example>Donne aux pères la parole.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_DET_PLUR_NOM_SING" name="déterminant pluriel + nom au singulier">
+            <rule>
+                <pattern>
+                    <token regexp="yes">lesdite?s|auxdite?s|desdite?s</token>
+                    <marker>
+                        <token postag="N . s" postag_regexp="yes">
+                            <exception postag="N . s?p" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 », le nom se met au pluriel.</message>
+                <suggestion><match no="2" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="femmes">Auxdites <marker>femme</marker>, affirmons notre soutien.</example>
+                <example>Auxdites femmes, affirmons notre soutien.</example>
+            </rule>
+            <rule>
+                <!-- noms de fruits qui sont aussi des adjectifs de couleur invariables : « les abricot » -->
+                <pattern raw_pos="yes">
+                    <token regexp="yes">les|des|ces|mes|tes|ses|nos|vos|leurs|quelques|plusieurs|deux|trois|quatre|cinq|six|dix
+                        <exception scope="previous" postag="V .*" postag_regexp="yes"/></token>
+                    <marker>
+                        <and>
+                            <token postag="N . s" postag_regexp="yes" regexp="yes">abricot|orange|marron|cerise|noisette|olive|citron|aubergine|brique|prune|châtaigne|framboise|groseille|mandarine|pistache|tomate|émeraude|saphir|ardoise|caramel|chocolat|pêche|lavande|paille|kaki|turquoise|grenat|corail|moutarde</token>
+                            <token postag="J e sp"><exception scope="next" postag="J .*|N .*" postag_regexp="yes"/></token>
+                        </and>
+                    </marker>
+                </pattern>
+                <message>Après « \1 », le nom « \2 » se met au pluriel.</message>
+                <suggestion><match no="2" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="abricots">Il a mangé tous les <marker>abricot</marker>.</example>
+                <example>Il a mangé tous les abricots.</example>
+                <example>Elle a les yeux marron.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_DE_FACON_ADJ" name="de façon/manière + adjectif au masculin">
+            <rule>
+                <pattern>
+                    <token regexp="yes">de|d'</token>
+                    <token regexp="yes">façon|manière</token>
+                    <token postag="A" min="0" max="2"><exception regexp="yes">que|à|dont</exception></token>
+                    <marker>
+                        <token postag="J m s?p?" postag_regexp="yes">
+                            <exception postag="J [fe] .*|A|D .*|R .*|P" postag_regexp="yes"/>
+                            <exception regexp="yes">tout|seul|même|tel|quel|certain|nul|aucun</exception>
+                            <exception scope="next" postag="N m .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>L'adjectif s'accorde avec « \2 », nom féminin.</message>
+                <suggestion><match no="4" postag="J m (s?p?)" postag_regexp="yes" postag_replace="J f s"/></suggestion>
+                <example correction="charmante">Elle s'y prit de façon <marker>charmant</marker>.</example>
+                <example correction="générale">De manière <marker>général</marker>, tout va bien.</example>
+                <example>Elle s'y prit de façon charmante.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_UN_DE_LEUR_NOM" name="un de leur + nom au singulier">
+            <rule>
+                <pattern>
+                    <token regexp="yes">une?|aucune?</token>
+                    <token>de</token>
+                    <marker>
+                        <token>leur</token>
+                        <token postag="N . s" postag_regexp="yes">
+                            <exception postag="N . s?p|V .*" postag_regexp="yes"/>
+                            <exception regexp="yes">côté|part|famille|groupe|entourage|équipe|bande|clan|camp|parti|génération|espèce|race|pays|peuple|village|ville|temps|sorte|genre|type|âge|taille|rang|classe|catégorie|niveau|trempe|acabit|milieu|époque|région|tribu|maison|compagnie|suite|monde|sang|nation|école|ordre|société|communauté|troupe|armée|couleur|origine|condition</exception></token>
+                    </marker>
+                </pattern>
+                <message>« \1 de » désigne un élément parmi plusieurs : « leurs \4 » au pluriel.</message>
+                <suggestion>leurs <match no="4" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="leurs soirées">Nous irons à une de <marker>leur soirée</marker>.</example>
+                <example>Nous irons à une de leurs soirées.</example>
+                <example>Chacun de leur côté.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_COLLECTIF_DE_NOM_SING" name="nom collectif ou nom de nombre + de + nom dénombrable au singulier">
+            <rule>
+                <pattern>
+                    <token regexp="yes">&noms_collectifs;|&noms_de_nombre;</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes" postag="N . s" postag_regexp="yes">&humains_sing;
+                            <exception scope="next" regexp="yes">-|à|de|d'</exception></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 », le nom désigne plusieurs personnes : il se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="passionnés">Ils forment un groupe de <marker>passionné</marker>.</example>
+                <example correction="amis">Une bande d'<marker>ami</marker> est venue.</example>
+                <example>Ils forment un groupe de passionnés.</example>
+                <example>Un groupe de travail se réunit demain.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">&noms_de_nombre;</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes" postag="N . s" postag_regexp="yes">&unites_sing;
+                            <exception scope="next" regexp="yes">-|carré|cube</exception></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 », le nom se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="années">Il y vit depuis une dizaine d'<marker>année</marker>.</example>
+                <example correction="euros">Cela coûte des milliers d'<marker>euro</marker>.</example>
+                <example>Il y vit depuis une dizaine d'années.</example>
+                <example>Elle fait une centaine de haut.</example>
+            </rule>
+            <rule>
+                <!-- « 2,5 kg de pomme » -->
+                <pattern>
+                    <token regexp="yes">kg|kilos?|kilogrammes?|g|grammes?|livres?|tonnes?|cageots?|caisses?|paniers?|barquettes?|sacs?|filets?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">&fruits_sing;
+                            <exception scope="next" regexp="yes">en|râpée?|concassée?|hachée?|séchée?|confite?|moulue?|pelée?|cuite?|-</exception></token>
+                    </marker>
+                </pattern>
+                <message>On achète des fruits ou des légumes au poids : le nom se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="pommes">J'ai acheté 2,5 kg de <marker>pomme</marker>.</example>
+                <example>J'ai acheté 2,5 kg de pommes.</example>
+                <example>Ajoutez 100 g de tomate concassée.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_COMPLEMENT_DU_NOM_NOMBRE" name="complément du nom de nombre fixe (cage d'escalier, frères d'armes…)">
+            <rule>
+                <pattern>
+                    <token regexp="yes">cages?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">escaliers</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="escalier">Elle attend dans la cage d'<marker>escaliers</marker>.</example>
+                <example>Elle attend dans la cage d'escalier.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">points?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">suspensions|interrogations|exclamations</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="suspension">Il met des points de <marker>suspensions</marker> partout.</example>
+                <example>Il met des points de suspension partout.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">coups?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">pieds|poings|têtes|foudres|soleils|théâtres|téléphones|vents|tonnerres|feux|pouces|coudes|cœurs|grâces|génies|balais|fouets|bâtons|couteaux|marteaux|fusils|canons|poignards|pinceaux|chances|chapeaux|barres|gueules|mains|projecteurs|sifflets|volants|freins|klaxons|filets|maîtres|sabres|états|envois|épées|éponges|bluffs|crayons|sangs|colères|folies|fatigues|froids|chaleurs
+                            <exception scope="next" regexp="yes">et|ou|,</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="pied">Il lui a donné des coups de <marker>pieds</marker>.</example>
+                <example>Il lui a donné des coups de pied.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">trousseaux?|contrats?|anniversaires?|demandes?</token>
+                    <token regexp="yes">de|en</token>
+                    <marker>
+                        <token regexp="yes">mariages</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="mariage">Elle prépare son trousseau de <marker>mariages</marker>.</example>
+                <example>Elle prépare son trousseau de mariage.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">lunes?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">miels</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="miel">Ils sont en lune de <marker>miels</marker>.</example>
+                <example>Ils sont en lune de miel.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">mots?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">passes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="passe">J'ai oublié mes mots de <marker>passes</marker>.</example>
+                <example>J'ai oublié mes mots de passe.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">numéros?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">téléphones</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="téléphone">Voici leurs numéros de <marker>téléphones</marker>.</example>
+                <example>Voici leurs numéros de téléphone.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">cartes?|pièces?|papiers?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">crédits|visites|séjours|identités|fidélités</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="identité">Montrez vos cartes d'<marker>identités</marker>.</example>
+                <example>Montrez vos cartes d'identité.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">états?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">âmes|esprits|urgences|alertes|sièges|ivresses</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="âme">Il n'a pas d'états d'<marker>âmes</marker>.</example>
+                <example>Il n'a pas d'états d'âme.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">tours?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">forces|magies|chants|tailles|pistes|gardes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="force">Ce sont de vrais tours de <marker>forces</marker>.</example>
+                <example>Ce sont de vrais tours de force.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">feuilles?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">routes|paies|soins</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="route">Voici nos feuilles de <marker>routes</marker>.</example>
+                <example>Voici nos feuilles de route.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">hôtels?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">villes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="ville">Les hôtels de <marker>villes</marker> sont fermés.</example>
+                <example>Les hôtels de ville sont fermés.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">maisons?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">retraites|campagnes|santés</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="retraite">Ils visitent des maisons de <marker>retraites</marker>.</example>
+                <example>Ils visitent des maisons de retraite.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">chemins?|fils?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">fers</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="fer">Les chemins de <marker>fers</marker> sont en grève.</example>
+                <example>Les chemins de fer sont en grève.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">pommes?|vers?|tremblements?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">terres</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="terre">Il épluche des pommes de <marker>terres</marker>.</example>
+                <example>Il épluche des pommes de terre.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">arcs?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">triomphes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="triomphe">Les arcs de <marker>triomphes</marker> romains.</example>
+                <example>Les arcs de triomphe romains.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">salles?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">attentes|bals|séjours|rédactions|gardes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="attente">Les salles d'<marker>attentes</marker> sont pleines.</example>
+                <example>Les salles d'attente sont pleines.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">sacs?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">couchages</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="couchage">Prenez vos sacs de <marker>couchages</marker>.</example>
+                <example>Prenez vos sacs de couchage.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">chefs?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">états|orchestres|gares|files|familles|cuisines|chantiers|rayons</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="orchestre">Les chefs d'<marker>orchestres</marker> se réunissent.</example>
+                <example>Les chefs d'orchestre se réunissent.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">mises?</token>
+                    <token regexp="yes">en</token>
+                    <marker>
+                        <token regexp="yes">scènes|places|œuvres|gardes|demeures|causes|examens|ventes|lumières|valeurs|services|routes|marches|situations|formes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="scène">Ses mises en <marker>scènes</marker> sont célèbres.</example>
+                <example>Ses mises en scène sont célèbres.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">mises?</token>
+                    <token regexp="yes">à</token>
+                    <marker>
+                        <token regexp="yes">jours|morts|pieds|niveaux|dispositions|contributions</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="jour">Les mises à <marker>jours</marker> sont installées.</example>
+                <example>Les mises à jour sont installées.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">prises?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">consciences|paroles|têtes|sangs|courants|contacts|pouvoirs</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="parole">Ses prises de <marker>paroles</marker> étonnent.</example>
+                <example>Ses prises de parole étonnent.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">modes?|niveaux?|conditions?|espérances?|cadres?|durées?|lieux?|trains?|qualités?|assurances?|rythmes?|hygiène|styles?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">vies</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="vie">Leurs conditions de <marker>vies</marker> sont dures.</example>
+                <example>Leurs conditions de vie sont dures.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">jeux?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">sociétés|hasards|massacres</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="société">Ils aiment les jeux de <marker>sociétés</marker>.</example>
+                <example>Ils aiment les jeux de société.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">tables?|robes?|chemises?|boîtes?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">nuits|chevets|chambres</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="nuit">Les tables de <marker>nuits</marker> sont en chêne.</example>
+                <example>Les tables de nuit sont en chêne.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">armes?</token>
+                    <token regexp="yes">à</token>
+                    <marker>
+                        <token regexp="yes">feux</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="feu">Ils portent des armes à <marker>feux</marker>.</example>
+                <example>Ils portent des armes à feu.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">planches?|moulins?|patins?|sacs?</token>
+                    <token regexp="yes">à</token>
+                    <marker>
+                        <token regexp="yes">voiles|vents|glaces|mains</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="main">Elles ont oublié leurs sacs à <marker>mains</marker>.</example>
+                <example>Elles ont oublié leurs sacs à main.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">bords?|fruits|bras|gens|loups?|étoiles?|mal</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">mers</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="mer">Un plateau de fruits de <marker>mers</marker>.</example>
+                <example>Un plateau de fruits de mer.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">maîtres?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">hôtels|œuvres|écoles|ouvrages</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="hôtel">Les maîtres d'<marker>hôtels</marker> attendent.</example>
+                <example>Les maîtres d'hôtel attendent.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">noms?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">familles|plumes|scènes|baptêmes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="famille">Donnez vos noms de <marker>familles</marker>.</example>
+                <example>Donnez vos noms de famille.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">livres?|lampes?|couteaux?|argent|formats?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">poches</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="poche">Elle lit des livres de <marker>poches</marker>.</example>
+                <example>Elle lit des livres de poche.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">romans?|histoires?|chansons?|lettres?|chagrins?|déclarations?|poèmes?|preuves?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">amours</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="amour">Il écrit des histoires d'<marker>amours</marker>.</example>
+                <example>Il écrit des histoires d'amour.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">lieux?|dates?|actes?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">cultes|travails|naissances|résidences</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="culte">Les lieux de <marker>cultes</marker> sont ouverts.</example>
+                <example>Les lieux de culte sont ouverts.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">droits?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">auteurs|votes|vetos|regards|cités</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="auteur">Il touche des droits d'<marker>auteurs</marker>.</example>
+                <example>Il touche des droits d'auteur.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">bulletins?|bureaux?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">votes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="vote">Les bureaux de <marker>votes</marker> ferment à 18 heures.</example>
+                <example>Les bureaux de vote ferment à 18 heures.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">stations?|tickets?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">métros|skis|pompages|lavages|épurations|caisses</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="métro">Les stations de <marker>métros</marker> sont fermées.</example>
+                <example>Les stations de métro sont fermées.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">moyens?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">locomotions</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="locomotion">Les moyens de <marker>locomotions</marker> manquent.</example>
+                <example>Les moyens de locomotion manquent.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">gardiens?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">prisons|nuits|phares</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="prison">Les gardiens de <marker>prisons</marker> font grève.</example>
+                <example>Les gardiens de prison font grève.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">traits?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">unions</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="union">Il oublie les traits d'<marker>unions</marker>.</example>
+                <example>Il oublie les traits d'union.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">familles?|centres?|structures?|terres?|comités?|hôtesses?|capacités?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">accueils</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="accueil">Des familles d'<marker>accueils</marker> les hébergent.</example>
+                <example>Des familles d'accueil les hébergent.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">permis</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">constructions|séjours|chasses|travails</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="construction">Les permis de <marker>constructions</marker> sont délivrés.</example>
+                <example>Les permis de construction sont délivrés.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">heures?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">pointes</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="pointe">Aux heures de <marker>pointes</marker>, tout est bloqué.</example>
+                <example>Aux heures de pointe, tout est bloqué.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">lunettes?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">soleils</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="soleil">Elle porte des lunettes de <marker>soleils</marker>.</example>
+                <example>Elle porte des lunettes de soleil.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">salons?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">coiffures|thés</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="coiffure">Les salons de <marker>coiffures</marker> rouvrent.</example>
+                <example>Les salons de coiffure rouvrent.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">terrains?|matchs?|matches|ballons?|clubs?|équipes?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">foots|footballs|golfs|campings|rugbys|baskets|handballs</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
+                <suggestion><match no="3" postag="N (.) p" postag_regexp="yes" postag_replace="N $1 s"/></suggestion>
+                <example correction="foot">Les terrains de <marker>foots</marker> sont inondés.</example>
+                <example>Les terrains de foot sont inondés.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">concours</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">circonstance</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="circonstances">C'est un malheureux concours de <marker>circonstance</marker>.</example>
+                <example>C'est un malheureux concours de circonstances.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">frères?|compagnons?|faits?|maîtres?|places?|ports?|passes?|ventes?|marchands?|trafics?|trafiquants?|dépôts?|prises?|hommes?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">arme</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="armes">Ce sont mes frères d'<marker>arme</marker>.</example>
+                <example>Ce sont mes frères d'armes.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">distributeurs?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">billet</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="billets">Où est le distributeur de <marker>billet</marker> ?</example>
+                <example>Où est le distributeur de billets ?</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">pâtés?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">maison
+                            <exception scope="next" regexp="yes">de|du|des|d'</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="maisons">Il habite à deux pâtés de <marker>maison</marker>.</example>
+                <example>Il habite à deux pâtés de maisons.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">trousseaux?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">clé|clef</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="clés">J'ai perdu mon trousseau de <marker>clé</marker>.</example>
+                <example>J'ai perdu mon trousseau de clés.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">voyages?|nuits?|repas|anniversaires?|cadeaux?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">noce</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="noces">Ils partent en voyage de <marker>noce</marker>.</example>
+                <example>Ils partent en voyage de noces.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">brosses?|rages?</token>
+                    <token regexp="yes">à|de</token>
+                    <marker>
+                        <token regexp="yes">dent</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="dents">J'ai oublié ma brosse à <marker>dent</marker>.</example>
+                <example>J'ai oublié ma brosse à dents.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">boîtes?</token>
+                    <token regexp="yes">à|de</token>
+                    <marker>
+                        <token regexp="yes">lettre|outil|gant|bijou|vitesse|conserve</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="gants">Regarde dans la boîte à <marker>gant</marker>.</example>
+                <example>Regarde dans la boîte à gants.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">chiffres?|hommes?|femmes?|voyages?|déjeuners?|dîners?|quartiers?|centres?|avocats?|cabinets?|banques?|classe|droit</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">affaire
+                            <exception scope="next" regexp="yes">de|du|des|d'|à|en</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="affaires">Son chiffre d'<marker>affaire</marker> augmente.</example>
+                <example>Son chiffre d'affaires augmente.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">jeux?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">mot|carte|échec|boule|quille|dame|fléchette|domino|bille</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="mots">C'est un jeu de <marker>mot</marker> facile.</example>
+                <example>C'est un jeu de mots facile.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">rouges?|vernis|machines?|patins?</token>
+                    <token regexp="yes">à</token>
+                    <marker>
+                        <token regexp="yes">lèvre|ongle|sou|roulette</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="lèvres">Elle met du rouge à <marker>lèvre</marker>.</example>
+                <example>Elle met du rouge à lèvres.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">centres?|parcs?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token regexp="yes">loisir|attraction</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="attractions">Ils vont au parc d'<marker>attraction</marker>.</example>
+                <example>Ils vont au parc d'attractions.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">chambres?</token>
+                    <token regexp="yes">d'</token>
+                    <marker>
+                        <token regexp="yes">ami</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="amis">Tu dormiras dans la chambre d'<marker>ami</marker>.</example>
+                <example>Tu dormiras dans la chambre d'amis.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">coups?|paires?</token>
+                    <token regexp="yes">de</token>
+                    <marker>
+                        <token regexp="yes">ciseau</token>
+                    </marker>
+                </pattern>
+                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="ciseaux">Un coup de <marker>ciseau</marker> et c'est fini.</example>
+                <example>Un coup de ciseaux et c'est fini.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">paires?</token>
+                    <token regexp="yes">de|d'</token>
+                    <marker>
+                        <token postag="N . s" postag_regexp="yes">
+                            <exception postag="N . s?p|V .*|A" postag_regexp="yes"/>
+                            <exception scope="next">-</exception></token>
+                    </marker>
+                </pattern>
+                <message>Une paire réunit deux éléments : « \3 » se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="chaussures">Il a acheté une paire de <marker>chaussure</marker>.</example>
+                <example>Il a acheté une paire de chaussures.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_DEUX_NOMS_FEMININS_ADJ" name="deux noms féminins coordonnés + adjectif au masculin pluriel">
+            <rule>
+                <pattern>
+                    <token postag="D .*" postag_regexp="yes"><exception scope="previous" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    <token postag="N f s"><exception postag="N [me] .*|V .*" postag_regexp="yes"/></token>
+                    <token>et</token>
+                    <token postag="D .*" postag_regexp="yes"/>
+                    <token postag="N f s"><exception postag="N [me] .*|V .*" postag_regexp="yes"/></token>
+                    <marker>
+                        <token postag="J m p|V ppa m p" postag_regexp="yes">
+                            <exception postag="J [fe] .*|V ppa f .*|A|D .*|P|V (ind pres|ind impa|ind futu|sub|con|imp|inf|ppr).*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>« \2 » et « \5 » sont deux noms féminins : l'adjectif ou le participe qui s'y rapporte se met au féminin pluriel.</message>
+                <suggestion><match no="6" postag="(J|V ppa) m p" postag_regexp="yes" postag_replace="$1 f p"/></suggestion>
+                <example correction="parties">Notre amie et cette femme <marker>partis</marker> hier nous manquent.</example>
+                <example>Notre amie et cette femme parties hier nous manquent.</example>
+                <example>Un frère et une sœur divisés.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_NUMERAUX" name="accord des numéraux (vingt, cent, quatre-vingts)">
+            <rule>
+                <!-- « vingts » hors de « quatre-vingts » -->
+                <pattern>
+                    <marker>
+                        <token>vingts
+                            <exception scope="previous" regexp="yes">-|quatre|quinze|six</exception></token>
+                    </marker>
+                </pattern>
+                <message>« Vingt » ne prend un « s » que dans « quatre-vingts ».</message>
+                <suggestion>vingt</suggestion>
+                <example correction="vingt">Il y a <marker>vingts</marker> personnes dans le salon.</example>
+                <example>Il y a vingt personnes dans le salon.</example>
+                <example>Il a quatre-vingts ans.</example>
+            </rule>
+            <rule>
+                <!-- « quatre-vingts-dix » -->
+                <pattern>
+                    <token>quatre</token>
+                    <token min="0">-</token>
+                    <marker>
+                        <token>vingts</token>
+                    </marker>
+                    <token min="0">-</token>
+                    <token regexp="yes">une?|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|mille</token>
+                </pattern>
+                <message>« Quatre-vingt » perd son « s » quand il est suivi d'un autre nombre.</message>
+                <suggestion>vingt</suggestion>
+                <example correction="vingt">On en a reçu quatre-<marker>vingts</marker>-dix.</example>
+                <example>On en a reçu quatre-vingt-dix.</example>
+                <example>Quatre-vingts millions de personnes.</example>
+            </rule>
+            <rule>
+                <!-- « quatre-vingt personnes » -->
+                <pattern>
+                    <marker>
+                        <token>quatre-vingt
+                            <exception scope="previous" regexp="yes">pages?|années|numéro|chapitre|article|an|en|paragraphe|ligne|vers|n°|le|du|au|chambre|place|rang</exception></token>
+                    </marker>
+                    <token postag="N . p|J . p" postag_regexp="yes"><exception postag="N . sp?|V .*|K|D .*" postag_regexp="yes"/></token>
+                </pattern>
+                <message>« Quatre-vingts » prend un « s » quand il n'est suivi d'aucun autre nombre.</message>
+                <suggestion>quatre-vingts</suggestion>
+                <example correction="quatre-vingts">Il y avait <marker>quatre-vingt</marker> personnes.</example>
+                <example>Il y avait quatre-vingts personnes.</example>
+                <example>Lisez la page quatre-vingt.</example>
+                <example>Quatre-vingt mille hommes.</example>
+            </rule>
+            <rule>
+                <!-- « j'en veux quatre-vingt » -->
+                <pattern>
+                    <token>en</token>
+                    <token postag="V .*" postag_regexp="yes"/>
+                    <marker>
+                        <token>quatre-vingt</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>« Quatre-vingts » prend un « s » quand il n'est suivi d'aucun autre nombre.</message>
+                <suggestion>quatre-vingts</suggestion>
+                <example correction="quatre-vingts">J'en veux <marker>quatre-vingt</marker> !</example>
+                <example>J'en veux quatre-vingts !</example>
+            </rule>
+            <rule>
+                <!-- « trente-neufs » -->
+                <pattern>
+                    <token regexp="yes">vingt|trente|quarante|cinquante|soixante|quatre-vingt|dix</token>
+                    <token>-</token>
+                    <marker>
+                        <token regexp="yes">neufs|quatres|huits|septs|cinqs|deuxs|troiss</token>
+                    </marker>
+                </pattern>
+                <message>Les nombres sont invariables.</message>
+                <suggestion><match no="3" regexp_match="s$" regexp_replace=""/></suggestion>
+                <example correction="neuf">Il fait trente-<marker>neufs</marker> degrés.</example>
+                <example>Il fait trente-neuf degrés.</example>
+            </rule>
+            <rule>
+                <!-- « cents » sans multiplicateur -->
+                <pattern>
+                    <marker>
+                        <token>cents
+                            <exception scope="previous" postag="K|D e p|D . p" postag_regexp="yes"/>
+                            <exception scope="previous" regexp="yes">-|de|d'|des|en|pour|et|par|\d+|.*-vingts?|quelque</exception></token>
+                    </marker>
+                    <token postag="N . p|J . p" postag_regexp="yes"><exception postag="V .*|A|P" postag_regexp="yes"/></token>
+                </pattern>
+                <message>« Cent » ne prend un « s » que s'il est multiplié (deux cents) et n'est suivi d'aucun autre nombre.</message>
+                <suggestion>cent</suggestion>
+                <example correction="cent">Il y a <marker>cents</marker> mots dans ce texte.</example>
+                <example>Il y a cent mots dans ce texte.</example>
+                <example>Il y a deux cents mots dans ce texte.</example>
+            </rule>
+            <rule>
+                <!-- « mille cinquante mot » -->
+                <pattern>
+                    <token regexp="yes">&nombres_lettres;
+                        <exception scope="previous" regexp="yes">un|le|ce|son|mon|ton|du|au|page|chapitre|article|numéro|an|année|en|ligne|vers</exception></token>
+                    <token regexp="yes">&nombres_lettres;</token>
+                    <marker>
+                        <token postag="N . s" postag_regexp="yes">
+                            <exception postag="N . s?p|V .*|J .*|A|K|D .*|P" postag_regexp="yes"/>
+                            <exception regexp="yes">&mois;|pour|pourcent|heure|mètre</exception></token>
+                    </marker>
+                </pattern>
+                <message>Après un nombre supérieur à un, le nom se met au pluriel.</message>
+                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
+                <example correction="mots">Ce texte compte mille cinquante <marker>mot</marker>.</example>
+                <example>Ce texte compte mille cinquante mots.</example>
+                <example>Le dix neuf mars, tout a changé.</example>
+            </rule>
+            <rule>
+                <!-- « le 2 janviers » -->
+                <pattern>
+                    <token regexp="yes">\d{1,2}|1er|premier</token>
+                    <marker>
+                        <token regexp="yes">janviers|févriers|avrils|juins|juillets|aoûts|septembres|octobres|novembres|décembres</token>
+                    </marker>
+                </pattern>
+                <message>Dans une date, le nom du mois reste au singulier.</message>
+                <suggestion><match no="2" regexp_match="s$" regexp_replace=""/></suggestion>
+                <example correction="janvier">Nous partons le 2 <marker>janviers</marker>.</example>
+                <example>Nous partons le 2 janvier.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_ATTRIBUT_DE_CA" name="attribut de « ça », « rien de », « c'est » : masculin singulier">
+            <rule>
+                <!-- trouver ça + adjectif -->
+                <pattern>
+                    <token inflected="yes">trouver</token>
+                    <token regexp="yes">ça|cela</token>
+                    <token postag="A" min="0" max="5"/>
+                    <marker>
+                        <token postag="J [fe] p|J f s|J m p|V ppa f .*|V ppa m p" postag_regexp="yes">
+                            <exception postag="J [me] sp?|V ppa m sp?|N .*|A|D .*|P" postag_regexp="yes"/>
+                            <exception scope="next" postag="N .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>L'attribut de « \2 » se met au masculin singulier.</message>
+                <suggestion><match no="4" postag="(J|V ppa) .*" postag_regexp="yes" postag_replace="$1 [me] s"/></suggestion>
+                <example correction="idiot">Ils trouvent ça de plus en plus <marker>idiots</marker>.</example>
+                <example>Ils trouvent ça de plus en plus idiot.</example>
+            </rule>
+            <rule>
+                <!-- rien de / quelque chose de / quelqu'un de + adjectif -->
+                <pattern>
+                    <token regexp="yes">rien|chose|quelqu'un|quoi
+                        <exception scope="previous" regexp="yes">la|une|cette|chaque|toute|même|autre|belle|bonne|grande|petite|seule|de|d'</exception></token>
+                    <token regexp="yes">de|d'</token>
+                    <token postag="A" min="0" max="2"/>
+                    <marker>
+                        <token postag="J [fe] p|J f s|J m p|V ppa f .*|V ppa m p" postag_regexp="yes">
+                            <exception postag="J [me] sp?|V ppa m sp?|A|D .*|P|R .*" postag_regexp="yes"/>
+                            <exception regexp="yes">certaine?s|nombreu(x|ses)|différente?s|diverse?s|divers|telles?|tels|nulles?|toutes?|quelques|plusieurs|autres</exception>
+                            <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 », l'adjectif reste au masculin singulier.</message>
+                <suggestion><match no="4" postag="(J|V ppa) .*" postag_regexp="yes" postag_replace="$1 [me] s"/></suggestion>
+                <example correction="interdit">Il n'y a rien d'<marker>interdites</marker> dans cette mesure.</example>
+                <example correction="intéressant">Voilà quelque chose d'<marker>intéressante</marker>.</example>
+                <example>Il n'y a rien d'interdit dans cette mesure.</example>
+                <example>Il ne reste rien de nombreuses maisons.</example>
+            </rule>
+            <rule>
+                <!-- c'est trop chère -->
+                <pattern>
+                    <token regexp="yes">c'|ç'|ce</token>
+                    <token regexp="yes">est|était|sera|serait</token>
+                    <token min="0">pas</token>
+                    <token postag="A" regexp="yes">trop|très|si|assez|vraiment|tellement|bien|plutôt|super|hyper|peu|fort|extrêmement|moins|plus|aussi</token>
+                    <marker>
+                        <token postag="J f s">
+                            <exception postag="J [me] .*|N .*|A|D .*|P|V ppa .*|R .*" postag_regexp="yes"/>
+                            <exception regexp="yes">toute|seule|pareille</exception></token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"><exception>,</exception></token>
+                </pattern>
+                <message>L'attribut de « \1 » se met au masculin singulier.</message>
+                <suggestion><match no="5" postag="J f s" postag_regexp="yes" postag_replace="J m s"/></suggestion>
+                <example correction="cher">Le prix est élevé et c'est trop <marker>chère</marker> !</example>
+                <example>Le prix est élevé et c'est trop cher !</example>
+                <example>C'est très belle, cette maison ?</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_MOTS_INVARIABLES" name="adverbes et locutions invariables accordés à tort">
+            <rule>
+                <!-- haut et fort -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">dire|déclarer|clamer|proclamer|crier|affirmer|revendiquer|déclamer|parler|chanter|annoncer|répéter|protester|réclamer|exprimer|penser|dénoncer|assumer|rappeler|défendre|soutenir|exiger|demander</token>
+                    <token postag="A" min="0" max="1"/>
+                    <marker>
+                        <token regexp="yes">hauts|haute|hautes</token>
+                        <token>et</token>
+                        <token regexp="yes">forts|forte|fortes</token>
+                    </marker>
+                </pattern>
+                <message>« Haut et fort » est une locution adverbiale invariable.</message>
+                <suggestion>haut et fort</suggestion>
+                <example correction="haut et fort">Ils déclamèrent <marker>hauts et forts</marker> leur amour de la patrie.</example>
+                <example>Ils déclamèrent haut et fort leur amour de la patrie.</example>
+                <example>Ces murs sont hauts et forts.</example>
+            </rule>
+            <rule>
+                <!-- voir juste, chanter juste -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">voir|viser|chanter|tomber|raisonner|deviner|sonner|toucher|frapper|tirer|calculer|parier
+                        <exception postag="V ppa.*" postag_regexp="yes"/></token>
+                    <token postag="A" min="0" max="1"><exception>plus</exception></token>
+                    <marker>
+                        <token>justes</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Après « \1 », « juste » est adverbe et reste invariable.</message>
+                <suggestion>juste</suggestion>
+                <example correction="juste">Ils ont su voir <marker>justes</marker>.</example>
+                <example>Ils ont su voir juste.</example>
+                <example>Nos chiffres sont justes.</example>
+            </rule>
+            <rule>
+                <!-- vites -->
+                <pattern>
+                    <marker>
+                        <token>vites
+                            <exception scope="previous" regexp="yes">plus|moins|aussi|si|les|des|très</exception></token>
+                    </marker>
+                </pattern>
+                <message>« Vite » est un adverbe : il est invariable.</message>
+                <suggestion>vite</suggestion>
+                <example correction="vite">Elles sont <marker>vites</marker> parties.</example>
+                <example>Elles sont vite parties.</example>
+            </rule>
+            <rule>
+                <!-- très biens -->
+                <pattern>
+                    <token regexp="yes">très|si|aussi|trop|tellement|plutôt|super|assez|fort
+                        <exception scope="previous" regexp="yes">de|d'|des|les|ses|mes|tes|nos|vos|leurs</exception></token>
+                    <marker>
+                        <token>biens</token>
+                    </marker>
+                </pattern>
+                <message>« Bien » est ici adverbe : il est invariable.</message>
+                <suggestion>bien</suggestion>
+                <example correction="bien">Ils sont très <marker>biens</marker> connus des services de police.</example>
+                <example>Ils sont très bien connus des services de police.</example>
+                <example>Il a de grands biens.</example>
+            </rule>
+            <rule>
+                <!-- se faire fort de -->
+                <pattern>
+                    <token regexp="yes">me|m'|te|t'|se|s'|nous|vous</token>
+                    <token inflected="yes">faire</token>
+                    <marker>
+                        <token regexp="yes">forte|forts|fortes</token>
+                    </marker>
+                    <token regexp="yes">de|d'</token>
+                    <token postag="R pers obj.*" postag_regexp="yes" min="0" max="2"/>
+                    <token postag="V inf"/>
+                </pattern>
+                <message>Dans « se faire fort de » suivi d'un infinitif, « fort » reste invariable.</message>
+                <suggestion>fort</suggestion>
+                <example correction="fort">Nous nous faisons <marker>fortes</marker> d'y parvenir.</example>
+                <example>Elle se fait fort d'y parvenir.</example>
+                <example>Elle se fait forte de votre soutien.</example>
+            </rule>
+            <rule>
+                <!-- avec pleins de -->
+                <pattern>
+                    <token regexp="yes">avec|a|as|ai|ont|avons|avez|avait|avais|avaient|aura|auront|eu|ayant|avoir|voici|voilà|reste|restent|contient|contiennent|trouve|trouvent|fait|font|vois|voit|voient</token>
+                    <marker>
+                        <token>pleins</token>
+                    </marker>
+                    <token regexp="yes">de|d'</token>
+                </pattern>
+                <message>« Plein de », au sens de « beaucoup de », est invariable.</message>
+                <suggestion>plein</suggestion>
+                <example correction="plein">C'est un site avec <marker>pleins</marker> de publicités.</example>
+                <example>C'est un site avec plein de publicités.</example>
+                <example>Les avocats sont pleins de nutriments.</example>
+            </rule>
+            <rule>
+                <!-- plus … que prévu -->
+                <pattern>
+                    <token regexp="yes">plus|moins|autant|aussi|mieux|pire|pires|meilleure?s?|moindres?|davantage|tôt|tard</token>
+                    <token min="0" max="6"><exception postag="M .*|SENT_END|V (ind|sub|con).*" postag_regexp="yes"/><exception regexp="yes">que|qu'</exception></token>
+                    <token regexp="yes">que|qu'</token>
+                    <marker>
+                        <token regexp="yes">prévue|prévus|prévues
+                            <exception scope="next" regexp="yes">par|dans|au|aux|à|initialement|pour</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans une comparaison, « que prévu » est invariable (ce qui était prévu).</message>
+                <suggestion>prévu</suggestion>
+                <example correction="prévu">Il y a moins de travail que <marker>prévue</marker>.</example>
+                <example correction="prévu">Les chiffres sont meilleurs que <marker>prévus</marker>.</example>
+                <example>Il y a moins de travail que prévu.</example>
+            </rule>
+            <rule>
+                <!-- comme prévus -->
+                <pattern>
+                    <token>comme</token>
+                    <marker>
+                        <token regexp="yes">prévue|prévus|prévues|convenue|convenus|convenues</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>« Comme prévu », « comme convenu » sont invariables.</message>
+                <suggestion><match no="2" regexp_match="(?i)(prévu|convenu).*" regexp_replace="$1"/></suggestion>
+                <example correction="prévu">Ils sont arrivés à midi, comme <marker>prévus</marker>.</example>
+                <example>Ils sont arrivés à midi, comme prévu.</example>
+            </rule>
+            <rule>
+                <!-- autant de … que possibles -->
+                <pattern>
+                    <token regexp="yes">autant|plus|moins</token>
+                    <token regexp="yes">de|d'</token>
+                    <token postag="[NJ] .*" postag_regexp="yes" min="1" max="2"/>
+                    <token>que</token>
+                    <marker>
+                        <token>possibles</token>
+                    </marker>
+                </pattern>
+                <message>« Que possible » est invariable (autant qu'il est possible).</message>
+                <suggestion>possible</suggestion>
+                <example correction="possible">Nous ferons autant de tests que <marker>possibles</marker>.</example>
+                <example>Nous ferons autant de tests que possible.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_VIEIL" name="vieux devant voyelle : vieil">
+            <rule>
+                <pattern>
+                    <token regexp="yes">un|le|ce|cet|mon|ton|son|notre|votre|leur|du|au|quel|aucun</token>
+                    <marker>
+                        <token>vieux</token>
+                    </marker>
+                    <token postag="N [me] s" postag_regexp="yes" regexp="yes">[aeiouéèêâîôûœ].*|homme|habit|hôtel|hôpital|héritage|horizon|honneur|hiver|humain|habitué|hebdomadaire|hélicoptère|héritier|historien|horloger|humoriste|hippopotame|hôte|huissier|hymne|hypocrite|herbier|hospice|hérétique|habitant|habitat|humanisme|humaniste|harmonium|horaire
+                        <exception postag="V .*|A|P|N [me] s?p" postag_regexp="yes"/>
+                        <exception regexp="yes">onze|onzième|oui|ouistiti|un|uhlan|ululement|est|ouest|yaourt|et|ou|a</exception></token>
+                </pattern>
+                <message>Devant un nom masculin singulier commençant par une voyelle ou un h muet, « vieux » devient « vieil ».</message>
+                <suggestion>vieil</suggestion>
+                <example correction="vieil">C'est un <marker>vieux</marker> imbécile.</example>
+                <example correction="vieil">Ce <marker>vieux</marker> homme marche lentement.</example>
+                <example>C'est un vieil imbécile.</example>
+                <example>Le vieux est arrivé.</example>
+                <example>Ce sont de vieux amis.</example>
+            </rule>
+        </rulegroup>
+    </category>
+</rules>
