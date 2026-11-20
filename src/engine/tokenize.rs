@@ -168,8 +168,9 @@ fn join_emails(list: Vec<String>) -> Vec<String> {
 
 /// `WordTokenizer.joinUrls` (see RFC 1738).
 fn join_urls(l: Vec<String>) -> Vec<String> {
-    // A URL needs a "." or a ":" token; without one the list is unchanged.
-    if !l.iter().any(|t| t == "." || t == ":") {
+    // A URL starts at "www" or holds a "/" token (see `url_starts_at`);
+    // without one the list is unchanged.
+    if !l.iter().any(|t| t == "/" || t == "www") {
         return l;
     }
     let mut new_list = Vec::with_capacity(l.len());
@@ -294,6 +295,120 @@ fn french_patterns() -> &'static [Regex; 7] {
             regex("^(.*)(-ce|-elle|-t-elle|-elles|-t-elles|-en|-il|-t-il|-ils|-t-ils|-je|-la|-le|-les|-leur|-lui|-moi|-nous|-on|-t-on|-toi|-tu|-vous|-vs|-y)$", f),
         ]
     })
+}
+
+/// The clitics the patterns split off (`-ce|-elle|...|-y`), without their
+/// hyphen; `-t-elle|-t-elles|-t-il|-t-ils|-t-on` are the other five.
+const CLITICS: [&str; 20] = [
+    "ce", "elle", "elles", "en", "il", "ils", "je", "la", "le", "les", "leur", "lui", "moi", "nous", "on", "toi", "tu", "vous", "vs", "y",
+];
+const T_CLITICS: [&str; 5] = ["-t-elle", "-t-elles", "-t-il", "-t-ils", "-t-on"];
+
+/// `CASE_INSENSITIVE | UNICODE_CASE` equality with a lower-case literal.
+fn eq_fold(chars: &[char], literal: &str) -> bool {
+    let mut it = chars.iter();
+    literal.chars().all(|l| it.next().is_some_and(|&c| c == l || crate::re::fold(c) == l)) && it.next().is_none()
+}
+
+/// The first group of patterns 1 and 2,
+/// `[cç]['’]|j['’]|n['’]|m['’]|t['’]|s['’]|l['’]|d['’]|qu['’]|jusqu['’]|lorsqu['’]|puisqu['’]|quoiqu['’]`
+/// at the start of `s`: its length, apostrophe included.
+fn elision_len(s: &[char]) -> Option<usize> {
+    let k = s.iter().take(7).position(|&c| c == '\'' || c == '’')?;
+    let word = &s[..k];
+    let known = match k {
+        1 => ["c", "ç", "j", "n", "m", "t", "s", "l", "d"].iter().any(|w| eq_fold(word, w)),
+        2 => eq_fold(word, "qu"),
+        5 => eq_fold(word, "jusqu"),
+        6 => eq_fold(word, "lorsqu") || eq_fold(word, "puisqu") || eq_fold(word, "quoiqu"),
+        _ => false,
+    };
+    known.then_some(k + 1)
+}
+
+/// The groups of the first of `FrenchWordTokenizer.patterns` that matches
+/// `s` (`matcher.find()` on anchored patterns), in order; false when none
+/// does.
+///
+/// Most words meet none of the patterns, or the plain elision (pattern 2) or
+/// a final clitic (patterns 5 and 6): those cases are decided here by hand,
+/// to the same effect; the other patterns run only on the words that have
+/// what they need.
+fn split_groups<'a>(s: &'a [char], groups: &mut Vec<&'a [char]>) -> bool {
+    let mut apostrophe = false;
+    let mut hyphens = 0;
+    let mut last_hyphen = 0;
+    let mut line_terminator = false;
+    for (i, &c) in s.iter().enumerate() {
+        match c {
+            '\'' | '’' => apostrophe = true,
+            '-' => {
+                hyphens += 1;
+                last_hyphen = i;
+            }
+            '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}' => line_terminator = true,
+            _ => {}
+        }
+    }
+    if !apostrophe && hyphens == 0 {
+        // every pattern needs an apostrophe or a hyphen
+        return false;
+    }
+    let patterns = french_patterns();
+    let by_regex = |index: usize, groups: &mut Vec<&'a [char]>| -> bool {
+        match patterns[index].match_at_chars(s, 0) {
+            Some(m) => {
+                groups.extend(m.spans.iter().skip(1).flatten().map(|&(a, b)| &s[a..b]));
+                true
+            }
+            None => false,
+        }
+    };
+    if line_terminator {
+        // "." does not match these: leave such a word (there should be none) to the patterns
+        return (0..patterns.len()).any(|i| by_regex(i, groups));
+    }
+    // 0: words not to be split; they start with c, m, a, r, g and are short
+    if s.len() <= 13 && matches!(crate::re::fold(s[0]), 'c' | 'm' | 'a' | 'r' | 'g') && by_regex(0, groups) {
+        return true;
+    }
+    let elision = if apostrophe { elision_len(s) } else { None };
+    if let Some(k) = elision {
+        // 1: elision, then a word without hyphen, then a clitic
+        if hyphens > 0 && by_regex(1, groups) {
+            return true;
+        }
+        // 2: ^(elision)([^'’\-].*)$
+        if s.len() > k && !matches!(s[k], '\'' | '’' | '-') {
+            groups.push(&s[..k]);
+            groups.push(&s[k..]);
+            return true;
+        }
+    }
+    if hyphens == 0 {
+        return false;
+    }
+    // 3: two clitics; 4: (-t|-m)(['’]en|['’]y)
+    if (hyphens >= 2 && by_regex(3, groups)) || (apostrophe && by_regex(4, groups)) {
+        return true;
+    }
+    // 5: ^(.*)(-t-elle|-t-elles|-t-il|-t-ils|-t-on)$
+    for clitic in T_CLITICS {
+        let n = clitic.len();
+        if s.len() >= n && eq_fold(&s[s.len() - n..], clitic) {
+            groups.push(&s[..s.len() - n]);
+            groups.push(&s[s.len() - n..]);
+            return true;
+        }
+    }
+    // 6: ^(.*)(-ce|-elle|...|-y)$: the greedy ".*" leaves the shortest clitic,
+    // which starts at the last hyphen
+    if CLITICS.iter().any(|clitic| eq_fold(&s[last_hyphen + 1..], clitic)) {
+        groups.push(&s[..last_hyphen]);
+        groups.push(&s[last_hyphen..]);
+        return true;
+    }
+    false
 }
 
 /// `FrenchWordTokenizer.wordCharacters`:
@@ -508,6 +623,7 @@ impl FrenchWordTokenizer {
         let Aux { chars, glue } = aux;
         let n = chars.len();
         let mut l: Vec<String> = Vec::with_capacity(n / 3 + 2);
+        let mut groups: Vec<&[char]> = Vec::new();
         let mut i = 0;
         // tokenizerPattern: [wordCharacters]+|[^wordCharacters]
         while i < n {
@@ -540,25 +656,13 @@ impl FrenchWordTokenizer {
                 s = &s[..s.len() - 1];
                 hyphens_at_end += 1;
             }
-            // The patterns all need an apostrophe or a hyphen.
-            if s.iter().any(|&c| c == '\'' || c == '’' || c == '-') {
-                let mut match_found = false;
-                for pattern in french_patterns() {
-                    if let Some(m) = pattern.match_at_chars(s, 0) {
-                        for group in m.spans.iter().skip(1) {
-                            if let Some((a, b)) = *group {
-                                self.words_to_add(&s[a..b], &mut l);
-                            }
-                        }
-                        match_found = true;
-                        break;
-                    }
-                }
-                if !match_found {
-                    self.words_to_add(s, &mut l);
+            groups.clear();
+            if split_groups(s, &mut groups) {
+                for group in &groups {
+                    self.words_to_add(group, &mut l);
                 }
             } else {
-                l.push(s.iter().collect());
+                self.words_to_add(s, &mut l);
             }
             for _ in 0..hyphens_at_end {
                 l.push("-".to_string());
@@ -645,6 +749,48 @@ mod tests {
         assert_eq!(show("mers-cov"), "mers-cov");
         // U+2010 and U+2011 are read as the hyphen-minus
         assert_eq!(show("peut\u{2010}être"), "peut-être");
+    }
+
+    /// `split_groups` as LanguageTool writes it: the first pattern that matches.
+    fn split_groups_by_patterns(s: &[char]) -> Option<Vec<String>> {
+        french_patterns()
+            .iter()
+            .find_map(|p| p.match_at_chars(s, 0))
+            .map(|m| m.spans.iter().skip(1).flatten().map(|&(a, b)| s[a..b].iter().collect()).collect())
+    }
+
+    #[test]
+    fn hand_written_splits_agree_with_the_patterns() {
+        let starts = [
+            "", "c'", "C’", "ç'", "j'", "n'", "m'", "t'", "s'", "l'", "L’", "d'", "qu'", "QU'", "Qu’", "jusqu'", "lorsqu'", "puisqu'",
+            "quoiqu'", "presqu'", "quelqu'", "x'", "ſ'", "jusq'", "'", "’", "qu", "c", "aujourd'", "l''", "l'-",
+        ];
+        let middles = [
+            "", "a", "est", "homme", "a-t", "est-à", "va", "donne", "peut-être", "1", "as-tu", "É", "x'y", "-", "a-", "te", "t", "ete", "en",
+            "y", "il", "on", "add", "rendez", "chez", "garde-à", "d'un", "12", "a1",
+        ];
+        let ends = [
+            "", "-ce", "-CE", "-elle", "-t-elle", "-elles", "-t-elles", "-en", "-il", "-t-il", "-T-IL", "-ils", "-t-ils", "-je", "-la", "-le",
+            "-les", "-leur", "-lui", "-moi", "-nous", "-on", "-t-on", "-toi", "-tu", "-vous", "-vs", "-y", "-le-moi", "-t-il-le", "-la-lui",
+            "-vous-en", "-t'en", "-m'y", "-t’y", "-m'en", "-t", "-m", "-ci", "-là", "-vu", "-dire", "-t-", "-on-dit", "-t-elle-même", "'en",
+            "-t-ille", "-Il", "-İl", "-ſ", "-vſ",
+        ];
+        let mut checked = 0;
+        for a in starts {
+            for b in middles {
+                for c in ends {
+                    let word: Vec<char> = format!("{a}{b}{c}").chars().collect();
+                    if word.is_empty() {
+                        continue;
+                    }
+                    let mut groups = Vec::new();
+                    let fast = split_groups(&word, &mut groups).then(|| groups.iter().map(|g| g.iter().collect::<String>()).collect::<Vec<_>>());
+                    assert_eq!(fast, split_groups_by_patterns(&word), "{a}{b}{c}");
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 40_000);
     }
 
     #[test]

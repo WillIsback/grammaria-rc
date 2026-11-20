@@ -177,18 +177,52 @@ pub fn finitize(pattern: &str, infinity: usize) -> String {
 /// `SrxTextIterator.DEFAULT_MAX_LOOKBEHIND_CONSTRUCT_LENGTH`.
 const MAX_LOOKBEHIND_CONSTRUCT_LENGTH: usize = 100;
 
-/// The characters a rule needs in the text to have a chance to match: one
-/// bit per ASCII character, one per entry of `Segmenter::special`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct CharMask {
-    ascii: u128,
-    special: u64,
+/// The characters one of which a pattern needs in the text to match, as
+/// slots: an ASCII character is its own slot, the others have the slots
+/// after 128 in the order of `Segmenter::special`. `None`: nothing is known,
+/// the pattern is always run.
+type Needs = Option<Box<[u8]>>;
+
+const SLOTS: usize = 192;
+const ABSENT: u32 = u32::MAX;
+
+/// Where the characters some rule needs occur in a text: the first and the
+/// last position of each slot (`ABSENT` when it does not occur).
+struct Occurrences {
+    first: [u32; SLOTS],
+    last: [u32; SLOTS],
 }
 
-impl CharMask {
+impl Occurrences {
     #[inline]
-    fn meets(&self, other: &CharMask) -> bool {
-        self.ascii & other.ascii != 0 || self.special & other.special != 0
+    fn add(&mut self, slot: usize, position: usize) {
+        let position = position.min(ABSENT as usize - 1) as u32;
+        if self.first[slot] == ABSENT {
+            self.first[slot] = position;
+        }
+        self.last[slot] = position;
+    }
+
+    /// Does a needed character occur at all?
+    #[inline]
+    fn any(&self, needs: &Needs) -> bool {
+        needs.as_ref().map_or(true, |slots| slots.iter().any(|&s| self.first[s as usize] != ABSENT))
+    }
+
+    /// Does a needed character occur before `position`? (For a pattern that
+    /// must match text ending there.)
+    #[inline]
+    fn any_before(&self, needs: &Needs, position: usize) -> bool {
+        needs.as_ref().map_or(true, |slots| slots.iter().any(|&s| (self.first[s as usize] as usize) < position))
+    }
+
+    /// Does a needed character occur at `position` or after it? (For a
+    /// pattern that must match text starting there.)
+    #[inline]
+    fn any_from(&self, needs: &Needs, position: usize) -> bool {
+        needs.as_ref().map_or(true, |slots| {
+            slots.iter().any(|&s| self.last[s as usize] != ABSENT && self.last[s as usize] as usize >= position)
+        })
     }
 }
 
@@ -198,14 +232,18 @@ struct BreakRule {
     after: Option<Regex>,
     /// How many of `Segmenter::exceptions` come before this rule.
     exceptions: usize,
-    needs: [Option<CharMask>; 2],
+    /// What the before and the after pattern need.
+    needs: [Needs; 2],
 }
 
 struct ExceptionRule {
     /// `(?<=before)`, with a finite `before`; `None`: an empty pattern.
     before: Option<Regex>,
     after: Option<Regex>,
-    needs: [Option<CharMask>; 2],
+    needs: [Needs; 2],
+    /// The after pattern can run over any length of text (`[^)]*\)`): the
+    /// before pattern, whose reach is limited, is then tried first.
+    after_unbounded: bool,
 }
 
 /// The rules of one language code, ready to split texts (`RuleManager` and
@@ -213,7 +251,7 @@ struct ExceptionRule {
 pub struct Segmenter {
     breaks: Vec<BreakRule>,
     exceptions: Vec<ExceptionRule>,
-    /// The non-ASCII characters some rule needs (see [`CharMask`]).
+    /// The non-ASCII characters some rule needs (see [`Needs`]).
     special: Vec<char>,
 }
 
@@ -289,9 +327,9 @@ impl Segmenter {
         for (_, rules) in document.language_rule_list(language_code) {
             for rule in rules {
                 // A filter only, taken from the patterns as written.
-                let before_needs = optional(&rule.before)?.and_then(|r| seg.mask_of(&r));
+                let before_needs = optional(&rule.before)?.and_then(|r| seg.needs_of(&r));
                 let after = optional(&rule.after)?;
-                let after_needs = after.as_ref().and_then(|r| seg.mask_of(r));
+                let after_needs = after.as_ref().and_then(|r| seg.needs_of(r));
                 let needs = [before_needs, after_needs];
                 if rule.breaking {
                     seg.breaks.push(BreakRule { before: compile(&rule.before)?, after, exceptions: seg.exceptions.len(), needs });
@@ -299,55 +337,61 @@ impl Segmenter {
                     // RuleManager.createExceptionPatternString
                     let before = finitize(&rule.before, MAX_LOOKBEHIND_CONSTRUCT_LENGTH);
                     let before = if before.is_empty() { None } else { Some(compile(&format!("(?<={before})"))?) };
-                    seg.exceptions.push(ExceptionRule { before, after, needs });
+                    let after_unbounded = after.as_ref().is_some_and(|r| r.max_width().is_none());
+                    seg.exceptions.push(ExceptionRule { before, after, needs, after_unbounded });
                 }
             }
         }
         Ok(seg)
     }
 
-    /// The mask of the characters `re` requires, if it requires any.
-    fn mask_of(&mut self, re: &Regex) -> Option<CharMask> {
-        let required = re.required_chars()?;
-        let mut mask = CharMask::default();
-        for c in required {
-            if c.is_ascii() {
-                mask.ascii |= 1u128 << (c as u32);
+    /// The slots of the characters `re` requires, if it requires any.
+    fn needs_of(&mut self, re: &Regex) -> Needs {
+        let mut slots = Vec::new();
+        for c in re.required_chars()? {
+            let slot = if c.is_ascii() {
+                c as usize
             } else {
-                let index = match self.special.iter().position(|&x| x == c) {
-                    Some(i) => i,
-                    None if self.special.len() < 64 => {
+                match self.special.iter().position(|&x| x == c) {
+                    Some(i) => 128 + i,
+                    None if self.special.len() < SLOTS - 128 => {
                         self.special.push(c);
-                        self.special.len() - 1
+                        128 + self.special.len() - 1
                     }
                     None => return None,
-                };
-                mask.special |= 1u64 << index;
-            }
+                }
+            };
+            slots.push(slot as u8);
         }
-        Some(mask)
-    }
-
-    #[inline]
-    fn possible(needs: &[Option<CharMask>; 2], present: &CharMask) -> bool {
-        needs.iter().all(|n| n.map_or(true, |n| n.meets(present)))
+        Some(slots.into_boxed_slice())
     }
 
     /// Does a no-break rule listed before `rule` match at `position`?
     /// (`!SrxTextIterator.isException`, whose pattern is the alternation of
     /// `(?:(?<=before)(?=after))` over those rules, looked up at the break
     /// position with transparent bounds.)
-    fn exception_at(&self, rule: &BreakRule, position: usize, chars: &[char], active: &[usize]) -> bool {
+    fn exception_at(&self, rule: &BreakRule, position: usize, chars: &[char], active: &[usize], seen: &Occurrences) -> bool {
         for &i in active {
             if i >= rule.exceptions {
                 break;
             }
             let exception = &self.exceptions[i];
-            // The cheaper side first; the order does not change the outcome.
-            if exception.after.as_ref().is_some_and(|after| after.match_at_chars(chars, position).is_none()) {
+            // What the patterns need must lie on the right side of the position.
+            if !seen.any_before(&exception.needs[0], position) || !seen.any_from(&exception.needs[1], position) {
                 continue;
             }
-            if exception.before.as_ref().is_some_and(|before| before.match_at_chars(chars, position).is_none()) {
+            // Both sides must match; the order does not change the outcome,
+            // so the cheaper test goes first: what the after pattern can
+            // start with, then the side with a limited reach.
+            let after = exception.after.as_ref();
+            if after.is_some_and(|after| !after.may_start_at(chars, position)) {
+                continue;
+            }
+            let before_fails = || exception.before.as_ref().is_some_and(|before| before.match_at_chars(chars, position).is_none());
+            let after_fails = || after.is_some_and(|after| after.match_at_chars(chars, position).is_none());
+            let (first, second): (&dyn Fn() -> bool, &dyn Fn() -> bool) =
+                if exception.after_unbounded { (&before_fails, &after_fails) } else { (&after_fails, &before_fails) };
+            if first() || second() {
                 continue;
             }
             return true;
@@ -358,17 +402,16 @@ impl Segmenter {
     /// Split `text` into segments (`SrxTextIterator`): the byte ranges of the
     /// segments, which cover the text.
     pub fn split(&self, text: &str) -> Vec<(usize, usize)> {
-        let mut present = CharMask::default();
-        let chars: Vec<char> = text
-            .chars()
-            .inspect(|&c| {
-                if c.is_ascii() {
-                    present.ascii |= 1u128 << (c as u32);
-                } else if let Some(i) = self.special.iter().position(|&x| x == c) {
-                    present.special |= 1u64 << i;
-                }
-            })
-            .collect();
+        let mut seen = Occurrences { first: [ABSENT; SLOTS], last: [ABSENT; SLOTS] };
+        let mut chars: Vec<char> = Vec::with_capacity(text.len());
+        for c in text.chars() {
+            if c.is_ascii() {
+                seen.add(c as usize, chars.len());
+            } else if let Some(i) = self.special.iter().position(|&x| x == c) {
+                seen.add(128 + i, chars.len());
+            }
+            chars.push(c);
+        }
         let len = chars.len();
         // Break positions, as char indices.
         let mut ends: Vec<usize> = Vec::new();
@@ -379,7 +422,7 @@ impl Segmenter {
         // left out straight away.
         let mut matchers: Vec<RuleMatcher> = Vec::new();
         for rule in &self.breaks {
-            if !Self::possible(&rule.needs, &present) {
+            if !rule.needs.iter().all(|n| seen.any(n)) {
                 continue;
             }
             let mut matcher = RuleMatcher { rule, from: 0, first: None, last: 0 };
@@ -408,9 +451,9 @@ impl Segmenter {
                         end = matchers[i].break_position();
                         if end > start {
                             let active = active_exceptions.get_or_insert_with(|| {
-                                (0..self.exceptions.len()).filter(|&k| Self::possible(&self.exceptions[k].needs, &present)).collect()
+                                (0..self.exceptions.len()).filter(|&k| self.exceptions[k].needs.iter().all(|n| seen.any(n))).collect()
                             });
-                            found = !self.exception_at(matchers[i].rule, end, &chars, active);
+                            found = !self.exception_at(matchers[i].rule, end, &chars, active, &seen);
                             if found {
                                 // cutMatchers(): matchers that began before the end of the segment start again there
                                 matchers.retain_mut(|m| m.start_position() >= end || m.find_from(end, &chars));
@@ -572,6 +615,15 @@ mod tests {
         // a lower-case letter earlier on the line, then "p" or "al"
         assert_eq!(split("Il plut. plus tard. Fin."), ["Il plut. plus tard. ", "Fin."]);
         assert_eq!(split("IL PLUT. plus tard."), ["IL PLUT. ", "plus tard."]);
+    }
+
+    #[test]
+    fn exceptions_look_at_the_right_side_of_the_position() {
+        // The parenthesis rule needs a "(" before the position and a ")" after it.
+        assert_eq!(split("Un. Deux (cf. Hugo). Trois. Fin"), ["Un. ", "Deux (cf. Hugo). ", "Trois. ", "Fin"]);
+        assert_eq!(split("(a. b) Un. Deux"), ["(a. b) Un. ", "Deux"]);
+        assert_eq!(split("Un. Deux (a) trois. Fin"), ["Un. ", "Deux (a) trois. ", "Fin"]);
+        assert_eq!(split("Un (a. b. c) deux. Fin (x"), ["Un (a. b. c) deux. ", "Fin (x"]);
     }
 
     #[test]

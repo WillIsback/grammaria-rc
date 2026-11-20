@@ -326,7 +326,10 @@ impl FrenchTagger {
     }
 
     fn cached(&self, word: &str) -> Arc<Readings> {
-        let shard = &self.cache[(fnv1a(word.as_bytes()) >> 32) as usize % SHARDS];
+        // Any spread will do for the shard; the map hashes the word itself.
+        let bytes = word.as_bytes();
+        let spread = bytes.len() * 31 + bytes.first().map_or(0, |&b| b as usize) * 7 + bytes.last().map_or(0, |&b| b as usize);
+        let shard = &self.cache[spread % SHARDS];
         if let Some(hit) = shard.read().unwrap_or_else(|e| e.into_inner()).get(word) {
             return hit.clone();
         }

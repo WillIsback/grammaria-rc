@@ -7,14 +7,15 @@
 /// circled letters), which are not letters.
 #[inline]
 pub fn is_letter(c: char) -> bool {
-    if c.is_ascii() {
-        return c.is_ascii_alphabetic();
-    }
-    c.is_alphabetic()
-        && !matches!(c,
-            '\u{345}' | '\u{16ee}'..='\u{16f0}' | '\u{2160}'..='\u{2182}' | '\u{2185}'..='\u{2188}'
-            | '\u{24b6}'..='\u{24e9}' | '\u{3007}' | '\u{3021}'..='\u{3029}' | '\u{3038}'..='\u{303a}'
-            | '\u{1f130}'..='\u{1f149}' | '\u{1f150}'..='\u{1f169}' | '\u{1f170}'..='\u{1f189}')
+    crate::re::is_letter(c)
+}
+
+/// `Character.isLetter(char)` on one UTF-16 unit: the loops of `StringTools`
+/// run over Java `char`s, so a character outside the Basic Multilingual
+/// Plane (two surrogates) is never a letter there.
+#[inline]
+fn is_letter_unit(c: char) -> bool {
+    (c as u32) < 0x10000 && crate::re::is_letter(c)
 }
 
 /// `Character.isSpaceChar`: the Unicode space, line and paragraph separators.
@@ -65,12 +66,12 @@ pub fn java_is_whitespace(c: char) -> bool {
 /// `StringTools.isAllUppercase`: no lowercase letter (a string without
 /// letters counts as all uppercase).
 pub fn is_all_uppercase(s: &str) -> bool {
-    !s.chars().any(|c| c.is_alphabetic() && c.is_lowercase())
+    !s.chars().any(|c| is_letter_unit(c) && c.is_lowercase())
 }
 
 /// `StringTools.isNotAllLowercase`.
 pub fn is_not_all_lowercase(s: &str) -> bool {
-    s.chars().any(|c| c.is_alphabetic() && !c.is_lowercase())
+    s.chars().any(|c| is_letter_unit(c) && !c.is_lowercase())
 }
 
 /// `StringTools.isCapitalizedWord`: first char uppercase, no other
@@ -78,7 +79,7 @@ pub fn is_not_all_lowercase(s: &str) -> bool {
 pub fn is_capitalized_word(s: &str) -> bool {
     let mut it = s.chars();
     match it.next() {
-        Some(c) if c.is_uppercase() => it.all(|c| !(c.is_alphabetic() && !c.is_lowercase())),
+        Some(c) if c.is_uppercase() && (c as u32) < 0x10000 => it.all(|c| !(is_letter_unit(c) && !c.is_lowercase())),
         _ => false,
     }
 }

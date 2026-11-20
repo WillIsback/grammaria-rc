@@ -247,6 +247,36 @@ fn run_raw(assets: &std::path::Path, dict: Option<PathBuf>, file: &str, stats: b
             tokens as f64 / elapsed.as_secs_f64(),
             bytes as f64 / 1e6 / elapsed.as_secs_f64(),
         );
+        // Each stage on its own: on one thread, then on all of them.
+        let time = |name: &str, f: &(dyn Fn(&str) -> usize + Sync)| {
+            let started = std::time::Instant::now();
+            let n: usize = texts.iter().map(|t| f(t)).sum();
+            let one = started.elapsed().as_secs_f64();
+            let started = std::time::Instant::now();
+            std::thread::scope(|scope| {
+                for part in texts.chunks(chunk) {
+                    scope.spawn(move || part.iter().map(|t| f(t)).sum::<usize>());
+                }
+            });
+            let all = started.elapsed().as_secs_f64();
+            eprintln!(
+                "  {name:<28} {:7.1} ms  {:6.0} ns/token  | {} threads {:7.1} ms (x{:.1})  ({n} items)",
+                one * 1e3,
+                one * 1e9 / tokens.max(1) as f64,
+                parts.len(),
+                all * 1e3,
+                one / all,
+            );
+        };
+        time("sentence splitting", &|t| analyzer.sentences(t).len());
+        time("+ word tokenizing", &|t| analyzer.sentences(t).iter().map(|s| analyzer.word_tokenizer().tokenize(s).len()).sum());
+        time("+ tagging (tag_token)", &|t| {
+            let tokens = analyzer.sentences(t).into_iter().flat_map(|s| analyzer.word_tokenizer().tokenize(s));
+            tokens.map(|w| analyzer.tagger().tag_token(&w).readings.len()).sum()
+        });
+        time("raw_tokens", &|t| analyzer.sentences(t).iter().map(|s| analyzer.raw_tokens(s).len()).sum());
+        time("analyze_raw (Sentence::new)", &|t| analyzer.analyze_raw(t).iter().map(|s| s.tokens.len()).sum());
+        time("analyze_raw + JSON", &|t| raw_line(analyzer, t, &mut String::new()));
     }
 }
 

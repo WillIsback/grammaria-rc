@@ -118,7 +118,7 @@ impl Analyzer {
                 let previous = token_array[i].token.clone();
                 readings.set_whitespace_before(&previous);
             }
-            if soft.peek().map_or(false, |(index, _)| *index == i) {
+            if soft.peek().is_some_and(|(index, _)| *index == i) {
                 if let Some((_, original)) = soft.next() {
                     // The token as written is kept as an untagged reading (and
                     // becomes the token text, being the longer one).

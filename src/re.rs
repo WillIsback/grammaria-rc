@@ -71,6 +71,31 @@ struct ClassSet {
     items: Vec<ClassItem>,
     /// `&&` operands: the char must also belong to each of them.
     and: Vec<ClassSet>,
+    /// For the class of a `Node::Class`: one bit per ASCII char it accepts
+    /// (under the node's case folding), so that the common case is a bit test.
+    ascii: u128,
+}
+
+/// A class node, with its ASCII bitmap.
+fn class_node(mut set: ClassSet, ci: u8) -> Node {
+    let mut mask = 0u128;
+    for b in 0u8..128 {
+        if set_matches(&set, b as char, ci) {
+            mask |= 1u128 << b;
+        }
+    }
+    set.ascii = mask;
+    Node::Class(Box::new(set), ci)
+}
+
+/// Does the class of a `Node::Class` accept `c`?
+#[inline]
+fn class_matches(set: &ClassSet, c: char, ci: u8) -> bool {
+    if c.is_ascii() {
+        (set.ascii >> (c as u32)) & 1 == 1
+    } else {
+        set_matches(set, c, ci)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,6 +103,12 @@ enum Prop {
     Letter,
     Upper,
     Lower,
+    /// The Alphabetic property (wider than the letters).
+    Alphabetic,
+    /// General categories Lu and Ll (narrower than the Uppercase and
+    /// Lowercase properties).
+    UpperLetter,
+    LowerLetter,
     TitleOrOtherLetter,
     Mark,
     Number,
@@ -126,11 +157,23 @@ enum Node {
     UWordB(bool),
     Group(Box<Node>, Option<usize>),
     Concat(Vec<Node>),
-    Alt(Vec<Node>),
+    /// The alternatives and, for a long list, what each can begin with: an
+    /// alternative that cannot start with the next char is not run.
+    Alt(Vec<Node>, Option<Box<AltIndex>>),
     Repeat(Box<Node>, u32, u32, Greed),
     /// `width`: minimal and maximal length of what the body can match, when
     /// the maximum is finite (bounds the start positions of a look-behind).
-    Look { node: Box<Node>, ahead: bool, neg: bool, width: Option<(usize, usize)> },
+    /// `edge` (look-behind): what the last char of the body can be, when it
+    /// always has one.
+    /// `head` (look-behind): what its first char can be.
+    Look {
+        node: Box<Node>,
+        ahead: bool,
+        neg: bool,
+        width: Option<(usize, usize)>,
+        edge: Option<Box<CharFilter>>,
+        head: Option<Box<CharFilter>>,
+    },
     Backref(usize, u8),
     Atomic(Box<Node>),
 }
@@ -148,7 +191,10 @@ pub struct Regex {
     fold: u8,
     /// The single-char nodes a match can begin with, when every match begins
     /// with a char (lets `find` skip the positions where none of them fits).
-    first: Option<Vec<Node>>,
+    first: Option<CharFilter>,
+    /// The same for the second char, when the pattern begins with two
+    /// single-char items.
+    second: Option<CharFilter>,
     src: String,
 }
 
@@ -217,7 +263,11 @@ impl<'a> Parser<'a> {
         while self.eat('|') {
             alts.push(self.concat()?);
         }
-        Ok(if alts.len() == 1 { alts.pop().unwrap() } else { Node::Alt(alts) })
+        if alts.len() == 1 {
+            return Ok(alts.pop().unwrap());
+        }
+        let index = (alts.len() >= 4 && alts.len() <= u16::MAX as usize).then(|| Box::new(AltIndex::new(&alts)));
+        Ok(Node::Alt(alts, index))
     }
 
     fn skip_comments(&mut self) {
@@ -328,7 +378,7 @@ impl<'a> Parser<'a> {
             '.' => Node::Any(self.flags.dotall),
             '^' => Node::LineStart(self.flags.multiline),
             '$' => Node::LineEnd(self.flags.multiline),
-            '[' => Node::Class(Box::new(self.class()?), ci),
+            '[' => class_node(self.class()?, ci),
             '(' => return self.group().map(|n| vec![n]),
             '\\' => return self.escape(),
             _ => Node::Char(c, ci),
@@ -357,19 +407,19 @@ impl<'a> Parser<'a> {
             let inner = self.alt()?;
             Node::Group(Box::new(inner), None)
         } else if self.eat('=') {
-            Node::Look { node: Box::new(self.alt()?), ahead: true, neg: false, width: None }
+            Node::Look { node: Box::new(self.alt()?), ahead: true, neg: false, width: None, edge: None, head: None }
         } else if self.eat('!') {
-            Node::Look { node: Box::new(self.alt()?), ahead: true, neg: true, width: None }
+            Node::Look { node: Box::new(self.alt()?), ahead: true, neg: true, width: None, edge: None, head: None }
         } else if self.looking_at("<=") {
             self.i += 2;
             let inner = self.alt()?;
-            let width = width(&inner);
-            Node::Look { node: Box::new(inner), ahead: false, neg: false, width }
+            let (width, edge, head) = (width(&inner), last_filter(&inner), first_filter(&inner));
+            Node::Look { node: Box::new(inner), ahead: false, neg: false, width, edge, head }
         } else if self.looking_at("<!") {
             self.i += 2;
             let inner = self.alt()?;
-            let width = width(&inner);
-            Node::Look { node: Box::new(inner), ahead: false, neg: true, width }
+            let (width, edge, head) = (width(&inner), last_filter(&inner), first_filter(&inner));
+            Node::Look { node: Box::new(inner), ahead: false, neg: true, width, edge, head }
         } else if self.eat('>') {
             Node::Atomic(Box::new(self.alt()?))
         } else if self.eat('<') {
@@ -609,7 +659,7 @@ impl<'a> Parser<'a> {
             }
             _ => match self.simple_escape(c)? {
                 Some(ClassItem::Range(a, b)) if a == b => Node::Char(a, ci),
-                Some(item) => Node::Class(Box::new(ClassSet { neg: false, items: vec![item], and: Vec::new() }), ci),
+                Some(item) => class_node(ClassSet { neg: false, items: vec![item], and: Vec::new(), ascii: 0 }, ci),
                 None => Node::Char(c, ci),
             },
         };
@@ -732,9 +782,12 @@ fn prop_by_name(name: &str) -> Prop {
     let n = name.strip_prefix("Is").or_else(|| name.strip_prefix("In")).unwrap_or(name);
     let n = n.strip_prefix("gc=").or_else(|| n.strip_prefix("general_category=")).unwrap_or(n);
     match n {
-        "L" | "Letter" | "Alphabetic" | "Alpha" | "javaLetter" | "javaAlphabetic" | "IsAlphabetic" => Prop::Letter,
-        "Lu" | "Upper" | "Uppercase" | "javaUpperCase" | "UppercaseLetter" => Prop::Upper,
-        "Ll" | "Lower" | "Lowercase" | "javaLowerCase" | "LowercaseLetter" => Prop::Lower,
+        "L" | "Letter" | "javaLetter" => Prop::Letter,
+        "Alphabetic" | "Alpha" | "javaAlphabetic" | "IsAlphabetic" => Prop::Alphabetic,
+        "Lu" | "UppercaseLetter" => Prop::UpperLetter,
+        "Ll" | "LowercaseLetter" => Prop::LowerLetter,
+        "Upper" | "Uppercase" | "javaUpperCase" => Prop::Upper,
+        "Lower" | "Lowercase" | "javaLowerCase" => Prop::Lower,
         "Lt" | "Lm" | "Lo" => Prop::TitleOrOtherLetter,
         "M" | "Mn" | "Mc" | "Me" | "Mark" => Prop::Mark,
         "N" | "Nl" | "No" | "Number" => Prop::Number,
@@ -803,10 +856,13 @@ fn is_mark(c: char) -> bool {
 
 fn prop_matches(p: Prop, c: char) -> bool {
     match p {
-        Prop::Letter => c.is_alphabetic(),
+        Prop::Letter => is_letter(c),
+        Prop::Alphabetic => c.is_alphabetic(),
         Prop::Upper => c.is_uppercase(),
         Prop::Lower => c.is_lowercase(),
-        Prop::TitleOrOtherLetter => c.is_alphabetic() && !c.is_uppercase() && !c.is_lowercase(),
+        Prop::UpperLetter => c.is_uppercase() && is_letter(c),
+        Prop::LowerLetter => is_lowercase_letter(c),
+        Prop::TitleOrOtherLetter => is_letter(c) && !c.is_uppercase() && !is_lowercase_letter(c),
         Prop::Mark => is_mark(c),
         Prop::Number => c.is_numeric(),
         Prop::DecimalDigit => is_decimal_digit(c),
@@ -838,6 +894,40 @@ fn prop_matches(p: Prop, c: char) -> bool {
         Prop::Any => true,
         Prop::None => false,
     }
+}
+
+/// General category L (`Character.isLetter`). The Alphabetic property, which
+/// is what the standard library offers, is wider: it also has the
+/// letter-like numbers and symbols (roman numerals, circled letters) and the
+/// vowel marks of some scripts, which are not letters.
+pub fn is_letter(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_alphabetic();
+    }
+    c.is_alphabetic()
+        && !matches!(c,
+            '\u{345}' | '\u{5b0}'..='\u{5bd}' | '\u{5bf}' | '\u{5c1}' | '\u{5c2}' | '\u{5c4}' | '\u{5c5}' | '\u{5c7}'
+            | '\u{610}'..='\u{61a}' | '\u{64b}'..='\u{657}' | '\u{659}'..='\u{65f}' | '\u{670}' | '\u{6d6}'..='\u{6dc}'
+            | '\u{6e1}'..='\u{6e4}' | '\u{6e7}' | '\u{6e8}' | '\u{6ed}' | '\u{900}'..='\u{903}' | '\u{93a}' | '\u{93b}'
+            | '\u{93e}'..='\u{94c}' | '\u{94e}' | '\u{94f}' | '\u{955}'..='\u{957}' | '\u{962}' | '\u{963}'
+            | '\u{16ee}'..='\u{16f0}' | '\u{2160}'..='\u{2182}' | '\u{2185}'..='\u{2188}' | '\u{24b6}'..='\u{24e9}'
+            | '\u{3007}' | '\u{3021}'..='\u{3029}' | '\u{3038}'..='\u{303a}' | '\u{1f130}'..='\u{1f149}'
+            | '\u{1f150}'..='\u{1f169}' | '\u{1f170}'..='\u{1f189}')
+}
+
+/// General category Ll: the Lowercase property without the letters that are
+/// lower case by convention only (ordinal indicators, modifier letters).
+fn is_lowercase_letter(c: char) -> bool {
+    if c.is_ascii() {
+        return c.is_ascii_lowercase();
+    }
+    c.is_lowercase()
+        && is_letter(c)
+        && !matches!(c,
+            'ª' | 'º' | '\u{2b0}'..='\u{2b8}' | '\u{2c0}' | '\u{2c1}' | '\u{2e0}'..='\u{2e4}' | '\u{37a}' | '\u{10fc}'
+            | '\u{1d2c}'..='\u{1d6a}' | '\u{1d78}' | '\u{1d9b}'..='\u{1dbf}' | '\u{2071}' | '\u{207f}'
+            | '\u{2090}'..='\u{209c}' | '\u{2c7c}' | '\u{2c7d}' | '\u{a69c}' | '\u{a69d}' | '\u{a770}'
+            | '\u{a7f2}'..='\u{a7f4}' | '\u{a7f8}' | '\u{a7f9}' | '\u{ab5c}'..='\u{ab5f}' | '\u{ab69}')
 }
 
 /// General category Nd: the decimal digits of every script (ten per block).
@@ -920,7 +1010,7 @@ fn width(node: &Node) -> Option<(usize, usize)> {
             }
             w
         }
-        Node::Alt(alts) => {
+        Node::Alt(alts, _) => {
             let mut w: Option<(usize, usize)> = None;
             for a in alts {
                 let (lo, hi) = width(a)?;
@@ -961,11 +1051,36 @@ fn is_line_term(c: char) -> bool {
     matches!(c, '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}')
 }
 
+/// `\b`: is the char at `i` part of a word? A combining mark is when it
+/// belongs to a letter or a digit (Java's `Bound`: a non-spacing mark with a
+/// base character), not when it follows a symbol.
+fn is_word_at(input: &[char], i: usize) -> bool {
+    let c = input[i];
+    if c.is_ascii() {
+        return c.is_ascii_alphanumeric() || c == '_';
+    }
+    if !is_mark(c) {
+        return is_letter(c) || is_decimal_digit(c);
+    }
+    let mut j = i;
+    while j > 0 {
+        let p = input[j - 1];
+        if is_letter(p) || is_decimal_digit(p) {
+            return true;
+        }
+        if !is_mark(p) {
+            return false;
+        }
+        j -= 1;
+    }
+    false
+}
+
 /// What `\b` takes for a word character: Java's `Character.isLetterOrDigit`
 /// (letters and decimal digits, not the other numerics such as `²` or `½`),
 /// `_`, and the combining marks that follow one.
 pub fn is_word_boundary_char(c: char) -> bool {
-    c == '_' || is_mark(c) || if c.is_numeric() { is_decimal_digit(c) } else { c.is_alphabetic() }
+    c == '_' || is_mark(c) || is_letter(c) || is_decimal_digit(c)
 }
 
 /// Single-char case folding as Java does it: compare upper cases, then lower
@@ -1046,9 +1161,53 @@ fn set_matches(set: &ClassSet, c: char, ci: u8) -> bool {
     }
 }
 
+/// The capture slots of a running match, kept inline for the usual patterns
+/// with a few groups: starting a match and saving the slots around a
+/// look-around then cost no allocation.
+#[derive(Clone)]
+enum Caps {
+    Inline([Option<(usize, usize)>; INLINE_CAPS], usize),
+    Heap(Vec<Option<(usize, usize)>>),
+}
+
+const INLINE_CAPS: usize = 6;
+
+impl Caps {
+    #[inline]
+    fn new(n: usize) -> Caps {
+        if n <= INLINE_CAPS {
+            Caps::Inline([None; INLINE_CAPS], n)
+        } else {
+            Caps::Heap(vec![None; n])
+        }
+    }
+}
+
+impl std::ops::Deref for Caps {
+    type Target = [Option<(usize, usize)>];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Caps::Inline(slots, n) => &slots[..*n],
+            Caps::Heap(v) => v,
+        }
+    }
+}
+
+impl std::ops::DerefMut for Caps {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Caps::Inline(slots, n) => &mut slots[..*n],
+            Caps::Heap(v) => v,
+        }
+    }
+}
+
 struct Matcher<'a> {
     input: &'a [char],
-    caps: Vec<Option<(usize, usize)>>,
+    caps: Caps,
     /// Backtracking budget: a pathological pattern gives up (no match)
     /// instead of running for ever.
     steps: u32,
@@ -1073,7 +1232,7 @@ impl<'a> Matcher<'a> {
                 _ => false,
             },
             Node::Class(set, ci) => match self.input.get(pos) {
-                Some(&x) if set_matches(set, x, *ci) => k(self, pos + 1),
+                Some(&x) if class_matches(set, x, *ci) => k(self, pos + 1),
                 _ => false,
             },
             Node::LineStart(multi) => {
@@ -1101,8 +1260,8 @@ impl<'a> Matcher<'a> {
                 (pos == n || (pos + 1 == n && is_line_term(self.input[pos]))) && k(self, pos)
             }
             Node::WordB(neg) => {
-                let before = pos > 0 && is_word_boundary_char(self.input[pos - 1]);
-                let after = pos < self.input.len() && is_word_boundary_char(self.input[pos]);
+                let before = pos > 0 && is_word_at(self.input, pos - 1);
+                let after = pos < self.input.len() && is_word_at(self.input, pos);
                 if (before != after) != *neg {
                     k(self, pos)
                 } else {
@@ -1138,13 +1297,85 @@ impl<'a> Matcher<'a> {
                 ok
             }
             Node::Concat(items) => self.seq(items, pos, k),
-            Node::Alt(alts) => {
+            Node::Alt(alts, None) => {
                 for a in alts {
                     if self.run(a, pos, k) {
                         return true;
                     }
                 }
                 false
+            }
+            Node::Alt(alts, Some(index)) => {
+                let next = self.input.get(pos).copied();
+                if let (Some(c), Some(table)) = (next.filter(char::is_ascii), &index.table) {
+                    let range = table.offsets[c as usize] as usize..table.offsets[c as usize + 1] as usize;
+                    for &i in &table.list[range] {
+                        if self.run(&alts[i as usize], pos, k) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                for (a, filter) in alts.iter().zip(index.filters.iter()) {
+                    if let Some(filter) = filter {
+                        if !next.is_some_and(|c| filter.accepts(c)) {
+                            continue;
+                        }
+                    }
+                    if self.run(a, pos, k) {
+                        return true;
+                    }
+                }
+                false
+            }
+            // A repeated single char is counted in a loop: no recursion per
+            // repetition, however long the run (`[^)]*` over a paragraph).
+            Node::Repeat(inner, min, max, greed) if matches!(**inner, Node::Char(..) | Node::Class(..) | Node::Any(_)) => {
+                let min = *min as usize;
+                let available = self.input.len() - pos;
+                let cap = if *max == u32::MAX { available } else { (*max as usize).min(available) };
+                if cap < min {
+                    return false;
+                }
+                let input = self.input;
+                let mut n = 0;
+                if *greed == Greed::Lazy {
+                    while n < min {
+                        if !single_char_matches(inner, input[pos + n]) {
+                            return false;
+                        }
+                        n += 1;
+                    }
+                    loop {
+                        if k(self, pos + n) {
+                            return true;
+                        }
+                        self.steps += 1;
+                        if n >= cap || self.steps > STEP_LIMIT || !single_char_matches(inner, input[pos + n]) {
+                            return false;
+                        }
+                        n += 1;
+                    }
+                }
+                while n < cap && single_char_matches(inner, input[pos + n]) {
+                    n += 1;
+                }
+                if n < min {
+                    return false;
+                }
+                if *greed == Greed::Possessive {
+                    return k(self, pos + n);
+                }
+                loop {
+                    if k(self, pos + n) {
+                        return true;
+                    }
+                    self.steps += 1;
+                    if n == min || self.steps > STEP_LIMIT {
+                        return false;
+                    }
+                    n -= 1;
+                }
             }
             Node::Repeat(inner, min, max, greed) => match greed {
                 Greed::Greedy => self.greedy(inner, *min, *max, 0, pos, k),
@@ -1194,17 +1425,24 @@ impl<'a> Matcher<'a> {
                     false
                 }
             }
-            Node::Look { node, ahead: false, neg, width } => {
+            Node::Look { node, ahead: false, neg, width, edge, head } => {
                 let saved = self.caps.clone();
                 let mut hit = false;
+                // The char before the position must be able to end the body.
+                let possible = edge.as_ref().map_or(true, |e| pos > 0 && e.accepts(self.input[pos - 1]));
                 // As in Java, only the starts that the length of the body
                 // allows are tried, nearest first.
                 let (lo, hi) = match width {
                     Some((min, max)) => (pos.saturating_sub(*max), pos.checked_sub(*min)),
                     None => (0, Some(pos)),
                 };
-                if let Some(hi) = hi {
+                if let Some(hi) = hi.filter(|_| possible) {
                     for start in (lo..=hi).rev() {
+                        if let Some(head) = head {
+                            if !self.input.get(start).is_some_and(|&c| head.accepts(c)) {
+                                continue;
+                            }
+                        }
                         if self.run(node, start, &mut |_, e| e == pos) {
                             hit = true;
                             break;
@@ -1289,12 +1527,205 @@ impl<'a> Matcher<'a> {
     }
 }
 
+/// A cheap test of what a char of a match can be at some place (its first
+/// char, its last one): exact for the ASCII chars, exact or wider for the
+/// others. It only rules out; what passes is still matched for good.
+#[derive(Clone, Debug)]
+struct CharFilter {
+    ascii: [u64; 2],
+    other: OtherChars,
+}
+
+/// The chars beyond ASCII a [`CharFilter`] lets through.
+#[derive(Clone, Debug)]
+enum OtherChars {
+    None,
+    Any,
+    Listed(Box<[char]>),
+}
+
+impl CharFilter {
+    /// The filter of "one of these single-char nodes".
+    fn new(nodes: &[Node]) -> CharFilter {
+        let mut ascii = [0u64; 2];
+        for b in 0u8..128 {
+            if nodes.iter().any(|n| single_char_matches(n, b as char)) {
+                ascii[(b >> 6) as usize] |= 1u64 << (b & 63);
+            }
+        }
+        let mut listed: Vec<char> = Vec::new();
+        for node in nodes {
+            let known = match node {
+                // Under Unicode folding a few chars beyond ASCII are ASCII
+                // letters: the long s, the Kelvin sign, the dotless i.
+                Node::Char(x, 2) if x.is_ascii_alphabetic() => {
+                    listed.extend(['ſ', '\u{212a}', 'ı']);
+                    true
+                }
+                Node::Char(x, _) if x.is_ascii() => true,
+                Node::Char(x, 0) | Node::Char(x, 1) => {
+                    listed.push(*x);
+                    true
+                }
+                Node::Class(set, 0) if !set.neg && set.and.is_empty() => set.items.iter().all(|it| match it {
+                    ClassItem::Range(a, b) if (*b as u32).saturating_sub(*a as u32) < 8 => {
+                        listed.extend((*a..=*b).filter(|c| !c.is_ascii()));
+                        true
+                    }
+                    _ => false,
+                }),
+                _ => false,
+            };
+            if !known || listed.len() > 24 {
+                return CharFilter { ascii, other: OtherChars::Any };
+            }
+        }
+        let other = if listed.is_empty() { OtherChars::None } else { OtherChars::Listed(listed.into()) };
+        CharFilter { ascii, other }
+    }
+
+    #[inline]
+    fn accepts(&self, c: char) -> bool {
+        if c.is_ascii() {
+            (self.ascii[(c as usize) >> 6] >> (c as u32 & 63)) & 1 == 1
+        } else {
+            match &self.other {
+                OtherChars::None => false,
+                OtherChars::Any => true,
+                OtherChars::Listed(chars) => chars.contains(&c),
+            }
+        }
+    }
+}
+
+/// For an alternation with several alternatives: what each can begin with
+/// (`None`: no telling, it is always tried), so that only those that can
+/// start with the next char are run; and, for a long list, the alternatives
+/// to try per ASCII char, in order.
+#[derive(Clone, Debug)]
+struct AltIndex {
+    filters: Box<[Option<CharFilter>]>,
+    table: Option<AsciiTable>,
+}
+
+/// `list[offsets[c]..offsets[c + 1]]`: the alternatives to try when the
+/// ASCII char `c` comes next.
+#[derive(Clone, Debug)]
+struct AsciiTable {
+    offsets: Box<[u32; 129]>,
+    list: Box<[u16]>,
+}
+
+impl AltIndex {
+    fn new(alts: &[Node]) -> AltIndex {
+        let filters: Box<[Option<CharFilter>]> = alts
+            .iter()
+            .map(|a| {
+                let mut nodes = Vec::new();
+                first_nodes(a, &mut nodes).then(|| CharFilter::new(&nodes))
+            })
+            .collect();
+        let table = (alts.len() >= 16 && alts.len() <= 512).then(|| {
+            let mut offsets = Box::new([0u32; 129]);
+            let mut list = Vec::new();
+            for b in 0u8..128 {
+                offsets[b as usize] = list.len() as u32;
+                for (i, f) in filters.iter().enumerate() {
+                    if f.as_ref().map_or(true, |f| f.accepts(b as char)) {
+                        list.push(i as u16);
+                    }
+                }
+            }
+            offsets[128] = list.len() as u32;
+            AsciiTable { offsets, list: list.into_boxed_slice() }
+        });
+        AltIndex { filters, table }
+    }
+}
+
+/// The mirror of `first_nodes`: the single-char nodes a match of `node` can
+/// end with. False when a match may be empty or its last char cannot be told.
+fn last_nodes(node: &Node, out: &mut Vec<Node>) -> bool {
+    match node {
+        Node::Char(..) | Node::Class(..) | Node::Any(_) => {
+            out.push(node.clone());
+            true
+        }
+        Node::Group(inner, _) | Node::Atomic(inner) => last_nodes(inner, out),
+        Node::Concat(items) => {
+            for it in items.iter().rev() {
+                match it {
+                    Node::Empty
+                    | Node::WordB(_)
+                    | Node::UWordB(_)
+                    | Node::Look { .. }
+                    | Node::LineStart(_)
+                    | Node::LineEnd(_)
+                    | Node::InputStart
+                    | Node::InputEnd
+                    | Node::InputEndBeforeNl => continue,
+                    Node::Repeat(inner, 0, _, _) => {
+                        if !last_nodes(inner, out) {
+                            return false;
+                        }
+                    }
+                    _ => return last_nodes(it, out),
+                }
+            }
+            false
+        }
+        Node::Alt(alts, _) => alts.iter().all(|a| last_nodes(a, out)),
+        Node::Repeat(inner, min, _, _) => *min >= 1 && last_nodes(inner, out),
+        _ => false,
+    }
+}
+
+fn first_filter(node: &Node) -> Option<Box<CharFilter>> {
+    let mut nodes = Vec::new();
+    if first_nodes(node, &mut nodes) {
+        Some(Box::new(CharFilter::new(&nodes)))
+    } else {
+        None
+    }
+}
+
+fn last_filter(node: &Node) -> Option<Box<CharFilter>> {
+    let mut nodes = Vec::new();
+    if last_nodes(node, &mut nodes) {
+        Some(Box::new(CharFilter::new(&nodes)))
+    } else {
+        None
+    }
+}
+
+/// When `node` begins with exactly one char and then with something that
+/// takes at least one more: the single-char nodes that second char can be.
+fn second_nodes(node: &Node) -> Option<Vec<Node>> {
+    match node {
+        Node::Group(inner, _) => second_nodes(inner),
+        Node::Concat(items) => {
+            let mut rest = items
+                .iter()
+                .filter(|n| !matches!(n, Node::Empty | Node::WordB(_) | Node::UWordB(_) | Node::Look { .. } | Node::LineStart(_) | Node::InputStart));
+            if !matches!(rest.next()?, Node::Char(..) | Node::Class(..) | Node::Any(_)) {
+                return None;
+            }
+            // Everything from the second item on (a filter may only widen:
+            // the assertions in between are ignored).
+            let tail: Vec<Node> = rest.cloned().collect();
+            let mut out = Vec::new();
+            first_nodes(&Node::Concat(tail), &mut out).then_some(out)
+        }
+        _ => None,
+    }
+}
+
 /// Does the single-char node `node` accept `c`?
 fn single_char_matches(node: &Node, c: char) -> bool {
     match node {
         Node::Char(x, ci) => chars_eq(c, *x, *ci),
         Node::Any(dotall) => *dotall || !is_line_term(c),
-        Node::Class(set, ci) => set_matches(set, c, *ci),
+        Node::Class(set, ci) => class_matches(set, c, *ci),
         _ => true,
     }
 }
@@ -1326,7 +1757,7 @@ fn first_nodes(node: &Node, out: &mut Vec<Node>) -> bool {
             }
             false
         }
-        Node::Alt(alts) => alts.iter().all(|a| first_nodes(a, out)),
+        Node::Alt(alts, _) => alts.iter().all(|a| first_nodes(a, out)),
         Node::Repeat(inner, min, _, _) => *min >= 1 && first_nodes(inner, out),
         _ => false,
     }
@@ -1354,7 +1785,7 @@ fn required(node: &Node) -> Option<Vec<char>> {
         }
         Node::Group(inner, _) | Node::Atomic(inner) => required(inner),
         Node::Concat(items) => items.iter().filter_map(required).min_by_key(Vec::len),
-        Node::Alt(alts) => {
+        Node::Alt(alts, _) => {
             let mut out = Vec::new();
             for a in alts {
                 for c in required(a)? {
@@ -1390,7 +1821,7 @@ fn literal_alternatives(node: &Node, out: &mut Vec<(String, u8)>) -> bool {
         }
     }
     match node {
-        Node::Alt(alts) => alts.iter().all(|a| literal_alternatives(a, out)),
+        Node::Alt(alts, _) => alts.iter().all(|a| literal_alternatives(a, out)),
         Node::Group(inner, _) => literal_alternatives(inner, out),
         _ => {
             let mut s = String::new();
@@ -1438,8 +1869,9 @@ impl Regex {
             (None, 0)
         };
         let mut first = Vec::new();
-        let first = if first_nodes(&node, &mut first) && first.len() <= 16 { Some(first) } else { None };
-        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, first, src: src.to_string() })
+        let first = first_nodes(&node, &mut first).then(|| CharFilter::new(&first));
+        let second = if first.is_some() { second_nodes(&node).map(|nodes| CharFilter::new(&nodes)) } else { None };
+        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, first, second, src: src.to_string() })
     }
 
     pub fn source(&self) -> &str {
@@ -1467,11 +1899,11 @@ impl Regex {
     }
 
     pub fn full_match_chars(&self, chars: &[char]) -> Option<Captures> {
-        let mut m = Matcher { input: chars, caps: vec![None; self.groups + 1], steps: 0 };
+        let mut m = Matcher { input: chars, caps: Caps::new(self.groups + 1), steps: 0 };
         let n = chars.len();
         if m.run(&self.node, 0, &mut |_, e| e == n) {
             m.caps[0] = Some((0, n));
-            Some(Captures { spans: m.caps })
+            Some(Captures { spans: m.caps.to_vec() })
         } else {
             None
         }
@@ -1479,13 +1911,10 @@ impl Regex {
 
     /// `Matcher.find()` from `start`: the leftmost match at or after it.
     pub fn find_chars(&self, chars: &[char], start: usize) -> Option<Captures> {
-        let mut m = Matcher { input: chars, caps: vec![None; self.groups + 1], steps: 0 };
+        let mut m = Matcher { input: chars, caps: Caps::new(self.groups + 1), steps: 0 };
         for s in start..=chars.len() {
-            if let Some(first) = &self.first {
-                match chars.get(s) {
-                    Some(&c) if first.iter().any(|n| single_char_matches(n, c)) => {}
-                    _ => continue,
-                }
+            if !self.may_start_at(chars, s) {
+                continue;
             }
             m.steps = 0;
             let mut end = None;
@@ -1494,11 +1923,30 @@ impl Regex {
                 true
             }) {
                 m.caps[0] = Some((s, end.unwrap()));
-                return Some(Captures { spans: m.caps });
+                return Some(Captures { spans: m.caps.to_vec() });
             }
             m.caps.fill(None);
         }
         None
+    }
+
+    /// The longest text the pattern can match, in chars, when there is a
+    /// limit (`None`: unbounded, or it depends on a back-reference).
+    pub fn max_width(&self) -> Option<usize> {
+        width(&self.node).map(|(_, max)| max)
+    }
+
+    /// A cheap necessary condition for a match to start at `s`: the first
+    /// (and second) char can begin one.
+    #[inline]
+    pub fn may_start_at(&self, chars: &[char], s: usize) -> bool {
+        match &self.first {
+            None => true,
+            Some(first) => {
+                chars.get(s).is_some_and(|&c| first.accepts(c))
+                    && self.second.as_ref().map_or(true, |second| chars.get(s + 1).is_some_and(|&c| second.accepts(c)))
+            }
+        }
     }
 
     /// A set of chars one of which occurs in every match, when the pattern
@@ -1517,14 +1965,17 @@ impl Regex {
 
     /// `Matcher.lookingAt()`: a match anchored at `start` only.
     pub fn match_at_chars(&self, chars: &[char], start: usize) -> Option<Captures> {
-        let mut m = Matcher { input: chars, caps: vec![None; self.groups + 1], steps: 0 };
+        if !self.may_start_at(chars, start) {
+            return None;
+        }
+        let mut m = Matcher { input: chars, caps: Caps::new(self.groups + 1), steps: 0 };
         let mut end = None;
         if m.run(&self.node, start, &mut |_, e| {
             end = Some(e);
             true
         }) {
             m.caps[0] = Some((start, end.unwrap()));
-            Some(Captures { spans: m.caps })
+            Some(Captures { spans: m.caps.to_vec() })
         } else {
             None
         }
@@ -1771,6 +2222,16 @@ mod tests {
         assert!(full("\\p{Pd}", "–"));
         assert!(full("\\p{Pc}", "_"));
         assert!(full("\\p{P}+", "!(«_-"));
+        // Letters by general category: the Alphabetic and Lowercase
+        // properties also hold for some numbers and symbols.
+        assert!(full("\\p{L}+", "éßªǅ"));
+        assert!(!full("\\p{L}", "Ⅷ") && !full("\\p{L}", "ⓐ") && full("\\p{IsAlphabetic}", "ⓐ"));
+        assert!(full("\\p{Ll}+", "éßĸ") && !full("\\p{Ll}", "ª") && !full("\\p{Ll}", "ⓐ") && !full("\\p{Ll}", "ⅷ"));
+        assert!(full("\\p{Lu}+", "ÉŒ") && !full("\\p{Lu}", "Ⅷ") && !full("\\p{Lu}", "ǅ"));
+        assert!(full("\\p{Lo}", "ª") && full("\\p{Lt}", "ǅ"));
+        assert!(find("3\\b", "3ⓐ") && !find("3\\b", "3a"));
+        // A combining mark is part of the word it follows, not of a symbol.
+        assert!(!find("e\\b", "e\u{301}t") && find("\\bx", "\u{2764}\u{fe0f}x") && !find("\\bx", "e\u{301}x"));
     }
 
     #[test]
@@ -1796,10 +2257,44 @@ mod tests {
         assert!(find("x*", ""), "an empty match is still found");
         assert!(find("\\bfin", "la fin"));
         assert!(find("(?:a|b)?c", "zzc"));
+        // the second char is filtered too
+        let r2 = Regex::new("\\p{L}[.!?]\\s+", Flags::default()).unwrap();
+        let chars2: Vec<char> = "abc. d! e".chars().collect();
+        assert_eq!(r2.find_all(&chars2).iter().map(|c| c.spans[0].unwrap()).collect::<Vec<_>>(), vec![(2, 5), (5, 8)]);
+        assert!(find("a\\b.", "xa b") && !find("a\\b.", "xab") && find("ab?c", "ac") && find("a(?=b).", "ab"));
+        assert!(Regex::new("ab", Flags::default()).unwrap().match_at_chars(&['a'], 0).is_none());
+        assert!(Regex::new("a", Flags::default()).unwrap().match_at_chars(&['a'], 1).is_none());
+        assert!(Regex::new("a*", Flags::default()).unwrap().match_at_chars(&['a'], 1).is_some());
+        // long alternations skip the alternatives that cannot start here
+        assert!(full("(?iu)(alpha|beta|gamma|delta|épsilon)s?", "ÉPSILONS") && !full("alpha|beta|gamma|delta", "epsilon"));
+        assert!(full("(a|b|c|d|)x", "x") && full("(?:ab|a|b|c)c", "ac") && find("\\b(un|deux|trois|quatre)\\b", "j'en ai trois ici"));
+        assert!(full("(?iu)(is|si|ki|as|os|us)", "ıſ") && full("(?iu)(k|l|m|n)", "\u{212a}") && full("(?iu)(é|è|ê|ë)t", "Ét"));
+        let months = "(?iu)\\b(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc|lundi|mardi|mercredi|jeudi|vendredi)\\.";
+        assert!(find(months, "le 3 Févr. au soir") && find(months, "en AOÛT. Puis") && !find(months, "en été. Puis"));
+        // a look-behind checks the char before the position first
+        assert!(find("(?<=\\b[a-z]{1,100}\\.)X", "abc.X") && !find("(?<=\\b[a-z]{1,100}\\.)X", "abc. X"));
+        assert!(find("(?<=a|)X", "X") && find("(?<![.!?] ?)X", "a X") && !find("(?<![.!?] ?)X", "a. X"));
+        assert!(find("(?<=\\([a-z]{1,100}\\. )X", "(abc. X") && !find("(?<=\\([a-z]{1,100}\\. )X", "abc. X"));
+        // single-char repeats: greedy, lazy, possessive, bounded
+        assert!(full("a*a", "aaa") && full("a*?a", "aaa") && !full("a*+a", "aaa") && full("[ab]{2,3}b", "abab"));
+        assert!(!full("a{2,3}", "a") && !full("a{2,3}", "aaaa") && full("a{2,3}?a", "aaaa") && full(".{0,2}?b", "aab"));
+        let lazy_greedy = Regex::new("(a+?)(a*)", Flags::default()).unwrap();
+        assert_eq!(lazy_greedy.full_match_chars(&['a', 'a', 'a']).unwrap().spans, vec![Some((0, 3)), Some((0, 1)), Some((1, 3))]);
+        let long: Vec<char> = "x".repeat(200_000).chars().collect();
+        let to_paren = Regex::new("[^)\\r\\n]*\\)", Flags::default()).unwrap();
+        assert!(to_paren.match_at_chars(&long, 0).is_none(), "no deep recursion on a long run");
+        // more groups than the inline capture slots hold
+        let many = Regex::new("(a)(b)(c)(d)(e)(f)(g)(h)\\8\\1", Flags::default()).unwrap();
+        let m = many.full_match_chars(&"abcdefghha".chars().collect::<Vec<_>>()).unwrap();
+        assert_eq!(m.spans.len(), 9);
+        assert_eq!(m.spans[8], Some((7, 8)));
         assert_eq!(r.required_chars(), Some(vec!['.', '!', '?']));
         assert_eq!(Regex::new("\\p{L}[.!?…]\u{a0}+\\s+", Flags::default()).unwrap().required_chars(), Some(vec!['\u{a0}']));
         assert_eq!(Regex::new("\\p{L}*", Flags::default()).unwrap().required_chars(), None);
         assert_eq!(Regex::new("ab|c", Flags::default()).unwrap().required_chars(), Some(vec!['a', 'c']));
+        assert_eq!(Regex::new("ab?|c{2,4}", Flags::default()).unwrap().max_width(), Some(4));
+        assert_eq!(Regex::new("[^)]*\\)", Flags::default()).unwrap().max_width(), None);
+        assert!(r.may_start_at(&chars, 3) && !r.may_start_at(&chars, 2) && !r.may_start_at(&chars, 13));
     }
 
     #[test]
