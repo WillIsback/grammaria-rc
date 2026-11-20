@@ -69,14 +69,37 @@ fn main() {
         i += 1;
     }
     let dir = data.map(PathBuf::from).unwrap_or_else(data_dir);
+    // The disambiguation XML is shipped verbatim in `assets/fr/` (generated
+    // data directories also carry a copy).
+    let disambig = ["fr.disambig.xml", "languagetool-disambiguation.xml"]
+        .iter()
+        .find_map(|n| {
+            let p = dir.join(n);
+            if p.exists() { Some(p) } else { None }
+        })
+        .or_else(|| {
+            let p = Path::new("assets/fr/languagetool-disambiguation.xml");
+            if p.exists() { Some(p.to_path_buf()) } else { None }
+        });
     let tg = match grammaria::tagger::Tagger::new(
         &dir.join("fr.lex"),
         &dir.join("fr.words"),
-        Some(&dir.join("fr.disambig.xml")),
+        disambig.as_deref(),
     ) {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("grammaria: cannot load data from {}: {e}", dir.display());
+            let lex = dir.join("fr.lex");
+            if !lex.exists() {
+                eprintln!(
+                    "grammaria: no language data in {} (missing fr.lex).\n\
+                     Build it once from the shipped assets:\n\
+                     \x20 cargo run --release --bin grammaria-build -- --out {}",
+                    dir.display(),
+                    dir.display()
+                );
+            } else {
+                eprintln!("grammaria: cannot load data from {}: {e}", dir.display());
+            }
             std::process::exit(1);
         }
     };
@@ -123,9 +146,16 @@ fn load_rules(dir: &Path) -> grammaria::rules::RuleSet {
     }
     // Fallback: parse the XML rule files directly.
     let mut set = grammaria::rules::RuleSet::default();
-    for (file, is_style) in [("fr.grammar.xml", false), ("fr.style.xml", true)] {
-        let p = dir.join(file);
-        if let Ok(xml) = std::fs::read_to_string(&p) {
+    for (file, asset, is_style) in [
+        ("fr.grammar.xml", "assets/fr/languagetool-grammar.xml", false),
+        ("fr.style.xml", "assets/fr/languagetool-style.xml", true),
+    ] {
+        // Prefer the data directory (generated copies), fall back to the
+        // shipped assets so a fresh clone works without a data build.
+        let xml = std::fs::read_to_string(dir.join(file))
+            .or_else(|_| std::fs::read_to_string(asset))
+            .ok();
+        if let Some(xml) = xml {
             let s = grammaria::rules::RuleSet::parse(&xml, is_style);
             set.rules.extend(s.rules);
             set.unification.extend(s.unification);

@@ -51,16 +51,21 @@ in LanguageTool's JSON shape (`--json`).
 
 ```
 assets/fr/*.xml,*.txt                 open-source data (LanguageTool, LGPL)
-        │  grammaria-build (one-off, ~80 s)
+        │  grammaria-build (one-off, ~7 min: fr.lex dominates)
         ▼
 data/fr.lex      double-array trie     475 097 word forms / 616 695 senses   ~37 MB
 data/fr.rules    compiled rule cache   6 947 rules                           ~7 MB
 data/fr.words    multiwords, hyphenated compounds, extra spellings           ~1 MB
-data/fr.disambig.xml                                                         0.4 MB
         │
         ▼  grammaria (runtime: ~0.14 s load, ~7 ms per sentence)
 tokenizer → tagger → chunker → disambiguator → rule engine → native filters
 ```
+
+`data/` is **generated, not tracked**: it is rebuilt from `assets/` by
+`grammaria-build`. A fresh clone therefore runs the build once before checking
+text; the binary prints that instruction if the data is missing. The
+disambiguation and rule XML are also read straight from `assets/fr/`, so only
+the three binary files above are strictly required.
 
 * **Tokenizer** — French-aware: elisions (`l'`, `qu'`), hyphenated forms (`dit-il`),
   apostrophe compounds (`aujourd'hui`), acronyms, numbers, URLs, sentence splitting
@@ -87,8 +92,11 @@ tokenizer → tagger → chunker → disambiguator → rule engine → native fi
 ## Usage
 
 ```sh
-# build the data once (lexicon + rule cache)
+# build the data once (lexicon + rule cache); ~7 min, dominated by fr.lex
 cargo run --release --bin grammaria-build
+
+# rebuild a single stage after changing rule/tagging semantics (0.3 s)
+cargo run --release --bin grammaria-build -- --only rules
 
 # check a file as text
 grammaria check article.txt

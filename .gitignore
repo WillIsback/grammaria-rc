@@ -3,3 +3,7 @@
 /tmp/
 data/*.bin
 data/*.gz
+
+# Generated artifacts: rebuild with `cargo run --release --bin grammaria-build`
+# (data/fr.lex, data/fr.rules, data/fr.words) or copy from assets/. Not tracked.
+/data/
