@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
 
     fn parse_entities(&mut self, doctype: &str) {
         // Scan `<!ENTITY name "value">` declarations inside the internal subset.
-        let mut rest = doctype;
+        let rest = doctype;
         // Pre-scan: collect raw declarations first, then expand in declaration
         // order (later declarations may reference earlier ones).
         let mut raw: Vec<(String, String)> = Vec::new();

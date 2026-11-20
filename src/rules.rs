@@ -13,7 +13,7 @@
 
 use crate::pattern::{find_matches, Match, Pattern, PatternElem, TokenPattern};
 use crate::tagger::convert_children_public;
-use crate::sentence::{AnalyzedToken, Sentence};
+use crate::sentence::Sentence;
 use crate::strutil;
 use crate::xml::{self, DomItem, Node as XmlNode};
 

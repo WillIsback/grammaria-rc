@@ -354,35 +354,20 @@ impl Match {
     }
 }
 
-/// Position set matcher. `positions[i]` = set of pattern positions reachable
-/// after consuming `i` tokens.
-struct Matcher<'a> {
-    pat: &'a Pattern,
-    toks: &'a [AnalyzedToken],
-    /// reachable[token_index] = sorted list of (pattern position, captures)
-    steps: Vec<Vec<Step>>,
-}
-
-#[derive(Clone, Debug)]
-struct Step {
-    pos: usize,
-    captures: Vec<(usize, usize)>, // (token start index, token end index)
-}
-
-impl<'a> Matcher<'a> {
-    fn elem_matches(elem: &PatternElem, toks: &'a [AnalyzedToken], idx: usize) -> bool {
-        match elem {
-            PatternElem::Token(t) => t.matches(toks, idx),
-            PatternElem::Or(alts) => alts.iter().any(|seq| {
-                // a single-token alternative
-                seq.len() == 1 && Self::elem_matches(&seq[0], toks, idx)
-            }),
-            PatternElem::And(ts) => ts.iter().all(|t| t.matches(toks, idx)),
-            // `<and>` becomes `Seq` in the converter: every child must match
-            // the *same* token (LanguageTool semantics).
-            PatternElem::Seq(seq) => seq.iter().all(|x| Self::elem_matches(x, toks, idx)),
-            PatternElem::Unify { .. } => true,
-        }
+/// Does `elem` match the single token `toks[idx]`?
+///
+/// `<and>` is converted to `Seq`, so every child must match the *same* token
+/// (LanguageTool semantics); `<or>` holds one-token alternatives;
+/// `<unify>` is checked separately by the slot matcher.
+fn elem_matches(elem: &PatternElem, toks: &[AnalyzedToken], idx: usize) -> bool {
+    match elem {
+        PatternElem::Token(t) => t.matches(toks, idx),
+        PatternElem::Or(alts) => alts
+            .iter()
+            .any(|seq| seq.len() == 1 && elem_matches(&seq[0], toks, idx)),
+        PatternElem::And(ts) => ts.iter().all(|t| t.matches(toks, idx)),
+        PatternElem::Seq(seq) => seq.iter().all(|x| elem_matches(x, toks, idx)),
+        PatternElem::Unify { .. } => true,
     }
 }
 
@@ -553,7 +538,7 @@ fn match_slot(
                 let mut ok = true;
                 for t in 0..k as usize {
                     let idx = start + t;
-                    if idx >= toks.len() || !Matcher::elem_matches(slot.elem, toks, idx) {
+                    if idx >= toks.len() || !elem_matches(slot.elem, toks, idx) {
                         ok = false;
                         break;
                     }

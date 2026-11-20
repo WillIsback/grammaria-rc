@@ -135,7 +135,7 @@ fn build_rule_cache(assets: &str, out: &str) -> std::io::Result<()> {
 ///   `#!forbidden`    words always flagged as misspelled
 fn build_word_lists(assets: &str, out: &str) -> std::io::Result<()> {
     let mut buf = String::new();
-    let mut push_section = |buf: &mut String, name: &str| {
+    let push_section = |buf: &mut String, name: &str| {
         buf.push_str("#!");
         buf.push_str(name);
         buf.push('\n');

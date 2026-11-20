@@ -155,7 +155,14 @@ Two harnesses measure the port against the reference implementation:
   `ETRE_VPPA_OU_ADJ`) and Java filters that search the morphological dictionary.
   Only rules whose semantics are faithfully reproducible are enabled; the rest are
   skipped rather than left to over-fire.
+* `tools/regress.py` — freezes the exact matches on 16 representative sentences
+  (`eval/regression_fr.json`) so that memory/size work cannot silently change what
+  the checker reports. Run it before and after any change to rule semantics; no
+  LanguageTool installation required.
 * `tools/bench.py` — the speed comparison above.
+* `tools/memprobe.rs` (built as `--bin memprobe`) — prints RSS after each loading
+  stage, so a memory change can be attributed to the lexicon, the rules, the word
+  lists or the disambiguator.
 
 ```sh
 python3 tools/gen_lt_fixtures.py --lt-dir /path/LanguageTool-6.6 --java $(which java) \
@@ -163,6 +170,7 @@ python3 tools/gen_lt_fixtures.py --lt-dir /path/LanguageTool-6.6 --java $(which 
 python3 tools/gen_examples.py assets/fr/languagetool-grammar.xml eval/lt_examples_fr.json
 python3 tools/eval_pos.py   eval/fixtures_fr.json      ./target/release/grammaria data
 python3 tools/eval_rules.py eval/lt_examples_fr.json   ./target/release/grammaria data 400
+python3 tools/regress.py
 python3 tools/bench.py      --text article.txt
 ```
 
