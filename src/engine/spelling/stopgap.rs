@@ -110,30 +110,35 @@ impl StopgapTagger {
 
     /// True when the word has a reading (`tag(word).isTagged()`).
     pub fn is_tagged(&self, word: &str) -> bool {
-        self.tag_word(word).is_tagged()
+        !self.readings_of(word).1.is_empty()
+    }
+
+    /// `FrenchTagger.tag` for one token: the token as the readings name it
+    /// (typographic apostrophes replaced) and its `(lemma, tag)` readings.
+    fn readings_of(&self, word: &str) -> (String, Vec<(String, String)>) {
+        let mut word = word.to_string();
+        if strtools::utf16_len(&word) > 1 && word.contains('’') {
+            word = word.replace('’', "'");
+        }
+        let mut l = self.tag_word_readings(&word);
+        if l.is_empty() && word.to_lowercase().contains("oe") {
+            l = self.tag_word_readings(&word.replace("oe", "œ").replace("OE", "Œ"));
+        }
+        if l.is_empty() && strtools::is_emoji(&word) {
+            l.push(("_emoji_".to_string(), "_emoji_".to_string()));
+        }
+        (word, l)
     }
 }
 
 impl WordTagger for StopgapTagger {
     /// `FrenchTagger.tag` for a single token.
     fn tag_word(&self, word: &str) -> Readings {
-        let replaced;
-        let mut word = word;
-        if strtools::utf16_len(word) > 1 && word.contains('’') {
-            replaced = word.replace('’', "'");
-            word = &replaced;
-        }
-        let mut l = self.tag_word_readings(word);
-        if l.is_empty() && word.to_lowercase().contains("oe") {
-            l = self.tag_word_readings(&word.replace("oe", "œ").replace("OE", "Œ"));
-        }
-        if l.is_empty() && strtools::is_emoji(word) {
-            l.push(("_emoji_".to_string(), "_emoji_".to_string()));
-        }
+        let (word, l) = self.readings_of(word);
         if l.is_empty() {
-            return Readings::untagged(word, 0);
+            return Readings::untagged(&word, 0);
         }
-        let readings: Vec<Reading> = l.iter().map(|(lemma, tag)| Reading::from_strs(word, Some(tag), Some(lemma))).collect();
+        let readings: Vec<Reading> = l.iter().map(|(lemma, tag)| Reading::from_strs(&word, Some(tag), Some(lemma))).collect();
         Readings::new(readings, 0)
     }
 }
@@ -149,8 +154,6 @@ fn is_word_character(c: char) -> bool {
 struct TokenizerPatterns {
     typewriter_apostrophe: Arc<Regex>,
     typographic_apostrophe: Arc<Regex>,
-    nearby_hyphens: Arc<Regex>,
-    hyphens: Arc<Regex>,
     decimal_point: Arc<Regex>,
     decimal_comma: Arc<Regex>,
     space_digits0: Arc<Regex>,
@@ -171,8 +174,6 @@ fn tokenizer_patterns() -> &'static TokenizerPatterns {
         TokenizerPatterns {
             typewriter_apostrophe: ci("([\\p{L}])'([\\p{L}1\"‘“«])"),
             typographic_apostrophe: ci("([\\p{L}])’([\\p{L}1\"‘“«])"),
-            nearby_hyphens: ci("([\\p{L}])-([\\p{L}])-([\\p{L}])"),
-            hyphens: ci("([\\p{L}])-([\\p{L}\\d])"),
             decimal_point: ci("([\\d])\\.([\\d])"),
             decimal_comma: ci("([\\d]),([\\d])"),
             space_digits0: ci("([\\d]{4}) "),
@@ -223,10 +224,9 @@ impl StopgapTokenizer {
         if aux.contains('’') {
             aux = p.typographic_apostrophe.replace_all(&aux, "$1xxFR_APOS_TYPOGxx$2");
         }
-        if aux.contains('-') {
-            aux = p.nearby_hyphens.replace_all(&aux, "$1xxFR_HYPHENxx$2xxFR_HYPHENxx$3");
-            aux = p.hyphens.replace_all(&aux, "$1xxFR_HYPHENxx$2");
-        }
+        // `NEARBY_HYPHENS` and `HYPHENS` protect hyphens between letters with
+        // a placeholder made of word characters, and the hyphen is a word
+        // character itself: the two rewritings change nothing and are skipped.
         if has_digit {
             if aux.contains('.') {
                 aux = p.decimal_point.replace_all(&aux, "$1xxFR_DECIMALPOINTxx$2");
@@ -259,13 +259,16 @@ impl StopgapTokenizer {
                 l.last_mut().unwrap().push_str(&chunk);
                 continue;
             }
-            let mut s = chunk
-                .replace("xxFR_APOS_TYPEWxx", "'")
-                .replace("xxFR_APOS_TYPOGxx", "’")
-                .replace("xxFR_HYPHENxx", "-")
-                .replace("xxFR_DECIMALPOINTxx", ".")
-                .replace("xxFR_DECIMALCOMMAxx", ",")
-                .replace("xxFR_SPACExx", " ");
+            let mut s = chunk;
+            if s.contains("xxFR_") {
+                s = s
+                    .replace("xxFR_APOS_TYPEWxx", "'")
+                    .replace("xxFR_APOS_TYPOGxx", "’")
+                    .replace("xxFR_HYPHENxx", "-")
+                    .replace("xxFR_DECIMALPOINTxx", ".")
+                    .replace("xxFR_DECIMALCOMMAxx", ",")
+                    .replace("xxFR_SPACExx", " ");
+            }
             while s.chars().count() > 1 && s.starts_with('-') {
                 l.push("-".to_string());
                 s.remove(0);
@@ -276,10 +279,16 @@ impl StopgapTokenizer {
                 hyphens_at_end += 1;
             }
             let mut groups: Option<Vec<String>> = None;
-            if s.contains(['\'', '’', '-']) {
+            // Every pattern needs an apostrophe, or a hyphen followed by a
+            // short ending (the longest are `-elles` and `-vous`, the fixed
+            // expressions of the first pattern end in `-dire` at most).
+            let has_apostrophe = s.contains(['\'', '’']);
+            let short_ending = s.rfind('-').is_some_and(|at| s.len() - at <= 7);
+            if has_apostrophe || short_ending {
                 let s_chars: Vec<char> = s.chars().collect();
                 for pattern in &p.splits {
-                    if let Some(caps) = pattern.find_chars(&s_chars, 0) {
+                    // The patterns are anchored at both ends.
+                    if let Some(caps) = pattern.full_match_chars(&s_chars) {
                         groups = Some((1..=pattern.group_count()).map(|g| caps.get(&s_chars, g).unwrap_or_default()).collect());
                         break;
                     }

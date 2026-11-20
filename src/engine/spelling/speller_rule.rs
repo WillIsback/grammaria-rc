@@ -192,19 +192,38 @@ impl FrenchSpellerRule {
         let spelling_custom = read("hunspell/spelling_custom.txt");
         let spelling_global = read("spelling_global.txt");
 
-        // `initSpeller`: the existing plain-text dictionaries, chained.
-        let mut chained = String::new();
-        for content in [&spelling, &spelling_custom, &spelling_global].into_iter().flatten() {
-            chained.push_str(content);
+        // `SpellingCheckRule.init`: the entries to ignore, in file order.
+        let ignore = read("hunspell/ignore.txt");
+        let mut ignore_words: Vec<String> = Vec::new();
+        for content in [&ignore, &spelling, &spelling_custom, &spelling_global] {
+            ignore_words.extend(load_words(content.as_deref()));
         }
-        let lines = speller_lines(&chained);
-        let plain_text = if lines.is_empty() {
-            None
-        } else {
-            let fsa = fsa_from_lines(&lines)?;
-            Some(Arc::new(Dictionary::new(fsa, dictionary.metadata.clone())))
-        };
-        drop(lines);
+
+        // Building the word-list dictionary and tokenizing the entries to
+        // ignore are independent: they run side by side.
+        let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, 4);
+        let chunk_size = ignore_words.len().div_ceil(workers).max(1);
+        let (plain_text, tokenized) = std::thread::scope(|scope| {
+            // `initSpeller`: the existing plain-text dictionaries, chained.
+            let fsa = scope.spawn(|| {
+                let mut chained = String::new();
+                for content in [&spelling, &spelling_custom, &spelling_global].into_iter().flatten() {
+                    chained.push_str(content);
+                }
+                let lines = speller_lines(&chained);
+                if lines.is_empty() {
+                    Ok(None)
+                } else {
+                    fsa_from_lines(&lines).map(Some)
+                }
+            });
+            let tokenize = &tokenize;
+            let handles: Vec<_> =
+                ignore_words.chunks(chunk_size).map(|part| scope.spawn(move || part.iter().map(|line| tokenize(line)).collect::<Vec<Vec<String>>>())).collect();
+            let tokenized: Vec<Vec<String>> = handles.into_iter().flat_map(|h| h.join().expect("tokenizer thread panicked")).collect();
+            (fsa.join().expect("dictionary thread panicked"), tokenized)
+        });
+        let plain_text = plain_text?.map(|fsa| Arc::new(Dictionary::new(fsa, dictionary.metadata.clone())));
         let speller1 = MorfologikMultiSpeller::new(dictionary.clone(), plain_text.clone(), 1);
         let speller2 = MorfologikMultiSpeller::new(dictionary.clone(), plain_text.clone(), 2);
         let speller3 = MorfologikMultiSpeller::new(dictionary, plain_text, 3);
@@ -231,12 +250,8 @@ impl FrenchSpellerRule {
             converts_case,
             suggestions: Mutex::new(HashMap::new()),
         };
-        // `SpellingCheckRule.init`.
-        let ignore = read("hunspell/ignore.txt");
-        for content in [&ignore, &spelling, &spelling_custom, &spelling_global] {
-            for word in load_words(content.as_deref()) {
-                rule.add_ignore_words(word);
-            }
+        for (line, tokens) in ignore_words.into_iter().zip(tokenized) {
+            rule.add_ignore_words(line, tokens);
         }
         for name in ["hunspell/prohibit.txt", "hunspell/prohibit_custom.txt"] {
             rule.words_to_be_prohibited.extend(load_words(read(name).as_deref()));
@@ -246,8 +261,8 @@ impl FrenchSpellerRule {
 
     /// `addIgnoreWords`: an entry of several tokens becomes an "ignore
     /// spelling" pattern, an entry of one token an ignored word.
-    fn add_ignore_words(&mut self, line: String) {
-        let tokens = (self.tokenize)(&line);
+    /// `tokens` is the entry cut by the word tokenizer.
+    fn add_ignore_words(&mut self, line: String, tokens: Vec<String>) {
         if tokens.len() > 1 {
             self.phrases.add(tokens.into_iter().filter(|t| !super::strings::java_trim(t).is_empty()).collect());
         } else {

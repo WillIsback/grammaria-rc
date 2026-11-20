@@ -43,14 +43,21 @@ struct Key {
     candidates: Vec<String>,
 }
 
-/// `MultitokenSpeller`.
-pub struct MultitokenSpeller {
-    spelling_rule: Arc<FrenchSpellerRule>,
+/// The entries of the multi-word files, as `initMultitokenSpeller` indexes
+/// them.
+pub struct MultitokenEntries {
     /// `suggestionsMap`: first character of the key -> keys, in the order a
     /// `java.util.HashMap` iterates over them (the search stops early and
     /// keeps ties in that order).
     suggestions_map: HashMap<char, Vec<Key>>,
     /// `suggestionsMapNoSpacesKey`.
+    suggestions_map_no_spaces_key: HashMap<String, Vec<String>>,
+}
+
+/// `MultitokenSpeller`.
+pub struct MultitokenSpeller {
+    spelling_rule: Arc<FrenchSpellerRule>,
+    suggestions_map: HashMap<char, Vec<Key>>,
     suggestions_map_no_spaces_key: HashMap<String, Vec<String>>,
     /// `suggestionsCache`.
     cache: Mutex<HashMap<String, Arc<Vec<String>>>>,
@@ -65,17 +72,17 @@ fn normalize_key(word: &str) -> String {
     remove_diacritics(&word.to_lowercase()).replace('-', " ")
 }
 
-impl MultitokenSpeller {
-    /// `FrenchMultitokenSpeller`: the entries of `multiwords.txt`,
+impl MultitokenEntries {
+    /// The files of `FrenchMultitokenSpeller`: `multiwords.txt`,
     /// `spelling_global.txt` and `hyphenated_words.txt`.
-    pub fn french(assets: &Path, spelling_rule: Arc<FrenchSpellerRule>) -> MultitokenSpeller {
+    pub fn french(assets: &Path) -> MultitokenEntries {
         let contents: Vec<String> = ["multiwords.txt", "spelling_global.txt", "hyphenated_words.txt"].iter().filter_map(|name| read_resource(&assets.join(name))).collect();
         let contents: Vec<&str> = contents.iter().map(String::as_str).collect();
-        MultitokenSpeller::new(spelling_rule, &contents)
+        MultitokenEntries::new(&contents)
     }
 
     /// `initMultitokenSpeller` on the texts of the word files.
-    pub fn new(spelling_rule: Arc<FrenchSpellerRule>, contents: &[&str]) -> MultitokenSpeller {
+    pub fn new(contents: &[&str]) -> MultitokenEntries {
         // Keys per first character, in insertion order.
         let mut by_char: HashMap<char, (Vec<Key>, HashMap<String, usize>)> = HashMap::new();
         let mut no_spaces: HashMap<String, Vec<String>> = HashMap::new();
@@ -121,7 +128,24 @@ impl MultitokenSpeller {
                 (c, order.into_iter().filter_map(|i| slots[i].take()).collect())
             })
             .collect();
-        MultitokenSpeller { spelling_rule, suggestions_map, suggestions_map_no_spaces_key: no_spaces, cache: Mutex::new(HashMap::new()) }
+        MultitokenEntries { suggestions_map, suggestions_map_no_spaces_key: no_spaces }
+    }
+}
+
+impl MultitokenSpeller {
+    /// `FrenchMultitokenSpeller`.
+    pub fn french(assets: &Path, spelling_rule: Arc<FrenchSpellerRule>) -> MultitokenSpeller {
+        MultitokenSpeller::new(spelling_rule, MultitokenEntries::french(assets))
+    }
+
+    /// `spelling_rule` is the language's default spelling rule.
+    pub fn new(spelling_rule: Arc<FrenchSpellerRule>, entries: MultitokenEntries) -> MultitokenSpeller {
+        MultitokenSpeller {
+            spelling_rule,
+            suggestions_map: entries.suggestions_map,
+            suggestions_map_no_spaces_key: entries.suggestions_map_no_spaces_key,
+            cache: Mutex::new(HashMap::new()),
+        }
     }
 
     /// `getSuggestions(originalWord, areTokensAcceptedBySpeller)`.

@@ -13,17 +13,82 @@
 //! arcs in input order and the serializers keep it), so traversals meet the
 //! words in the same order.
 
-use std::collections::HashMap;
 use std::io;
 
 use crate::morfologik::Fsa;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct Arc {
     label: u8,
     is_final: bool,
     /// Index of the target state plus one; `0` when the arc has no target.
     target: u32,
+}
+
+/// The frozen states: their arcs in one array, and a hash table of state
+/// numbers to find a state equal to a new one.
+#[derive(Default)]
+struct States {
+    arcs: Vec<Arc>,
+    /// For each state, where its arcs start and how many they are.
+    spans: Vec<(u32, u32)>,
+    /// Open addressing; `0` is an empty slot, otherwise a state number plus one.
+    table: Vec<u32>,
+}
+
+impl States {
+    fn arcs_of(&self, state: usize) -> &[Arc] {
+        let (start, len) = self.spans[state];
+        &self.arcs[start as usize..(start + len) as usize]
+    }
+
+    fn hash(arcs: &[Arc]) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for a in arcs {
+            let v = u64::from(a.target) << 9 | u64::from(a.is_final) << 8 | u64::from(a.label);
+            h = (h ^ v).wrapping_mul(0x0000_0100_0000_01b3);
+            h ^= h >> 29;
+        }
+        h
+    }
+
+    fn slot_for(&self, arcs: &[Arc]) -> (usize, Option<u32>) {
+        let mask = self.table.len() - 1;
+        let mut slot = Self::hash(arcs) as usize & mask;
+        loop {
+            match self.table[slot] {
+                0 => return (slot, None),
+                id if self.arcs_of(id as usize - 1) == arcs => return (slot, Some(id)),
+                _ => slot = (slot + 1) & mask,
+            }
+        }
+    }
+
+    /// The number (from 1) of the state with these arcs, added if it is new;
+    /// `0` for a state without arcs.
+    fn freeze(&mut self, arcs: &[Arc]) -> u32 {
+        if arcs.is_empty() {
+            return 0;
+        }
+        if self.table.len() < 2 * (self.spans.len() + 1) {
+            // Grow and re-insert.
+            let size = (4 * (self.spans.len() + 1)).next_power_of_two().max(1024);
+            self.table = vec![0; size];
+            for state in 0..self.spans.len() {
+                let (slot, _) = self.slot_for(self.arcs_of(state));
+                self.table[slot] = state as u32 + 1;
+            }
+        }
+        let (slot, found) = self.slot_for(arcs);
+        if let Some(id) = found {
+            return id;
+        }
+        self.spans.push((self.arcs.len() as u32, arcs.len() as u32));
+        self.arcs.extend_from_slice(arcs);
+        let id = self.spans.len() as u32;
+        self.table[slot] = id;
+        id
+    }
 }
 
 /// `FSABuilder.build` on sorted input, then serialization: the bytes of an
@@ -35,25 +100,12 @@ pub fn build_fsa5(words: &[&[u8]]) -> Vec<u8> {
     // Daciuk's incremental construction for sorted input: the states on the
     // path of the last word stay open; a state is frozen (and merged with an
     // equal one) as soon as the next word leaves its path.
-    let mut states: Vec<Box<[Arc]>> = Vec::new();
-    let mut registry: HashMap<Box<[Arc]>, u32> = HashMap::new();
+    let mut states = States::default();
+    // `path[d]` holds the arcs of the open state at depth `d`, for
+    // `d < depth`.
     let mut path: Vec<Vec<Arc>> = vec![Vec::new()];
+    let mut depth = 1usize;
     let mut previous: &[u8] = &[];
-
-    fn freeze(arcs: Vec<Arc>, states: &mut Vec<Box<[Arc]>>, registry: &mut HashMap<Box<[Arc]>, u32>) -> u32 {
-        if arcs.is_empty() {
-            return 0;
-        }
-        let key: Box<[Arc]> = arcs.into_boxed_slice();
-        if let Some(&id) = registry.get(&key) {
-            return id;
-        }
-        states.push(key.clone());
-        let id = states.len() as u32;
-        registry.insert(key, id);
-        id
-    }
-
     for &word in words {
         if word.is_empty() || word == previous {
             continue;
@@ -61,28 +113,32 @@ pub fn build_fsa5(words: &[&[u8]]) -> Vec<u8> {
         debug_assert!(previous < word, "input must be sorted");
         let common = previous.iter().zip(word).take_while(|(a, b)| a == b).count();
         // Freeze the states below the common prefix, deepest first.
-        while path.len() > common + 1 {
-            let arcs = path.pop().unwrap_or_default();
-            let id = freeze(arcs, &mut states, &mut registry);
-            if let Some(last) = path.last_mut().and_then(|s| s.last_mut()) {
+        while depth > common + 1 {
+            depth -= 1;
+            let id = states.freeze(&path[depth]);
+            path[depth].clear();
+            if let Some(last) = path[depth - 1].last_mut() {
                 last.target = id;
             }
         }
         for (i, &label) in word.iter().enumerate().skip(common) {
             path[i].push(Arc { label, is_final: i == word.len() - 1, target: 0 });
-            path.push(Vec::new());
+            if path.len() <= i + 1 {
+                path.push(Vec::new());
+            }
+            depth = i + 2;
         }
         previous = word;
     }
-    while path.len() > 1 {
-        let arcs = path.pop().unwrap_or_default();
-        let id = freeze(arcs, &mut states, &mut registry);
-        if let Some(last) = path.last_mut().and_then(|s| s.last_mut()) {
+    while depth > 1 {
+        depth -= 1;
+        let id = states.freeze(&path[depth]);
+        path[depth].clear();
+        if let Some(last) = path[depth - 1].last_mut() {
             last.target = id;
         }
     }
-    let root = freeze(path.pop().unwrap_or_default(), &mut states, &mut registry);
-    drop(registry);
+    let root = states.freeze(&path[0]);
 
     // FSA5 layout: every arc is a label followed by `gtl` bytes holding the
     // flags (low three bits) and the offset of the target state. The body
@@ -90,26 +146,23 @@ pub fn build_fsa5(words: &[&[u8]]) -> Vec<u8> {
     // leads to the root.
     const BIT_FINAL: u64 = 1;
     const BIT_LAST: u64 = 2;
-    let total_arcs: usize = states.iter().map(|s| s.len()).sum::<usize>() + 2;
+    let total_arcs: usize = states.arcs.len() + 2;
     let mut gtl = 1usize;
     while (total_arcs * (1 + gtl)) as u64 >= 1u64 << (8 * gtl - 3) {
         gtl += 1;
     }
     let arc_size = 1 + gtl;
-    let mut offsets: Vec<usize> = Vec::with_capacity(states.len());
-    let mut offset = 2 * arc_size;
-    for s in &states {
-        offsets.push(offset);
-        offset += s.len() * arc_size;
-    }
+    // States are laid out in the order they were frozen.
+    let offset_of = |state: usize| (2 + states.spans[state].0 as usize) * arc_size;
+    let size = total_arcs * arc_size;
     let address = |target: u32| -> u64 {
         if target == 0 {
             0
         } else {
-            offsets[target as usize - 1] as u64
+            offset_of(target as usize - 1) as u64
         }
     };
-    let mut out: Vec<u8> = Vec::with_capacity(8 + offset);
+    let mut out: Vec<u8> = Vec::with_capacity(8 + size);
     out.extend_from_slice(b"\\fsa");
     out.push(5); // version
     out.push(b'_'); // filler
@@ -124,13 +177,14 @@ pub fn build_fsa5(words: &[&[u8]]) -> Vec<u8> {
     };
     emit(0, BIT_LAST, 0);
     emit(b'^', BIT_LAST, address(root));
-    for s in &states {
-        for (i, arc) in s.iter().enumerate() {
+    for state in 0..states.spans.len() {
+        let arcs = states.arcs_of(state);
+        for (i, arc) in arcs.iter().enumerate() {
             let mut flags = 0;
             if arc.is_final {
                 flags |= BIT_FINAL;
             }
-            if i == s.len() - 1 {
+            if i == arcs.len() - 1 {
                 flags |= BIT_LAST;
             }
             emit(arc.label, flags, address(arc.target));

@@ -279,9 +279,10 @@ impl MorfologikMultiSpeller {
         result
     }
 
-    /// `getSuggestions`: all spellers, words only.
+    /// `getSuggestions`: all spellers, words only. Without a user dictionary
+    /// this is the list of the default dictionaries, which is kept.
     pub fn suggestions(&self, word: &str) -> Vec<String> {
-        self.suggestions_from_spellers(word).into_iter().map(|s| s.word).collect()
+        self.weighted_suggestions_from_default_dicts(word).iter().map(|s| s.word.clone()).collect()
     }
 
     /// `getWeightedSuggestionsFromDefaultDicts` (cached). Without a user

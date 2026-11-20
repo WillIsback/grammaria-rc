@@ -39,7 +39,7 @@ use super::rule::RuleFilter;
 use crate::morfologik::Dictionary;
 
 pub use filters::{FindSuggestionsFilter, SuppressMisspelledSuggestionsFilter};
-pub use multitoken::{MultitokenSpeller, MultitokenSpellerFilter};
+pub use multitoken::{MultitokenEntries, MultitokenSpeller, MultitokenSpellerFilter};
 pub use speller_rule::{FrenchSpellerNativeRule, FrenchSpellerRule};
 
 /// The language's word tokenizer (`Language.getWordTokenizer().tokenize`):
@@ -63,8 +63,14 @@ impl FrenchSpelling {
     /// names, which is also the tagger's), `tagger` the French tagger and
     /// `tokenize` the French word tokenizer.
     pub fn load(assets: &Path, dictionary: Arc<Dictionary>, tagger: Arc<dyn WordTagger>, tokenize: Tokenize) -> std::io::Result<FrenchSpelling> {
-        let rule = Arc::new(FrenchSpellerRule::load(assets, dictionary, tagger.clone(), tokenize.clone())?);
-        let multitoken_speller = Arc::new(MultitokenSpeller::french(assets, rule.clone()));
+        // The multi-word entries are indexed while the rule loads.
+        let (rule, entries) = std::thread::scope(|scope| {
+            let entries = scope.spawn(|| MultitokenEntries::french(assets));
+            let rule = FrenchSpellerRule::load(assets, dictionary, tagger.clone(), tokenize.clone());
+            (rule, entries.join().expect("multi-word thread panicked"))
+        });
+        let rule = Arc::new(rule?);
+        let multitoken_speller = Arc::new(MultitokenSpeller::new(rule.clone(), entries));
         Ok(FrenchSpelling {
             find_suggestions: Arc::new(FindSuggestionsFilter::new(rule.clone(), tagger.clone())),
             suppress_misspelled: Arc::new(SuppressMisspelledSuggestionsFilter::new(rule.clone(), tagger.clone(), tokenize)),
