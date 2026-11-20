@@ -285,7 +285,8 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                         <token postag="J . s|V ppa . s" postag_regexp="yes">
                             <exception postag="J . s?p|V ppa . s?p|V (ind|sub|con|imp|inf|ppr).*|A|D .*|P" postag_regexp="yes"/>
                             <exception scope="next" postag="N .*|J .*" postag_regexp="yes"/>
-                            <exception scope="next" regexp="yes">et|ou|,</exception></token>
+                            <exception scope="next" regexp="yes">et|ou|,</exception>
+                            <exception regexp="yes">blanc|noir|rouge|vert|bleu|jaune|gris|rose|brun|violet|beige|blond|roux|châtain|pourpre|mauve|orange|marron|écarlate|vermeil|doré|argenté</exception></token>
                     </marker>
                 </pattern>
                 <message>« \6 » se rapporte à « \3 », au pluriel, et s'accorde avec lui.</message>
@@ -293,6 +294,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <example correction="blessés">Deux soldats, <marker>blessé</marker> par deux fois.</example>
                 <example>Deux soldats, blessés par deux fois.</example>
                 <example>Les deux soleils, noir et blanc, constituaient un symbole marquant.</example>
+                <example>Les volets, vert pomme, étaient clos.</example>
             </rule>
             <rule>
                 <!-- prénom en tête de phrase, adjectif au pluriel -->
@@ -805,7 +807,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                     <token regexp="yes">chefs?</token>
                     <token regexp="yes">de|d'</token>
                     <marker>
-                        <token regexp="yes">états|orchestres|gares|files|familles|cuisines|chantiers|rayons</token>
+                        <token regexp="yes">orchestres|gares|files|familles|cuisines|chantiers|rayons</token>
                     </marker>
                 </pattern>
                 <message>Dans « \1 \2… », le complément « \3 » reste au singulier.</message>
@@ -1166,7 +1168,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
             </rule>
             <rule>
                 <pattern>
-                    <token regexp="yes">frères?|compagnons?|faits?|maîtres?|places?|ports?|passes?|ventes?|marchands?|trafics?|trafiquants?|dépôts?|prises?|hommes?</token>
+                    <token regexp="yes">frères?|compagnons?|faits?|maîtres?|places?|passes?|ventes?|marchands?|trafics?|trafiquants?|dépôts?|prises?|hommes?</token>
                     <token regexp="yes">d'</token>
                     <marker>
                         <token regexp="yes">arme</token>
@@ -1248,7 +1250,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                     <token regexp="yes">boîtes?</token>
                     <token regexp="yes">à|de</token>
                     <marker>
-                        <token regexp="yes">lettre|outil|gant|bijou|vitesse|conserve</token>
+                        <token regexp="yes">lettre|outil|gant|bijou|vitesse</token>
                     </marker>
                 </pattern>
                 <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
@@ -1324,19 +1326,6 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
             </rule>
             <rule>
                 <pattern>
-                    <token regexp="yes">coups?|paires?</token>
-                    <token regexp="yes">de</token>
-                    <marker>
-                        <token regexp="yes">ciseau</token>
-                    </marker>
-                </pattern>
-                <message>Dans « \1 \2… », le complément « \3 » se met au pluriel.</message>
-                <suggestion><match no="3" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
-                <example correction="ciseaux">Un coup de <marker>ciseau</marker> et c'est fini.</example>
-                <example>Un coup de ciseaux et c'est fini.</example>
-            </rule>
-            <rule>
-                <pattern>
                     <token regexp="yes">paires?</token>
                     <token regexp="yes">de|d'</token>
                     <marker>
@@ -1355,7 +1344,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
         <rulegroup id="GRM_DEUX_NOMS_FEMININS_ADJ" name="deux noms féminins coordonnés + adjectif au masculin pluriel">
             <rule>
                 <pattern>
-                    <token postag="D .*" postag_regexp="yes"><exception scope="previous" postag="N .*|J .*" postag_regexp="yes"/></token>
+                    <token postag="D .*" postag_regexp="yes"><exception scope="previous" postag="N .*|J .*" postag_regexp="yes"/><exception scope="previous">,</exception></token>
                     <token postag="N f s"><exception postag="N [me] .*|V .*" postag_regexp="yes"/></token>
                     <token>et</token>
                     <token postag="D .*" postag_regexp="yes"/>
@@ -1370,6 +1359,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <example correction="parties">Notre amie et cette femme <marker>partis</marker> hier nous manquent.</example>
                 <example>Notre amie et cette femme parties hier nous manquent.</example>
                 <example>Un frère et une sœur divisés.</example>
+                <example>Son père, sa mère et sa sœur réunis l'attendaient.</example>
             </rule>
         </rulegroup>
 
@@ -1702,6 +1692,105 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <suggestion>possible</suggestion>
                 <example correction="possible">Nous ferons autant de tests que <marker>possibles</marker>.</example>
                 <example>Nous ferons autant de tests que possible.</example>
+            </rule>
+            <rule>
+                <!-- coûter cher -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">coûter|payer|valoir|vendre|acheter|revenir</token>
+                    <token postag="A" min="0" max="1"/>
+                    <marker>
+                        <token regexp="yes">chers|chère|chères
+                            <exception scope="previous" regexp="yes">les|des|ses|mes|tes|nos|vos|leurs|sa|ma|ta|la|une|de|d'</exception></token>
+                    </marker>
+                    <token postag="SENT_END|M .*|P|C .*|A|D .*|P\+D .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Après « \1 », « cher » est adverbe et reste invariable.</message>
+                <suggestion>cher</suggestion>
+                <example correction="cher">Ces voitures coûtent <marker>chères</marker>.</example>
+                <example correction="cher">Ils ont payé très <marker>chers</marker> leur erreur.</example>
+                <example>Ces voitures coûtent cher.</example>
+                <example>Il a vendu ses chères reliques.</example>
+            </rule>
+            <rule>
+                <!-- travailler dur -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">travailler|frapper|taper|cogner</token>
+                    <marker>
+                        <token>durs</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Employé comme adverbe après « \1 », « dur » reste invariable.</message>
+                <suggestion>dur</suggestion>
+                <example correction="dur">Ils travaillent <marker>durs</marker>.</example>
+                <example>Ils travaillent dur.</example>
+                <example>Les temps sont durs.</example>
+            </rule>
+            <rule>
+                <!-- tenir bon -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">tenir</token>
+                    <marker>
+                        <token>bons</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Employé comme adverbe après « \1 », « bon » reste invariable.</message>
+                <suggestion>bon</suggestion>
+                <example correction="bon">Malgré tout, ils tiennent <marker>bons</marker>.</example>
+                <example>Malgré tout, ils tiennent bon.</example>
+            </rule>
+            <rule>
+                <!-- peser lourd -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">peser</token>
+                    <marker>
+                        <token>lourds</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Employé comme adverbe après « \1 », « lourd » reste invariable.</message>
+                <suggestion>lourd</suggestion>
+                <example correction="lourd">Ces arguments pèsent <marker>lourds</marker>.</example>
+                <example>Ces arguments pèsent lourd.</example>
+            </rule>
+            <rule>
+                <!-- s'arrêter net -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">arrêter|stopper|refuser|casser|trancher</token>
+                    <marker>
+                        <token>nets</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Employé comme adverbe après « \1 », « net » reste invariable.</message>
+                <suggestion>net</suggestion>
+                <example correction="net">Les chevaux s'arrêtèrent <marker>nets</marker>.</example>
+                <example>Les chevaux s'arrêtèrent net.</example>
+            </rule>
+            <rule>
+                <!-- tourner court -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">tourner</token>
+                    <marker>
+                        <token>courts</token>
+                    </marker>
+                    <token postag="SENT_END|M .*" postag_regexp="yes"/>
+                </pattern>
+                <message>Employé comme adverbe après « \1 », « court » reste invariable.</message>
+                <suggestion>court</suggestion>
+                <example correction="court">Les négociations ont tourné <marker>courts</marker>.</example>
+                <example>Les négociations ont tourné court.</example>
+            </rule>
+            <rule>
+                <!-- debouts -->
+                <pattern>
+                    <token>debouts</token>
+                </pattern>
+                <message>« Debout » est un adverbe : il est invariable.</message>
+                <suggestion>debout</suggestion>
+                <example correction="debout">Ils sont restés <marker>debouts</marker> toute la soirée.</example>
+                <example>Ils sont restés debout toute la soirée.</example>
             </rule>
         </rulegroup>
 

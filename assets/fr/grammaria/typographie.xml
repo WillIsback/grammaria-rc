@@ -13,8 +13,8 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
 -->
 <!DOCTYPE rules [
     <!-- mots composés et noms de lieux, tels qu on les trouve écrits sans trait d union -->
-    <!ENTITY composes_deux_mots "week end|week ends|rendez vous|chef lieu|chefs lieux|chou fleur|choux fleurs|gratte ciel|haut parleur|haut parleurs|tire bouchon|tire bouchons|pare brise|pare chocs|porte parole|porte monnaie|porte clés|porte avions|porte bonheur|porte bagages|guet apens|pêle mêle|volte face|après demain|avant hier|là bas|là haut|là dedans|ci dessous|ci dessus|ci contre|ci après|grand mère|grand mères|grands mères|grand père|grands pères|grands parents|arrière plan|arrière plans|arrière goût|arrière boutique|arrière pays|arrière saison|arrière garde|avant garde|avant goût|avant veille|avant propos|avant première|avant bras|avant poste|avant postes|bas relief|bas reliefs|bas fond|bas fonds|beau frère|beaux frères|beau père|beaux pères|belle mère|belles mères|belle sœur|belles sœurs|beaux parents|court circuit|courts circuits|garde fou|garde fous|garde robe|garde robes|garde manger|garde chasse|laissez passer|lave vaisselle|lave linge|sèche linge|sèche cheveux|ouvre boîte|ouvre boîtes|passe temps|passe partout|procès verbal|procès verbaux|rouge gorge|rouges gorges|timbre poste|timbres poste|wagon lit|wagons lits|station service|stations service|non sens|rond point|ronds points|franc maçon|francs maçons|franc tireur|francs tireurs|plate bande|plates bandes|sauf conduit|pot pourri|faux fuyant|faux fuyants|faux semblant|faux semblants|sacro saint|cerf volant|cerfs volants|chauve souris|chauves souris|compte gouttes|cache cache|casse tête|casse croûte|casse pieds|casse cou|couvre feu|croque monsieur|cure dent|cure dents|essuie glace|essuie glaces|gagne pain|libre service|loup garou|loups garous|pique nique|pique niques|porc épic|remue ménage|sourd muet|sourds muets|taille crayon|vide ordures|vide grenier|vide greniers|vice président|vice présidents|vice présidente|prêt bail|nouveau né|nouveau nés|bas côté|bas côtés|terre plein|plate forme|plates formes|hors d['’]œuvre|chef d['’]œuvre|chefs d['’]œuvre|trompe l['’]œil">
-    <!ENTITY composes_trois_mots "arc en ciel|arcs en ciel|rez de chaussée|eau de vie|eaux de vie|boute en train|croc en jambe|pince sans rire|haut le cœur|haut de forme|va nu pieds|fier à bras|fiers à bras|rond de cuir|ronds de cuir|c['’]est à dire|vis à vis|cul de sac|culs de sac|bric à brac|tête à queue|pied de biche|œil de bœuf|nid de poule|nids de poule">
+    <!ENTITY composes_deux_mots "week end|week ends|rendez vous|chef lieu|chefs lieux|chou fleur|choux fleurs|gratte ciel|haut parleur|haut parleurs|tire bouchon|tire bouchons|pare brise|pare chocs|porte parole|porte monnaie|porte clés|porte avions|porte bagages|guet apens|pêle mêle|volte face|après demain|avant hier|là bas|là haut|là dedans|ci dessous|ci dessus|ci contre|ci après|grand mère|grand mères|grands mères|grand père|grands pères|grands parents|arrière plan|arrière plans|arrière goût|arrière boutique|arrière pays|arrière saison|arrière garde|avant garde|avant goût|avant veille|avant propos|avant bras|avant poste|avant postes|bas relief|bas reliefs|bas fond|bas fonds|beau frère|beaux frères|beau père|beaux pères|belle mère|belles mères|belle sœur|belles sœurs|beaux parents|court circuit|courts circuits|garde fou|garde fous|garde robe|garde robes|garde manger|garde chasse|lave vaisselle|lave linge|sèche linge|sèche cheveux|ouvre boîte|ouvre boîtes|passe temps|passe partout|procès verbal|procès verbaux|rouge gorge|rouges gorges|timbre poste|timbres poste|wagon lit|wagons lits|station service|stations service|non sens|rond point|ronds points|franc maçon|francs maçons|franc tireur|francs tireurs|plate bande|plates bandes|sauf conduit|pot pourri|faux fuyant|faux fuyants|faux semblant|faux semblants|sacro saint|cerf volant|cerfs volants|chauve souris|chauves souris|compte gouttes|cache cache|casse tête|casse croûte|casse pieds|casse cou|couvre feu|croque monsieur|cure dent|cure dents|essuie glace|essuie glaces|gagne pain|libre service|loup garou|loups garous|pique nique|pique niques|porc épic|remue ménage|sourd muet|sourds muets|taille crayon|vide ordures|vide grenier|vide greniers|vice président|vice présidents|vice présidente|prêt bail|nouveau né|nouveau nés|bas côté|bas côtés|hors d['’]œuvre|chef d['’]œuvre|chefs d['’]œuvre">
+    <!ENTITY composes_trois_mots "arc en ciel|arcs en ciel|rez de chaussée|eau de vie|eaux de vie|boute en train|croc en jambe|pince sans rire|haut le cœur|haut de forme|va nu pieds|fier à bras|fiers à bras|rond de cuir|ronds de cuir|c['’]est à dire|vis à vis|cul de sac|culs de sac|bric à brac|tête à queue">
     <!ENTITY locutions_avec_a "cloche pied|brûle pourpoint|tue tête|contre courant|contre jour|contre pied|rebrousse poil|mi voix|mi chemin|mi temps|mi parcours|mi hauteur|mi course|mi distance|demi mot|mi mot">
     <!ENTITY toponymes_deux_mots "Rhône Alpes|Languedoc Roussillon|Midi Pyrénées|Poitou Charentes|Champagne Ardenne|Franche Comté|Alsace Lorraine|Nouvelle Aquitaine|Alpes Maritimes|Hautes Alpes|Charente Maritime|Haute Garonne|Haute Loire|Loire Atlantique|Haute Marne|Pyrénées Atlantiques|Hautes Pyrénées|Pyrénées Orientales|Bas Rhin|Haut Rhin|Haute Saône|Haute Savoie|Seine Maritime|Deux Sèvres|Haute Vienne|Haute Corse|Pays Bas|Royaume Uni|États Unis|Nouvelle Zélande|Nouvelle Calédonie|Nouvelle Guinée|Nouvelle Écosse|Nouvelle Orléans|Nouvelle Angleterre|Nouveau Mexique|Nouveau Brunswick|Terre Neuve|Colombie Britannique|Grande Bretagne|Bosnie Herzégovine|Guinée Bissau|Cap Vert|Autriche Hongrie|Extrême Orient|Proche Orient|Moyen Orient|Saint Pétersbourg|Saint Domingue|Tel Aviv|Addis Abeba|Clermont Ferrand|Saint Étienne|Saint Malo|Saint Tropez|Saint Nazaire|Saint Brieuc|Boulogne Billancourt|Charleville Mézières|Levallois Perret|Bade Wurtemberg|Rhénanie Palatinat|Schleswig Holstein|Basse Saxe|Émilie Romagne|Monte Carlo|Basse Normandie|Haute Normandie|Val d['’]Oise|Villeneuve d['’]Ascq">
     <!ENTITY toponymes_trois_mots "Ille et Vilaine|Indre et Loire|Loir et Cher|Lot et Garonne|Maine et Loire|Meurthe et Moselle|Saône et Loire|Seine et Marne|Tarn et Garonne|Eure et Loir|Hauts de Seine|Val de Marne|Bouches du Rhône|Pas de Calais|Seine Saint Denis|Corse du Sud|Hauts de France|Île de France|Aix en Provence|Mont Saint Michel|Boulogne sur Mer|Neuilly sur Seine|Aix les Bains|Châlons en Champagne|Bourg en Bresse|Brive la Gaillarde|Issy les Moulineaux|Salon de Provence|Cagnes sur Mer|Vitry sur Seine|Ivry sur Seine|Port au Prince|Trinité et Tobago|Auvergne Rhône Alpes|Bourgogne Franche Comté">
@@ -330,7 +330,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
             </rule>
             <rule>
                 <pattern>
-                    <token regexp="yes">la|une|cette|sa|ma|ta|les|des|ces|ses|mes|tes|leurs|nos|vos|de|d'</token>
+                    <token regexp="yes">la|une|cette|sa|ma|ta|les|des|ces|ses|mes|tes|leurs|nos|vos</token>
                     <marker>
                         <token>pseudo</token>
                         <token postag="[NJ] .*" postag_regexp="yes"><exception postag="A|P|D .*" postag_regexp="yes"/></token>
@@ -443,39 +443,88 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
 
         <rulegroup id="GRM_GRANDS_NOMBRES" name="nombres de cinq chiffres et plus : tranches de trois chiffres">
             <rule>
+                <!-- nombre suivi d'un nom au pluriel ou d'une unité -->
                 <pattern>
                     <marker>
-                        <token regexp="yes">\d{5,6}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|numéros?|code|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|[(/,.°#+-]|\d.*|n|entre|vers|en|an|année</exception><exception scope="next" regexp="yes" case_sensitive="yes">\p{Lu}.*|[)/°#-]|\d.*|av|avant|apr|après|ans</exception></token>
+                        <token regexp="yes">\d{5,6}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|n|numéros?|code|postal|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|dossier|commande|facture|matricule|[(/,.°#+-]|\d.*</exception></token>
                     </marker>
+                    <token postag="N . s?p" postag_regexp="yes"><exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
                 </pattern>
                 <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
                 <suggestion><match no="1" regexp_match="^(\d{2,3})(\d{3})$" regexp_replace="$1&#xA0;$2"/></suggestion>
                 <example correction="12&#xA0;345">Le stade compte <marker>12345</marker> places.</example>
                 <example>Le stade compte 12&#xA0;345 places.</example>
                 <example>Il habite au 75005 Paris.</example>
-                <example>L'astéroïde (12345) est petit.</example>
+                <example>Le dossier 123456 est clos.</example>
             </rule>
             <rule>
+                <!-- nombre seul -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <marker>
+                        <token regexp="yes" postag="SENT_END">\d{5,6}<exception regexp="yes">0\d+</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="2" regexp_match="^(\d{2,3})(\d{3})$" regexp_replace="$1&#xA0;$2"/></suggestion>
+                <example correction="12&#xA0;345"><marker>12345</marker></example>
+                <example>Total : 12&#xA0;345</example>
+            </rule>
+            <rule>
+                <!-- nombre suivi d'un nom au pluriel ou d'une unité -->
                 <pattern>
                     <marker>
-                        <token regexp="yes">\d{7,9}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|numéros?|code|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|[(/,.°#+-]|\d.*|n|entre|vers|en|an|année</exception><exception scope="next" regexp="yes" case_sensitive="yes">\p{Lu}.*|[)/°#-]|\d.*|av|avant|apr|après|ans</exception></token>
+                        <token regexp="yes">\d{7,9}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|n|numéros?|code|postal|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|dossier|commande|facture|matricule|[(/,.°#+-]|\d.*</exception></token>
                     </marker>
+                    <token postag="N . s?p" postag_regexp="yes"><exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
                 </pattern>
                 <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
                 <suggestion><match no="1" regexp_match="^(\d{1,3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3"/></suggestion>
                 <example correction="1&#xA0;234&#xA0;567">La ville compte <marker>1234567</marker> habitants.</example>
                 <example>La ville compte 1&#xA0;234&#xA0;567 habitants.</example>
+                <example>Il habite au 75005 Paris.</example>
+                <example>Le dossier 123456 est clos.</example>
             </rule>
             <rule>
+                <!-- nombre seul -->
                 <pattern>
+                    <token postag="SENT_START"/>
                     <marker>
-                        <token regexp="yes">\d{10,12}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|numéros?|code|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|[(/,.°#+-]|\d.*|n|entre|vers|en|an|année</exception><exception scope="next" regexp="yes" case_sensitive="yes">\p{Lu}.*|[)/°#-]|\d.*|av|avant|apr|après|ans</exception></token>
+                        <token regexp="yes" postag="SENT_END">\d{7,9}<exception regexp="yes">0\d+</exception></token>
                     </marker>
                 </pattern>
                 <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="2" regexp_match="^(\d{1,3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3"/></suggestion>
+                <example correction="1&#xA0;234&#xA0;567"><marker>1234567</marker></example>
+                <example>Total : 1&#xA0;234&#xA0;567</example>
+            </rule>
+            <rule>
+                <!-- nombre suivi d'un nom au pluriel ou d'une unité -->
+                <pattern>
+                    <marker>
+                        <token regexp="yes">\d{10,12}<exception regexp="yes">0\d+</exception><exception scope="previous" regexp="yes" case_sensitive="yes">\p{Lu}.*|n°|nº|no|n|numéros?|code|postal|réf|référence|tél|téléphone|fax|BP|CS|cedex|ISBN|ISSN|article|dossier|commande|facture|matricule|[(/,.°#+-]|\d.*</exception></token>
+                    </marker>
+                    <token postag="N . s?p" postag_regexp="yes"><exception regexp="yes" case_sensitive="yes">\p{Lu}.*</exception></token>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
                 <suggestion><match no="1" regexp_match="^(\d{1,3})(\d{3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3&#xA0;$4"/></suggestion>
-                <example correction="2&#xA0;308&#xA0;393&#xA0;909">Il y en a <marker>2308393909</marker> exactement.</example>
-                <example>Il y en a 2&#xA0;308&#xA0;393&#xA0;909 exactement.</example>
+                <example correction="2&#xA0;308&#xA0;393&#xA0;909">Il y a <marker>2308393909</marker> possibilités.</example>
+                <example>Il y a 2&#xA0;308&#xA0;393&#xA0;909 possibilités.</example>
+                <example>Il habite au 75005 Paris.</example>
+                <example>Le dossier 123456 est clos.</example>
+            </rule>
+            <rule>
+                <!-- nombre seul -->
+                <pattern>
+                    <token postag="SENT_START"/>
+                    <marker>
+                        <token regexp="yes" postag="SENT_END">\d{10,12}<exception regexp="yes">0\d+</exception></token>
+                    </marker>
+                </pattern>
+                <message>Dans un nombre de cinq chiffres ou plus, on sépare les tranches de trois chiffres par une espace insécable.</message>
+                <suggestion><match no="2" regexp_match="^(\d{1,3})(\d{3})(\d{3})(\d{3})$" regexp_replace="$1&#xA0;$2&#xA0;$3&#xA0;$4"/></suggestion>
+                <example correction="2&#xA0;308&#xA0;393&#xA0;909"><marker>2308393909</marker></example>
+                <example>Total : 2&#xA0;308&#xA0;393&#xA0;909</example>
             </rule>
         </rulegroup>
 
@@ -739,7 +788,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
         <rulegroup id="GRM_MAJ_DIEU" name="Dieu, être unique : majuscule">
             <rule>
                 <pattern>
-                    <token regexp="yes">pour|envers|avec|sans|contre|devant|selon</token>
+                    <token regexp="yes">pour|envers|avec|contre|devant|selon</token>
                     <marker>
                         <token case_sensitive="yes">dieu<exception scope="next" postag="N .*|J .*|Z .*" postag_regexp="yes"/><exception scope="next" regexp="yes">de|du|des|d'|-</exception></token>
                     </marker>
@@ -1120,7 +1169,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                     <marker>
                         <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">descendre</token>
                         <token>en</token>
-                        <token>bas</token>
+                        <token>bas<exception scope="next" regexp="yes">de|du|des|d'</exception></token>
                     </marker>
                 </pattern>
                 <message>Pléonasme : on ne descend qu'en bas.</message>
@@ -1357,7 +1406,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
             </rule>
             <rule>
                 <pattern>
-                    <token regexp="yes">si|aussi|tellement|très</token>
+                    <token regexp="yes">si|aussi|très</token>
                     <marker>
                         <token regexp="yes">pires?</token>
                     </marker>
@@ -1792,7 +1841,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                     <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">rendre</token>
                     <token postag="A" min="0" max="1"><exception regexp="yes">plus|moins|trop|peu|beaucoup|tant|autant|assez</exception></token>
                     <marker>
-                        <token regexp="yes">visites|hommages|services|grâces</token>
+                        <token regexp="yes">visites|hommages|services</token>
                     </marker>
                     <token regexp="yes">à|au|aux</token>
                 </pattern>
@@ -1842,6 +1891,381 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <suggestion><match no="3" regexp_match="[sx]$" regexp_replace=""/></suggestion>
                 <example correction="plainte">Elle a porté <marker>plaintes</marker> hier.</example>
                 <example>Elle a porté plainte hier.</example>
+            </rule>
+        </rulegroup>
+
+        <rulegroup id="GRM_LOC_ADVERBIALES" name="locutions adverbiales : singulier ou pluriel fixe">
+            <rule>
+                <regexp>\bsans (doute|cesse|relâche|encombre)s\b</regexp>
+                <message>Cette locution figée s'écrit « sans doute ».</message>
+                <suggestion>sans \1</suggestion>
+                <example correction="sans doute">Il viendra <marker>sans doutes</marker> demain.</example>
+                <example>Il viendra sans doute demain.</example>
+            </rule>
+            <rule>
+                <regexp>\bde part et d['’]autres\b</regexp>
+                <message>Cette locution figée s'écrit « de part et d'autre ».</message>
+                <suggestion>de part et d'autre</suggestion>
+                <example correction="de part et d'autre">Des arbres poussent <marker>de part et d'autres</marker> de la route.</example>
+                <example>Des arbres poussent de part et d'autre de la route.</example>
+            </rule>
+            <rule>
+                <regexp>\ben fin de comptes\b</regexp>
+                <message>Cette locution figée s'écrit « en fin de compte ».</message>
+                <suggestion>en fin de compte</suggestion>
+                <example correction="En fin de compte"><marker>En fin de comptes</marker>, il a renoncé.</example>
+                <example>En fin de compte, il a renoncé.</example>
+            </rule>
+            <rule>
+                <regexp>\btout (?!compte fait\b)comptes? faits?\b</regexp>
+                <message>Cette locution figée s'écrit « tout compte fait ».</message>
+                <suggestion>tout compte fait</suggestion>
+                <example correction="Tout compte fait"><marker>Tout comptes faits</marker>, je reste.</example>
+                <example>Tout compte fait, je reste.</example>
+            </rule>
+            <rule>
+                <regexp>\ben vues (?=de\b|d['’])</regexp>
+                <message>Cette locution figée s'écrit « en vue ».</message>
+                <suggestion>en vue </suggestion>
+                <example correction="en vue ">Il révise <marker>en vues </marker>de l'examen.</example>
+                <example>Il révise en vue de l'examen.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;!\bet )\bà (court|moyen|long) termes\b</regexp>
+                <message>Cette locution figée s'écrit « à long terme ».</message>
+                <suggestion>à \1 terme</suggestion>
+                <example correction="à long terme">C'est rentable <marker>à long termes</marker>.</example>
+                <example>C'est rentable à long terme.</example>
+            </rule>
+            <rule>
+                <regexp>\bà hautes voix\b</regexp>
+                <message>Cette locution figée s'écrit « à haute voix ».</message>
+                <suggestion>à haute voix</suggestion>
+                <example correction="à haute voix">Il lit <marker>à hautes voix</marker>.</example>
+                <example>Il lit à haute voix.</example>
+            </rule>
+            <rule>
+                <regexp>\bà voix basses\b</regexp>
+                <message>Cette locution figée s'écrit « à voix basse ».</message>
+                <suggestion>à voix basse</suggestion>
+                <example correction="à voix basse">Ils parlent <marker>à voix basses</marker>.</example>
+                <example>Ils parlent à voix basse.</example>
+            </rule>
+            <rule>
+                <regexp>\bà temps (partiel|plein|complet)s\b</regexp>
+                <message>Cette locution figée s'écrit « à temps partiel ».</message>
+                <suggestion>à temps \1</suggestion>
+                <example correction="à temps partiel">Elles travaillent <marker>à temps partiels</marker>.</example>
+                <example>Elles travaillent à temps partiel.</example>
+            </rule>
+            <rule>
+                <regexp>\bà juste titres\b</regexp>
+                <message>Cette locution figée s'écrit « à juste titre ».</message>
+                <suggestion>à juste titre</suggestion>
+                <example correction="à juste titre">Il s'en plaint <marker>à juste titres</marker>.</example>
+                <example>Il s'en plaint à juste titre.</example>
+            </rule>
+            <rule>
+                <regexp>\bde (?!longue date\b)longues? dates?\b</regexp>
+                <message>Cette locution figée s'écrit « de longue date ».</message>
+                <suggestion>de longue date</suggestion>
+                <example correction="de longue date">Ce sont des amis <marker>de longues dates</marker>.</example>
+                <example>Ce sont des amis de longue date.</example>
+            </rule>
+            <rule>
+                <regexp>\bde temps à autres\b</regexp>
+                <message>Cette locution figée s'écrit « de temps à autre ».</message>
+                <suggestion>de temps à autre</suggestion>
+                <example correction="de temps à autre">Il passe <marker>de temps à autres</marker>.</example>
+                <example>Il passe de temps à autre.</example>
+            </rule>
+            <rule>
+                <regexp>\bpar (cœur|exemple|conséquent|hasard)s\b</regexp>
+                <message>Cette locution figée s'écrit « par exemple ».</message>
+                <suggestion>par \1</suggestion>
+                <example correction="par exemple">Prenons <marker>par exemples</marker> ce cas.</example>
+                <example>Prenons par exemple ce cas.</example>
+            </rule>
+            <rule>
+                <regexp>\bpar rapports (?=à\b|au\b|aux\b)</regexp>
+                <message>Cette locution figée s'écrit « par rapport ».</message>
+                <suggestion>par rapport </suggestion>
+                <example correction="par rapport ">C'est peu <marker>par rapports </marker>à hier.</example>
+                <example>C'est peu par rapport à hier.</example>
+            </rule>
+            <rule>
+                <regexp>\btout à coups\b</regexp>
+                <message>Cette locution figée s'écrit « tout à coup ».</message>
+                <suggestion>tout à coup</suggestion>
+                <example correction="Tout à coup"><marker>Tout à coups</marker>, il se leva.</example>
+                <example>Tout à coup, il se leva.</example>
+            </rule>
+            <rule>
+                <regexp>\btout de suites\b</regexp>
+                <message>Cette locution figée s'écrit « tout de suite ».</message>
+                <suggestion>tout de suite</suggestion>
+                <example correction="tout de suite">Viens <marker>tout de suites</marker>.</example>
+                <example>Viens tout de suite.</example>
+            </rule>
+            <rule>
+                <regexp>\btout à faits\b</regexp>
+                <message>Cette locution figée s'écrit « tout à fait ».</message>
+                <suggestion>tout à fait</suggestion>
+                <example correction="tout à fait">C'est <marker>tout à faits</marker> exact.</example>
+                <example>C'est tout à fait exact.</example>
+            </rule>
+            <rule>
+                <regexp>\btout à l['’]heures\b</regexp>
+                <message>Cette locution figée s'écrit « tout à l'heure ».</message>
+                <suggestion>tout à l'heure</suggestion>
+                <example correction="tout à l'heure">Je passerai <marker>tout à l'heures</marker>.</example>
+                <example>Je passerai tout à l'heure.</example>
+            </rule>
+            <rule>
+                <regexp>\bà nouveaux\b(?! \p{L}+[sx]\b)</regexp>
+                <message>Cette locution figée s'écrit « à nouveau ».</message>
+                <suggestion>à nouveau</suggestion>
+                <example correction="à nouveau">Il a <marker>à nouveaux</marker> échoué.</example>
+                <example>Il a à nouveau échoué.</example>
+            </rule>
+            <rule>
+                <regexp>\ben effets(?= ?[,.;:!?…]|$)</regexp>
+                <message>Cette locution figée s'écrit « en effet ».</message>
+                <suggestion>en effet</suggestion>
+                <example correction="en effet">Il avait raison, <marker>en effets</marker>.</example>
+                <example>Il avait raison, en effet.</example>
+            </rule>
+            <rule>
+                <regexp>\ben (pleur|larme)\b</regexp>
+                <message>Cette locution figée s'écrit « en larmes ».</message>
+                <suggestion>en \1s</suggestion>
+                <example correction="en larmes">Elle était <marker>en larme</marker>.</example>
+                <example>Elle était en larmes.</example>
+            </rule>
+            <rule>
+                <regexp>\ben lambeau\b</regexp>
+                <message>Cette locution figée s'écrit « en lambeaux ».</message>
+                <suggestion>en lambeaux</suggestion>
+                <example correction="en lambeaux">Sa veste est <marker>en lambeau</marker>.</example>
+                <example>Sa veste est en lambeaux.</example>
+            </rule>
+            <rule>
+                <regexp>\ben haillon\b</regexp>
+                <message>Cette locution figée s'écrit « en haillons ».</message>
+                <suggestion>en haillons</suggestion>
+                <example correction="en haillons">Un mendiant <marker>en haillon</marker>.</example>
+                <example>Un mendiant en haillons.</example>
+            </rule>
+            <rule>
+                <regexp>(?&lt;!jusqu['’])\bà genou\b</regexp>
+                <message>Cette locution figée s'écrit « à genoux ».</message>
+                <suggestion>à genoux</suggestion>
+                <example correction="à genoux">Il se met <marker>à genou</marker>.</example>
+                <example>Il se met à genoux.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (tâton|reculon)\b</regexp>
+                <message>Cette locution figée s'écrit « à tâtons ».</message>
+                <suggestion>à \1s</suggestion>
+                <example correction="à tâtons">Il avance <marker>à tâton</marker> dans le noir.</example>
+                <example>Il avance à tâtons dans le noir.</example>
+            </rule>
+            <rule>
+                <regexp>\bà bras ouvert\b</regexp>
+                <message>Cette locution figée s'écrit « à bras ouverts ».</message>
+                <suggestion>à bras ouverts</suggestion>
+                <example correction="à bras ouverts">Ils nous ont reçus <marker>à bras ouvert</marker>.</example>
+                <example>Ils nous ont reçus à bras ouverts.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!pieds joints\b)pieds? joints?\b</regexp>
+                <message>Cette locution figée s'écrit « à pieds joints ».</message>
+                <suggestion>à pieds joints</suggestion>
+                <example correction="à pieds joints">Il saute <marker>à pied joint</marker> dans la flaque.</example>
+                <example>Il saute à pieds joints dans la flaque.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!chaudes larmes\b)chaudes? larmes?\b</regexp>
+                <message>Cette locution figée s'écrit « à chaudes larmes ».</message>
+                <suggestion>à chaudes larmes</suggestion>
+                <example correction="à chaudes larmes">Elle pleure <marker>à chaude larme</marker>.</example>
+                <example>Elle pleure à chaudes larmes.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!pleins poumons\b)pleins? poumons?\b</regexp>
+                <message>Cette locution figée s'écrit « à pleins poumons ».</message>
+                <suggestion>à pleins poumons</suggestion>
+                <example correction="à pleins poumons">Il respire <marker>à plein poumon</marker>.</example>
+                <example>Il respire à pleins poumons.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!pleines dents\b)pleines? dents?\b</regexp>
+                <message>Cette locution figée s'écrit « à pleines dents ».</message>
+                <suggestion>à pleines dents</suggestion>
+                <example correction="à pleines dents">Il mord <marker>à pleine dent</marker> dans la pomme.</example>
+                <example>Il mord à pleines dents dans la pomme.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (grand|petit) pas\b</regexp>
+                <message>Cette locution figée s'écrit « à grands pas ».</message>
+                <suggestion>à \1s pas</suggestion>
+                <example correction="à grands pas">Le projet avance <marker>à grand pas</marker>.</example>
+                <example>Le projet avance à grands pas.</example>
+            </rule>
+            <rule>
+                <regexp>\bà grand frais\b</regexp>
+                <message>Cette locution figée s'écrit « à grands frais ».</message>
+                <suggestion>à grands frais</suggestion>
+                <example correction="à grands frais">Il l'a restauré <marker>à grand frais</marker>.</example>
+                <example>Il l'a restauré à grands frais.</example>
+            </rule>
+            <rule>
+                <regexp>\bà tous égard\b</regexp>
+                <message>Cette locution figée s'écrit « à tous égards ».</message>
+                <suggestion>à tous égards</suggestion>
+                <example correction="à tous égards">C'est remarquable <marker>à tous égard</marker>.</example>
+                <example>C'est remarquable à tous égards.</example>
+            </rule>
+            <rule>
+                <regexp>\bau fur et à mesures\b</regexp>
+                <message>Cette locution figée s'écrit « au fur et à mesure ».</message>
+                <suggestion>au fur et à mesure</suggestion>
+                <example correction="au fur et à mesure">Il corrige <marker>au fur et à mesures</marker>.</example>
+                <example>Il corrige au fur et à mesure.</example>
+            </rule>
+            <rule>
+                <regexp>\bau préalables\b</regexp>
+                <message>Cette locution figée s'écrit « au préalable ».</message>
+                <suggestion>au préalable</suggestion>
+                <example correction="au préalable">Prévenez-moi <marker>au préalables</marker>.</example>
+                <example>Prévenez-moi au préalable.</example>
+            </rule>
+            <rule>
+                <regexp>\b((?:créé|inventé|monté|forgé|fabriqué|construit)e?s?) de (?:toute pièces?|toutes pièce)\b</regexp>
+                <message>Cette locution figée s'écrit « inventée de toutes pièces ».</message>
+                <suggestion>\1 de toutes pièces</suggestion>
+                <example correction="inventée de toutes pièces">Une histoire <marker>inventée de toute pièce</marker>.</example>
+                <example>Une histoire inventée de toutes pièces.</example>
+            </rule>
+            <rule>
+                <regexp>\bde (?!fond en comble\b)fonds? en combles?\b</regexp>
+                <message>Cette locution figée s'écrit « de fond en comble ».</message>
+                <suggestion>de fond en comble</suggestion>
+                <example correction="de fond en comble">Il a fouillé la maison <marker>de fonds en comble</marker>.</example>
+                <example>Il a fouillé la maison de fond en comble.</example>
+            </rule>
+            <rule>
+                <regexp>\bsoi-disant(?:e|s|es)\b</regexp>
+                <message>Cette locution figée s'écrit « soi-disant ».</message>
+                <suggestion>soi-disant</suggestion>
+                <example correction="soi-disant">Ces <marker>soi-disants</marker> experts se trompent.</example>
+                <example>Ces soi-disant experts se trompent.</example>
+            </rule>
+            <rule>
+                <regexp>\bquelques part\b|\bquelque parts\b</regexp>
+                <message>Cette locution figée s'écrit « quelque part ».</message>
+                <suggestion>quelque part</suggestion>
+                <example correction="quelque part">Je l'ai rangé <marker>quelques part</marker>.</example>
+                <example>Je l'ai rangé quelque part.</example>
+            </rule>
+            <rule>
+                <regexp>\bnul parts?\b|\bnulles? parts\b|\bnulles part\b</regexp>
+                <message>Cette locution figée s'écrit « nulle part ».</message>
+                <suggestion>nulle part</suggestion>
+                <example correction="nulle part">On ne le trouve <marker>nul part</marker>.</example>
+                <example>On ne le trouve nulle part.</example>
+            </rule>
+            <rule>
+                <regexp>\bd['’]autres part\b</regexp>
+                <message>Cette locution figée s'écrit « d'autre part ».</message>
+                <suggestion>d'autre part</suggestion>
+                <example correction="d'autre part">D'une part il pleut, <marker>d'autres part</marker> il fait froid.</example>
+                <example>D'une part il pleut, d'autre part il fait froid.</example>
+            </rule>
+            <rule>
+                <regexp>\bà tous prix\b</regexp>
+                <message>Cette locution figée s'écrit « à tout prix ».</message>
+                <suggestion>à tout prix</suggestion>
+                <example correction="à tout prix">Il veut gagner <marker>à tous prix</marker>.</example>
+                <example>Il veut gagner à tout prix.</example>
+            </rule>
+            <rule>
+                <regexp>\bde toute façons\b|\bde toutes façon\b</regexp>
+                <message>Cette locution figée s'écrit « de toute façon ».</message>
+                <suggestion>de toute façon</suggestion>
+                <suggestion>de toutes façons</suggestion>
+                <example correction="De toute façon|De toutes façons"><marker>De toute façons</marker>, il est trop tard.</example>
+                <example>De toute façon, il est trop tard.</example>
+            </rule>
+            <rule>
+                <regexp>\bde toute sortes\b|\bde toutes sorte\b</regexp>
+                <message>Cette locution figée s'écrit « de toutes sortes ».</message>
+                <suggestion>de toutes sortes</suggestion>
+                <suggestion>de toute sorte</suggestion>
+                <example correction="de toutes sortes|de toute sorte">Il vend des objets <marker>de toute sortes</marker>.</example>
+                <example>Il vend des objets de toutes sortes.</example>
+            </rule>
+            <rule>
+                <regexp>\bà (?!toutes fins utiles\b)toutes? fins? utiles?\b</regexp>
+                <message>Cette locution figée s'écrit « à toutes fins utiles ».</message>
+                <suggestion>à toutes fins utiles</suggestion>
+                <example correction="à toutes fins utiles">Je vous l'envoie <marker>à toute fin utile</marker>.</example>
+                <example>Je vous l'envoie à toutes fins utiles.</example>
+            </rule>
+            <rule>
+                <regexp>\bà tout (moment|instant)s\b</regexp>
+                <message>Cette locution figée s'écrit « à tout moment ».</message>
+                <suggestion>à tout \1</suggestion>
+                <example correction="à tout moment">Il peut arriver <marker>à tout moments</marker>.</example>
+                <example>Il peut arriver à tout moment.</example>
+            </rule>
+            <rule>
+                <regexp>\ben tout état de causes\b</regexp>
+                <message>Cette locution figée s'écrit « en tout état de cause ».</message>
+                <suggestion>en tout état de cause</suggestion>
+                <example correction="En tout état de cause"><marker>En tout état de causes</marker>, il faut agir.</example>
+                <example>En tout état de cause, il faut agir.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes" inflected="yes" postag="V .*" postag_regexp="yes">mettre|remettre</token>
+                    <token postag="R pers obj.*|A" postag_regexp="yes" min="0" max="2"/>
+                    <token>sur</token>
+                    <marker>
+                        <token>pieds</token>
+                    </marker>
+                </pattern>
+                <message>On écrit « mettre sur pied », au singulier.</message>
+                <suggestion>pied</suggestion>
+                <example correction="pied">Ils ont mis sur <marker>pieds</marker> un nouveau service.</example>
+                <example>Ils ont mis sur pied un nouveau service.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token postag="N . p" postag_regexp="yes"/>
+                    <marker>
+                        <token regexp="yes">bons?</token>
+                        <token>marchés</token>
+                    </marker>
+                </pattern>
+                <message>L'adjectif « bon marché » est invariable.</message>
+                <suggestion>bon marché</suggestion>
+                <example correction="bon marché">Ce sont des produits <marker>bons marchés</marker>.</example>
+                <example>Ce sont des produits bon marché.</example>
+                <example>Il a fait de bons marchés.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <marker>
+                        <token regexp="yes">ci-jointe|ci-joints|ci-jointes|ci-incluse|ci-incluses</token>
+                    </marker>
+                    <token regexp="yes">les|la|le|l'|des|une?|mes|ma|mon|nos|notre|vos|votre|plusieurs|deux|trois|copie|photocopie</token>
+                </pattern>
+                <message>Placé devant le nom et son déterminant, « ci-joint » (ou « ci-inclus ») reste invariable.</message>
+                <suggestion><match no="1" regexp_match="(?i)(ci-joint|ci-inclus).*" regexp_replace="$1"/></suggestion>
+                <example correction="ci-joint">Veuillez trouver <marker>ci-jointes</marker> les factures.</example>
+                <example>Veuillez trouver ci-joint les factures.</example>
+                <example>Les factures ci-jointes sont à régler.</example>
             </rule>
         </rulegroup>
 
