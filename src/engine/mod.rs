@@ -11,5 +11,10 @@
 //! Each stage is checked against a reference implementation by the benchmark
 //! in `tools/bench/`.
 
+pub mod disambig;
+pub mod pattern;
+pub mod performer;
+pub mod rule;
 pub mod strtools;
 pub mod token;
+pub mod unifier;
