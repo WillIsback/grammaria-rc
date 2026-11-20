@@ -10,6 +10,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use super::pattern::Synthesizer;
+use super::soros::Soros;
 use super::token::Reading;
 use crate::morfologik::{Dictionary, WordData};
 use crate::re;
@@ -58,6 +59,9 @@ pub struct FrenchSynthesizer {
     tags: Vec<String>,
     /// Tags accepted by a tag regular expression.
     by_regex: Mutex<HashMap<String, Arc<Vec<usize>>>>,
+    /// Number spellers (`fr.sor`, `Roman.sor`), when the files are there.
+    number_speller: Option<Soros>,
+    roman_numberer: Option<Soros>,
 }
 
 const EXCEPTIONS_E_GRAVE: [&str; 3] = ["burkinabè", "koinè", "épistémè"];
@@ -82,7 +86,9 @@ impl FrenchSynthesizer {
                 }
             }
         }
-        Ok(FrenchSynthesizer { dict, manual, removal, tags, by_regex: Mutex::new(HashMap::new()) })
+        let number_speller = std::fs::read_to_string(dir.join("fr.sor")).ok().map(|source| Soros::new(&source, "fr"));
+        let roman_numberer = std::fs::read_to_string(dir.join("Roman.sor")).ok().map(|source| Soros::new(&source, "Roman"));
+        Ok(FrenchSynthesizer { dict, manual, removal, tags, by_regex: Mutex::new(HashMap::new()), number_speller, roman_numberer })
     }
 
     /// `BaseSynthesizer.lookup`.
@@ -142,10 +148,17 @@ impl FrenchSynthesizer {
 
 impl Synthesizer for FrenchSynthesizer {
     fn synthesize(&self, token: &Reading, pos_tag: &str) -> Vec<String> {
-        // Spelled-out numbers (`_spell_number_`) need LanguageTool's Soros
-        // number speller, which is not available: the token is kept.
-        if pos_tag.starts_with("_spell_number_") {
-            return vec![token.token.to_string()];
+        // `getSpelledNumber` / `getRomanNumber`: without the program, the
+        // numeral is given back.
+        let spell = |speller: &Option<Soros>, input: &str| match speller {
+            Some(s) => s.run(input),
+            None => token.token.to_string(),
+        };
+        match pos_tag {
+            "_spell_number_" => return vec![spell(&self.number_speller, &token.token)],
+            "_spell_number_:feminine" => return vec![spell(&self.number_speller, &format!("feminine {}", token.token))],
+            "_spell_number_:Roman" => return vec![spell(&self.roman_numberer, &token.token)],
+            _ => {}
         }
         let Some(lemma) = token.lemma.as_deref() else { return Vec::new() };
         let mut results: Vec<String> = Vec::new();
@@ -178,6 +191,8 @@ mod tests {
         assert_eq!(synth.synthesize(&chanter, "V ind pres 1 p"), ["chantons"]);
         let cheval = Reading::from_strs("cheval", Some("N m s"), Some("cheval"));
         assert_eq!(synth.synthesize_regexp(&cheval, "N m p", false), ["chevaux"]);
+        let seven = Reading::from_strs("7", None, None);
+        assert_eq!(synth.synthesize(&seven, "_spell_number_"), ["sept"]);
         let forms = synth.synthesize_regexp(&cheval, "N m .", true);
         assert!(forms.contains(&"cheval".to_string()) && forms.contains(&"chevaux".to_string()), "{forms:?}");
     }
