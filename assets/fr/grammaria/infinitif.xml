@@ -127,15 +127,14 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <pattern raw_pos="yes">
                     <token regexp="yes">ne|n'</token>
                     <token min="1" max="3" regexp="yes">&neg;</token>
-                    <token regexp="yes">&clitique;</token>
-                    <token min="0" regexp="yes">y|en|le|la|les|l'|lui|leur</token>
+                    <token min="1" max="2" regexp="yes">&clitique;</token>
                     <marker>
                         <token postag="&fini;|&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&minuscule;
                             <exception postag="V (avoir |etre )?inf" postag_regexp="yes"/></token>
                     </marker>
                 </pattern>
                 <message>Après « \1 \2 » et un pronom, le verbe se met à l'infinitif.</message>
-                <suggestion><match no="5" postag="V (avoir |etre )?(ind|con|sub|imp|ppa).*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <suggestion><match no="4" postag="V (avoir |etre )?(ind|con|sub|imp|ppa).*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
                 <example correction="approcher">Prière de ne plus s'en <marker>approchait</marker>.</example>
                 <example correction="répéter">Ne jamais le <marker>répété</marker> à personne.</example>
                 <example correction="promettre">Ne rien leur <marker>promis</marker> avant lundi.</example>
@@ -435,6 +434,84 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example correction="quitter">Elle était sur le point de les <marker>quittés</marker>.</example>
                 <example>Il est en train de leur expliquer la règle.</example>
             </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token>en</token>
+                    <token regexp="yes">mesure|droit|passe|devoir</token>
+                    <token regexp="yes">de|d'</token>
+                    <token min="0" max="2" regexp="yes">&clitique;</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 de », le verbe se met à l'infinitif.</message>
+                <suggestion><match no="5" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="expliquer">Nous ne sommes pas en mesure de leur <marker>expliqué</marker> ce retard.</example>
+                <example>Nous ne sommes pas en mesure de leur expliquer ce retard.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token>à</token>
+                    <token regexp="yes">même|condition</token>
+                    <token regexp="yes">de|d'</token>
+                    <token min="0" max="2" regexp="yes">&clitique;</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 \2 de », le verbe se met à l'infinitif.</message>
+                <suggestion><match no="5" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="expliquer">Nous ne sommes pas à même de leur <marker>expliqué</marker> ce retard.</example>
+                <example>Nous ne sommes pas à même de leur expliquer ce retard.</example>
+                <example>Les arrestations ont lieu au fur et à mesure de l'avancée des troupes.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token regexp="yes">prière|défense
+                        <exception scope="previous" postag="D.*|J.*|P.*" postag_regexp="yes"/></token>
+                    <token regexp="yes">de|d'</token>
+                    <token min="0" max="2" regexp="yes">&clitique;</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 de », le verbe se met à l'infinitif.</message>
+                <suggestion><match no="4" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="fermer">Prière de <marker>fermée</marker> la porte.</example>
+                <example>Prière de fermer la porte.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token>à</token>
+                    <token regexp="yes">moi|toi|lui|elle|nous|vous|eux|elles
+                        <exception scope="next" regexp="yes">-même|-mêmes</exception></token>
+                    <token regexp="yes">de|d'</token>
+                    <token min="0" max="2" regexp="yes">&clitique;</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                    </marker>
+                </pattern>
+                <message>Après « à \2 de », le verbe se met à l'infinitif.</message>
+                <suggestion><match no="5" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="jouer">C'est à toi de <marker>joué</marker>.</example>
+                <example>C'est à toi de jouer.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token regexp="yes">est|était|serait|sera|soit|fut</token>
+                    <token min="0" regexp="yes">grand|plus|pas|encore|enfin</token>
+                    <token>temps</token>
+                    <token regexp="yes">de|d'</token>
+                    <token min="0" max="2" regexp="yes">&clitique;</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                    </marker>
+                </pattern>
+                <message>Après « il est temps de », le verbe se met à l'infinitif.</message>
+                <suggestion><match no="6" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="rentrer">Il est temps de <marker>rentré</marker>.</example>
+                <example>Il est temps de rentrer.</example>
+            </rule>
         </rulegroup>
         <rulegroup id="GRM_DE_LA_PPA" name="de la, de l' + participe passé qui n'est pas un nom">
             <rule>
@@ -564,6 +641,23 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example correction="renoncer">Il n'est pas question de <marker>renoncée</marker> à tout cela.</example>
                 <example>Il n'est pas question de renoncer à tout cela.</example>
                 <example>Il est question de données à caractère personnel.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">arrêter|cesser|essayer|tenter|oublier|omettre|refuser|accepter|choisir|éviter|mériter|promettre|craindre|regretter|envisager|négliger|feindre|proposer|suggérer|conseiller|permettre|interdire|défendre|empêcher|supplier|ordonner|achever|efforcer|dépêcher|hâter
+                        <exception postag="N.*" postag_regexp="yes"/></token>
+                    <token min="0" max="2" postag="A"/>
+                    <token regexp="yes">de|d'</token>
+                    <token regexp="yes" case_sensitive="yes">la|l'|les|leur</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                    </marker>
+                </pattern>
+                <message>« \1 de » se construit avec un infinitif : « \4 » est ici un pronom et le verbe se met à l'infinitif.</message>
+                <suggestion><match no="5" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="pousser">Il essaie de la <marker>poussée</marker> vers la sortie.</example>
+                <example>Il essaie de la pousser vers la sortie.</example>
+                <example>Le risque de la montée des eaux inquiète.</example>
             </rule>
         </rulegroup>
         <rulegroup id="GRM_MODAL_PRONOM_PPA" name="verbe modal + pronom + participe passé au lieu de l'infinitif">
@@ -809,6 +903,30 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example>Ils ont tendance à négliger les détails.</example>
             </rule>
             <rule>
+                <antipattern>
+                    <token>à</token>
+                    <token regexp="yes">la|l'</token>
+                    <token regexp="yes">.*(é|ée|és|ées)</token>
+                    <token postag="[NZ].*" postag_regexp="yes"/>
+                </antipattern>
+                <pattern raw_pos="yes">
+                    <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">commencer|continuer|réussir|arriver|chercher|apprendre|aider|hésiter|parvenir|songer|penser|apprêter|mettre|consister|servir|inviter|obliger|autoriser|encourager|renoncer|tarder|viser|tendre
+                        <exception postag="N.*" postag_regexp="yes"/></token>
+                    <token min="0" max="2" postag="A"/>
+                    <token>à</token>
+                    <token regexp="yes" case_sensitive="yes">la|l'|lui|leur|nous|vous</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;
+                            <exception postag="N.*" postag_regexp="yes"/></token>
+                    </marker>
+                </pattern>
+                <message>Après « \1 à » et un pronom, le verbe se met à l'infinitif.</message>
+                <suggestion><match no="5" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="détester">Elle commence à la <marker>détestée</marker>.</example>
+                <example correction="pardonner">Il hésite à leur <marker>pardonné</marker>.</example>
+                <example>Elle commence à la détester.</example>
+            </rule>
+            <rule>
                 <pattern raw_pos="yes">
                     <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">commencer|terminer|débuter</token>
                     <token min="0" max="2" postag="A"/>
@@ -855,6 +973,21 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <suggestion><match no="5" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
                 <example correction="rabaisser">Il la critique sans pour autant la <marker>rabaissée</marker> en public.</example>
                 <example>Il la critique sans pour autant la rabaisser en public.</example>
+            </rule>
+            <rule>
+                <pattern raw_pos="yes">
+                    <token regexp="yes">avec|par|sur|en|pour|contre|sans|vers</token>
+                    <token>quoi</token>
+                    <marker>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;
+                            <exception postag="N.*" postag_regexp="yes"/></token>
+                    </marker>
+                    <token regexp="yes">le|la|les|l'|un|une|des|ce|cet|cette|ces|mon|ma|mes|ton|ta|tes|son|sa|ses|notre|nos|votre|vos|leurs?</token>
+                </pattern>
+                <message>Dans une question sans sujet (« \1 quoi … ? »), le verbe se met à l'infinitif.</message>
+                <suggestion><match no="3" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
+                <example correction="réparer">Avec quoi <marker>réparé</marker> ce vélo ?</example>
+                <example>Avec quoi réparer ce vélo ?</example>
             </rule>
             <rule>
                 <pattern raw_pos="yes">
