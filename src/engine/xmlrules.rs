@@ -1164,7 +1164,7 @@ impl GrammarHandler {
                 self.rule_anti_patterns.clear();
                 self.rules.push(GrammarRule::Pattern(PatternRule { info, rule, anti_patterns: anti }));
             } else if !self.regex.is_empty() {
-                let flags = if self.regex_case_sensitive { Flags::default() } else { Flags::IGNORE_CASE };
+                let flags = if self.regex_case_sensitive { Flags::UNICODE_CLASS } else { Flags::IGNORE_CASE_UNICODE_CLASS };
                 let mut regex_str = self.regex.clone();
                 if !self.regex_exact {
                     regex_str = replace_spaces_in_regex(&regex_str);

@@ -292,7 +292,14 @@ impl DisambigRule {
                         let token: Arc<str> = if nr.token.is_empty() { work.all[position].token.clone() } else { nr.token.clone() };
                         let lemma: Arc<str> = nr.lemma.clone().unwrap_or_else(|| token.clone());
                         let new_tok = Reading::new(token, nr.pos_tag, Some(lemma));
-                        work.edit_in_place(sentence, base + i, &|t| t.add_reading(new_tok.clone()));
+                        // A reading that is already there is not added again.
+                        let exists = work.all[position]
+                            .readings
+                            .iter()
+                            .any(|r| r.token == new_tok.token && r.pos_tag == new_tok.pos_tag && r.lemma == new_tok.lemma);
+                        if !exists {
+                            work.edit_in_place(sentence, base + i, &|t| t.add_reading(new_tok.clone()));
+                        }
                     }
                 }
             }

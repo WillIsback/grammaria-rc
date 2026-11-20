@@ -32,6 +32,9 @@ pub struct Flags {
     pub dotall: bool,
     pub multiline: bool,
     pub comments: bool,
+    /// `UNICODE_CHARACTER_CLASS`: `\w`, `\d`, `\s` and the POSIX classes
+    /// follow Unicode instead of ASCII.
+    pub unicode_class: bool,
 }
 
 impl Flags {
@@ -42,6 +45,26 @@ impl Flags {
         dotall: false,
         multiline: false,
         comments: false,
+        unicode_class: false,
+    };
+
+    /// `IGNORE_CASE` plus `UNICODE_CHARACTER_CLASS` (LanguageTool's `<regexp>`).
+    pub const IGNORE_CASE_UNICODE_CLASS: Flags = Flags {
+        case_insensitive: true,
+        unicode_case: true,
+        dotall: false,
+        multiline: false,
+        comments: false,
+        unicode_class: true,
+    };
+
+    pub const UNICODE_CLASS: Flags = Flags {
+        case_insensitive: false,
+        unicode_case: false,
+        dotall: false,
+        multiline: false,
+        comments: false,
+        unicode_class: true,
     };
 }
 
@@ -97,6 +120,9 @@ enum Prop {
     Latin,
     Greek,
     Cyrillic,
+    /// `\w` under `UNICODE_CHARACTER_CLASS`: letters, marks, digits,
+    /// connector punctuation.
+    UnicodeWord,
     Any,
     None,
 }
@@ -421,6 +447,12 @@ impl<'a> Parser<'a> {
     fn simple_escape(&mut self, c: char) -> Result<Option<ClassItem>, Error> {
         let one = |ch: char| Ok(Some(ClassItem::Range(ch, ch)));
         match c {
+            'd' if self.flags.unicode_class => Ok(Some(ClassItem::Prop(Prop::DecimalDigit, false))),
+            'D' if self.flags.unicode_class => Ok(Some(ClassItem::Prop(Prop::DecimalDigit, true))),
+            'w' if self.flags.unicode_class => Ok(Some(ClassItem::Prop(Prop::UnicodeWord, false))),
+            'W' if self.flags.unicode_class => Ok(Some(ClassItem::Prop(Prop::UnicodeWord, true))),
+            's' if self.flags.unicode_class => Ok(Some(ClassItem::Prop(Prop::White, false))),
+            'S' if self.flags.unicode_class => Ok(Some(ClassItem::Prop(Prop::White, true))),
             'd' => Ok(Some(ClassItem::Digit(false))),
             'D' => Ok(Some(ClassItem::Digit(true))),
             'w' => Ok(Some(ClassItem::Word(false))),
@@ -770,6 +802,8 @@ fn prop_matches(p: Prop, c: char) -> bool {
         Prop::Latin => c.is_alphabetic() && (c as u32) < 0x250 || ('\u{1e00}'..='\u{1eff}').contains(&c),
         Prop::Greek => ('\u{370}'..='\u{3ff}').contains(&c) || ('\u{1f00}'..='\u{1fff}').contains(&c),
         Prop::Cyrillic => ('\u{400}'..='\u{52f}').contains(&c),
+        Prop::UnicodeWord => c.is_alphanumeric() || c == '_' || is_mark(c) || c == '\u{200c}' || c == '\u{200d}' || c == '\u{203f}' || c == '\u{2040}',
+
         Prop::Any => true,
         Prop::None => false,
     }
@@ -1497,6 +1531,16 @@ mod tests {
         assert_eq!(r.replace_all("ab", "-"), "-a-b-");
         let r = Regex::new("(\\d+)\\.(\\d+)", Flags::default()).unwrap();
         assert_eq!(r.replace_all("1.5 et 2.25", "$2\\$$1"), "5$1 et 25$2");
+    }
+
+    #[test]
+    fn unicode_character_class() {
+        let ascii = Regex::new("\\w+", Flags::default()).unwrap();
+        let uni = Regex::new("\\w+", Flags::UNICODE_CLASS).unwrap();
+        assert!(!ascii.is_full_match("été"));
+        assert!(uni.is_full_match("été"));
+        assert!(Regex::new("a\\sb", Flags::UNICODE_CLASS).unwrap().is_full_match("a\u{a0}b"));
+        assert!(!Regex::new("a\\sb", Flags::default()).unwrap().is_full_match("a\u{a0}b"));
     }
 
     #[test]
