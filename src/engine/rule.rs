@@ -141,6 +141,7 @@ pub trait RuleFilter: Send + Sync {
         pattern_token_pos: usize,
         pattern_tokens: &[&Readings],
         token_positions: &[usize],
+        sentence: &Sentence,
         ctx: &RuleContext,
     ) -> Option<RuleMatch>;
 }
@@ -488,7 +489,7 @@ impl TokenRule {
                 Some(FilterRef::Native(filter)) => {
                     let pattern_tokens = &tokens[first..=last.min(tokens.len() - 1)];
                     let args = resolve_filter_arguments(self.filter_args.as_deref().unwrap_or(""), pattern_tokens, positions)?;
-                    filter.accept(rule_match, &args, first, pattern_tokens, positions, ctx)
+                    filter.accept(rule_match, &args, first, pattern_tokens, positions, sentence, ctx)
                 }
             };
         }

@@ -107,7 +107,7 @@ impl DisambigRule {
             let rule_match_from = work.view[pm.first_match_token].start_pos;
             let rule_match_to = work.view[pm.last_match_token.min(work.view.len() - 1)].end_pos();
             let matching_tokens = pm.token_positions.iter().filter(|&&p| p != 0).count();
-            if self.keep_despite_filter(&work.view, &pm, ctx) && self.keep_by_disambig(sentence, rule_match_from, rule_match_to, ctx) {
+            if self.keep_despite_filter(sentence, &work.view, &pm, ctx) && self.keep_by_disambig(sentence, rule_match_from, rule_match_to, ctx) {
                 self.execute_action(sentence, &mut work, &pm, matching_tokens, ctx);
                 changed = true;
             }
@@ -135,7 +135,7 @@ impl DisambigRule {
         true
     }
 
-    fn keep_despite_filter(&self, view: &[Readings], pm: &PatternMatch, ctx: &RuleContext) -> bool {
+    fn keep_despite_filter(&self, sentence: &Sentence, view: &[Readings], pm: &PatternMatch, ctx: &RuleContext) -> bool {
         match &self.rule.filter {
             None => true,
             Some(FilterRef::Unsupported(_)) => false,
@@ -149,7 +149,7 @@ impl DisambigRule {
                     return false;
                 };
                 let fake = RuleMatch::new(usize::MAX, "", 0, 1, 0, 1, "(internal rule)".into(), String::new(), false, false, "");
-                filter.accept(fake, &args, pm.first_match_token, relevant, &pm.token_positions, ctx).is_some()
+                filter.accept(fake, &args, pm.first_match_token, relevant, &pm.token_positions, sentence, ctx).is_some()
             }
         }
     }
