@@ -161,16 +161,29 @@ fn print_text(text: &str, matches: &[grammaria::rules::RuleMatch]) {
     }
 }
 
-fn print_json(_text: &str, matches: &[grammaria::rules::RuleMatch], file: &str) {
+fn print_json(text: &str, matches: &[grammaria::rules::RuleMatch], file: &str) {
+    // Mirrors LanguageTool's `--json` response object so that the output can be
+    // consumed by the same clients: `software`, `warnings`, `language` and
+    // `matches[]`, where each match carries its `context`, `sentence`, `type`
+    // and full `rule` descriptor.
     let mut out = String::from("{\"software\":{\"name\":\"Grammaria\",\"version\":\"");
     out.push_str(env!("CARGO_PKG_VERSION"));
-    out.push_str("\"},\"language\":{\"name\":\"French\",\"code\":\"fr\"},\"matches\":[");
+    out.push_str("\",\"apiVersion\":1,\"premium\":false,\"status\":\"\"}");
+    out.push_str(",\"warnings\":{\"incompleteResults\":false}");
+    out.push_str(",\"language\":{\"name\":\"French\",\"code\":\"fr\"}");
+    out.push_str(&format!(",\"file\":\"{}\"", json_escape(file)));
+    out.push_str(",\"matches\":[");
     for (i, m) in matches.iter().enumerate() {
         if i > 0 {
             out.push(',');
         }
+        // `context` is a window around the match: LanguageTool pads it with the
+        // surrounding sentence; we use the containing sentence, clamped to a
+        // reasonable window so long sentences do not dominate the payload.
+        let (ctx_start, ctx_end) = context_window(text, m.offset, m.length);
+        let ctx_text = text.get(ctx_start..ctx_end).unwrap_or("");
         out.push_str(&format!(
-            "{{\"message\":\"{}\",\"shortMessage\":\"{}\",\"replacements\":[{}],\"offset\":{},\"length\":{},\"rule\":{{\"id\":\"{}\",\"subId\":\"{}\",\"description\":\"{}\",\"category\":{{\"id\":\"{}\",\"name\":\"{}\"}}}}}}",
+            "{{\"message\":\"{}\",\"shortMessage\":\"{}\",\"replacements\":[{}],\"offset\":{},\"length\":{},\"context\":{{\"text\":\"{}\",\"offset\":{},\"length\":{}}},\"sentence\":\"{}\",\"type\":{{\"typeName\":\"{}\"}},\"rule\":{{\"id\":\"{}\",\"subId\":\"{}\",\"sourceFile\":\"{}\",\"description\":\"{}\",\"issueType\":\"{}\",\"category\":{{\"id\":\"{}\",\"name\":\"{}\"}}}}}}",
             json_escape(&m.message),
             json_escape(&m.short_message),
             m.suggestions
@@ -180,14 +193,105 @@ fn print_json(_text: &str, matches: &[grammaria::rules::RuleMatch], file: &str) 
                 .join(","),
             m.offset,
             m.length,
+            json_escape(ctx_text),
+            m.offset.saturating_sub(ctx_start),
+            m.length,
+            json_escape(&m.sentence),
+            if m.is_style { "style" } else { "Other" },
             json_escape(&m.rule_id),
             json_escape(&m.full_rule_id),
+            if m.is_style { "style.xml" } else { "grammar.xml" },
             json_escape(&m.category_name),
+            if m.is_style { "style" } else { "uncategorized" },
             json_escape(&m.category_id),
             json_escape(&m.category_name)
         ));
     }
-    out.push_str("]}");
+    // `sentenceRanges` lets clients map offsets back to sentences;
+    // `extendedSentenceRanges` mirrors LanguageTool's list of paragraph ranges.
+    out.push_str("],\"sentenceRanges\":");
+    out.push_str(&json_ranges(text, false));
+    out.push_str(",\"extendedSentenceRanges\":");
+    out.push_str(&json_ranges(text, true));
+    out.push('}');
     println!("{out}");
-    let _ = file;
 }
+
+/// `[[from, to], ...]` character ranges of the sentences (or paragraphs) in
+/// `text`, as LanguageTool reports them.
+fn json_ranges(text: &str, paragraphs: bool) -> String {
+    let bytes = text.as_bytes();
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    let mut start = 0usize;
+    let terminators: &[u8] = if paragraphs { b"\n" } else { b".!?\n" };
+    for (i, &c) in bytes.iter().enumerate() {
+        if terminators.contains(&c) {
+            let mut end = i + 1;
+            if paragraphs {
+                // Include the newline itself for paragraph ranges.
+                while end < bytes.len() && bytes[end] == b'\n' {
+                    end += 1;
+                }
+            }
+            // Skip runs that contain no non-whitespace text (e.g. the space
+            // between two sentences), so every range names real content.
+            if end > start && text[start..end].trim().is_empty() {
+                start = end;
+                continue;
+            }
+            if end > start {
+                ranges.push((start, end));
+            }
+            start = end;
+        }
+    }
+    if start < bytes.len() && !text[start..].trim().is_empty() {
+        ranges.push((start, bytes.len()));
+    }
+    format!(
+        "[{}]",
+        ranges
+            .iter()
+            .map(|(a, b)| format!("[{a},{b}]"))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
+}
+
+/// Context window used in the JSON `context` field: the containing sentence,
+/// trimmed when it is longer than `CONTEXT_MAX` characters.
+fn context_window(text: &str, offset: usize, _length: usize) -> (usize, usize) {
+    const CONTEXT_MAX: usize = 120;
+    let bytes = text.as_bytes();
+    let offset = offset.min(text.len());
+    // Sentence start: after the previous terminal punctuation.
+    let mut start = 0;
+    for i in (0..offset).rev() {
+        if matches!(bytes[i], b'.' | b'!' | b'?' | b'\n') {
+            start = i + 1;
+            break;
+        }
+    }
+    while start < offset && bytes[start] == b' ' {
+        start += 1;
+    }
+    let mut end = text.len();
+    for (i, c) in text.bytes().enumerate().skip(offset) {
+        if matches!(c, b'.' | b'!' | b'?' | b'\n') {
+            end = i + 1;
+            break;
+        }
+    }
+    if end - start > CONTEXT_MAX {
+        start = offset.saturating_sub(CONTEXT_MAX / 3);
+        end = (start + CONTEXT_MAX).min(end);
+        while start < offset && !text.is_char_boundary(start) {
+            start += 1;
+        }
+        while end > offset && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+    }
+    (start, end)
+}
+
