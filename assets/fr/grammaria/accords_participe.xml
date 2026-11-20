@@ -766,11 +766,17 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <token regexp="yes">fin|fort|grand|court|haut|bas|frais|nouveau|demi|mi|bon|droit|ferme|large|raide|ivre|clair|net|pur|franc|plein|tout</token>
                 <token postag="J.*|V ppa.*" postag_regexp="yes"/>
             </antipattern>
+            <!-- « la femme qui faisait cela est partie » : après un verbe, le pronom est complément (sauf « celle qui… ») -->
+            <antipattern>
+                <token postag="V.*" postag_regexp="yes"/>
+                <token postag="R dem.*|R [mf] [sp]|R (rel|inte) .*" postag_regexp="yes">
+                    <exception scope="next">qui</exception></token>
+            </antipattern>
             <rule>
                 <pattern>
                     <token postag="R pers suj 3 m s|R dem m s|R m s|R (rel|inte) m s" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|&etat;|reste|demeure</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 s" postag_regexp="yes">&etat;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
@@ -794,13 +800,15 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <example>Il est arrivé hier soir.</example>
                 <example>Derrière celui-ci est assise une femme.</example>
                 <example>Il est bonne pâte.</example>
+                <example>La femme qui faisait cela est partie.</example>
+                <example>Ils ont chacun été punis.</example>
                 <example>La statue qu'il portait est brisée.</example>
             </rule>
             <rule>
                 <pattern>
                     <token postag="R pers suj 3 m s|R dem m s|R m s|R (rel|inte) m s" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&controle;|&controle_pron;|rêve|risque|compte|pense|cesse|tente</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 s" postag_regexp="yes" skip="7">&controle;|&controle_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -832,7 +840,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 m s|R dem m s|R m s|R (rel|inte) m s" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&etat_pron;</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 s" postag_regexp="yes">&etat_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -858,7 +866,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 f s|R dem f s|R f s|R (rel|inte) f s" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|&etat;|reste|demeure</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 s" postag_regexp="yes">&etat;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
@@ -883,13 +891,15 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <example>Derrière elle est assis un homme.</example>
                 <example>Elle est seul juge.</example>
                 <example>Elle est fin prête.</example>
+                <example>L'homme qui disait cela est parti.</example>
+                <example>Le sujet sur lequel porte cette étude est vaste.</example>
                 <example>Le vase qu'elle portait est brisé.</example>
             </rule>
             <rule>
                 <pattern>
                     <token postag="R pers suj 3 f s|R dem f s|R f s|R (rel|inte) f s" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&controle;|&controle_pron;|rêve|risque|compte|pense|cesse|tente</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 s" postag_regexp="yes" skip="7">&controle;|&controle_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -921,7 +931,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 f s|R dem f s|R f s|R (rel|inte) f s" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&etat_pron;</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 s" postag_regexp="yes">&etat_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -948,7 +958,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 m p|R dem m p|R m p|R (rel|inte) m p" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|&etat;|reste|demeure</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 p" postag_regexp="yes">&etat;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
@@ -977,7 +987,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 m p|R dem m p|R m p|R (rel|inte) m p" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&controle;|&controle_pron;|rêve|risque|compte|pense|cesse|tente</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 p" postag_regexp="yes" skip="7">&controle;|&controle_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -1007,7 +1017,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 m p|R dem m p|R m p|R (rel|inte) m p" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&etat_pron;</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 p" postag_regexp="yes">&etat_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -1033,7 +1043,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 f p|R dem f p|R f p|R (rel|inte) f p" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|&etat;|reste|demeure</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 p" postag_regexp="yes">&etat;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
@@ -1061,7 +1071,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 f p|R dem f p|R f p|R (rel|inte) f p" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&controle;|&controle_pron;|rêve|risque|compte|pense|cesse|tente</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 p" postag_regexp="yes" skip="7">&controle;|&controle_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -1091,7 +1101,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <pattern>
                     <token postag="R pers suj 3 f p|R dem f p|R f p|R (rel|inte) f p" postag_regexp="yes" skip="4">
                         <exception scope="previous" postag="P|P\+.*" postag_regexp="yes"/>
-                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|l[ea]s?|l'</exception>
+                        <exception regexp="yes">ce|c'|duquel|auquel|desquel.*|auxquel.*|quel.*|l[ea]s?|l'</exception>
                         <exception scope="next" inflected="yes" regexp="yes" negate="yes">qui|ne|y|en|se|&etat_pron;</exception></token>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .* 3 p" postag_regexp="yes">&etat_pron;
                         <exception postag="[JDCR].*|P|P\+.*|A" postag_regexp="yes"/>
@@ -3027,11 +3037,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-t-il|-il|-ce</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3054,11 +3064,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-t-elle|-elle</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3069,6 +3079,8 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <suggestion><match no="4" postag="V.*" postag_regexp="yes" postag_replace="V ppa f s"/></suggestion>
                 <example correction="arrivée">Est-elle <marker>arriver</marker> à temps ?</example>
                 <example>Est-elle arrivée à temps ?</example>
+                <example>Pourquoi s'est-elle laissé convaincre ?</example>
+                <example>S'est-elle fait gronder ?</example>
             </rule>
             <rule>
                 <antipattern>
@@ -3079,11 +3091,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-t-ils|-ils</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3104,11 +3116,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-t-elles|-elles</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3129,11 +3141,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-je|-tu|-on|-t-on</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3155,11 +3167,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-nous</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3180,11 +3192,11 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 </antipattern>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token regexp="yes">-vous</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
@@ -3199,14 +3211,14 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
             <rule>
                 <pattern>
                     <token inflected="yes" regexp="yes" postag="V.* (ind|con|sub) .*" postag_regexp="yes">être|devenir|redevenir
-                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/></token>
+                        <exception postag="[NJDCR].*|P|P\+.*|A" postag_regexp="yes"/>
+                        <exception scope="previous" regexp="yes">&clitique;</exception></token>
                     <token>-</token>
                     <token min="0">t</token>
                     <token min="0">-</token>
                     <token regexp="yes">iels?</token>
-                    <token postag="A|R pers obj|R pers obj 3 sp|V ppa.*" postag_regexp="yes" min="0" max="3">
-                        <exception postag="V ppa.*" postag_regexp="yes" regexp="yes" negate="yes">&etat_ppa;|&attribut_ppa;</exception>
-                        <exception regexp="yes">où|soit|non|se|s'</exception></token>
+                    <token postag="A" min="0" max="2">
+                        <exception regexp="yes">où|soit|non</exception></token>
                     <marker>
                         <token postag="V.* (ind|con|sub|imp) .*|V inf" postag_regexp="yes">
                             <exception postag="V.* ppa.*|[NJDRCZKYM].*|P|P\+.*|A|UNKNOWN" postag_regexp="yes"/>
