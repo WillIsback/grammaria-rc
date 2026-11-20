@@ -13,6 +13,7 @@ pub mod api;
 pub mod engine;
 pub mod filters;
 pub mod lexicon;
+pub mod morfologik;
 pub mod pattern;
 pub mod re;
 pub mod rulecache;
