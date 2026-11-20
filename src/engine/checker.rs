@@ -12,6 +12,7 @@
 use std::collections::HashMap;
 
 use super::french;
+use super::fx::FxMap;
 use super::rule::{PatternRule, RegexRule, RuleContext, RuleInfo, RuleMatch};
 use super::token::Sentence;
 
@@ -90,6 +91,65 @@ pub struct Checker {
     picky: Vec<bool>,
     text_rules: Vec<TextRule>,
     sentence_rules: Vec<usize>,
+    index: RuleIndex,
+}
+
+/// Which sentence rules can match a sentence at all (`RuleSet`): a rule
+/// whose pattern requires one of a few words or lemmas is only tried on the
+/// sentences that contain one of them.
+#[derive(Default)]
+struct RuleIndex {
+    /// Positions in `sentence_rules` of the rules without such a requirement.
+    unhinted: Vec<u32>,
+    by_token: FxMap<Box<str>, Vec<u32>>,
+    by_lemma: FxMap<Box<str>, Vec<u32>>,
+}
+
+impl RuleIndex {
+    fn build(rules: &[CheckRule], sentence_rules: &[usize]) -> RuleIndex {
+        let mut index = RuleIndex::default();
+        for (position, &i) in sentence_rules.iter().enumerate() {
+            let position = position as u32;
+            let hint = match &rules[i] {
+                // Any hint is a necessary condition: take the most selective.
+                CheckRule::Pattern(r) => r.rule.pattern.token_hints.iter().min_by_key(|h| h.lower_case_values.len()),
+                _ => None,
+            };
+            match hint {
+                Some(h) => {
+                    let map = if h.inflected { &mut index.by_lemma } else { &mut index.by_token };
+                    for value in &h.lower_case_values {
+                        map.entry(Box::from(value.as_str())).or_default().push(position);
+                    }
+                }
+                None => index.unhinted.push(position),
+            }
+        }
+        index
+    }
+
+    /// Positions in `sentence_rules` of the rules worth trying, in order.
+    fn candidates(&self, sentence: &Sentence, n_rules: usize) -> Vec<u32> {
+        let mut wanted = vec![false; n_rules];
+        for &p in &self.unhinted {
+            wanted[p as usize] = true;
+        }
+        for key in sentence.token_offsets.keys() {
+            if let Some(list) = self.by_token.get(key.as_str()) {
+                for &p in list {
+                    wanted[p as usize] = true;
+                }
+            }
+        }
+        for key in sentence.lemma_offsets.keys() {
+            if let Some(list) = self.by_lemma.get(key.as_str()) {
+                for &p in list {
+                    wanted[p as usize] = true;
+                }
+            }
+        }
+        (0..n_rules as u32).filter(|&p| wanted[p as usize]).collect()
+    }
 }
 
 /// `JLanguageTool.ignoreRule` with no user choice, then
@@ -143,7 +203,8 @@ impl Checker {
             }
         }
         text_rules.extend(repeated.into_iter().map(|(_, members)| TextRule::Repeated(members)));
-        Checker { rules, ctx, active, priority, picky, text_rules, sentence_rules }
+        let index = RuleIndex::build(&rules, &sentence_rules);
+        Checker { rules, ctx, active, priority, picky, text_rules, sentence_rules, index }
     }
 
     pub fn info(&self, rule: usize) -> &RuleInfo {
@@ -233,7 +294,8 @@ impl Checker {
         }
         for (si, sentence) in sentences.iter().enumerate() {
             let mut matches: Vec<RuleMatch> = Vec::new();
-            for &i in &self.sentence_rules {
+            for p in self.index.candidates(sentence, self.sentence_rules.len()) {
+                let i = self.sentence_rules[p as usize];
                 matches.extend(self.rules[i].match_sentence(i, sentence, &self.ctx));
             }
             if matches.is_empty() {

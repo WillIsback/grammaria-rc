@@ -31,9 +31,47 @@ pub struct StringMatcher {
 #[derive(Clone, Debug)]
 enum Kind {
     Equals,
+    /// A regex that can only match a finite set of strings is a set lookup
+    /// (the strings are case-folded when the matcher ignores case).
+    Set(Arc<std::collections::HashSet<Box<str>>>, Arc<Vec<String>>),
     Regex(Arc<Regex>),
     /// The expression does not compile: it matches nothing.
     Never,
+}
+
+/// Case-folds a string character by character, as Java compares strings
+/// ignoring case.
+fn fold_str(s: &str) -> String {
+    s.chars().map(re::fold).collect()
+}
+
+thread_local! {
+    /// Verdicts of regexes on strings already seen by this thread: the same
+    /// few expressions meet the same words over and over.
+    static REGEX_MEMO: std::cell::RefCell<(crate::engine::fx::FxMap<usize, crate::engine::fx::FxMap<Box<str>, bool>>, usize)> =
+        std::cell::RefCell::new((Default::default(), 0));
+}
+
+const REGEX_MEMO_LIMIT: usize = 400_000;
+
+fn regex_memo(regex: &Arc<Regex>, s: &str) -> bool {
+    // Compiled regexes are interned for the life of the process, so their
+    // address identifies them.
+    let key = Arc::as_ptr(regex) as usize;
+    REGEX_MEMO.with(|memo| {
+        let mut memo = memo.borrow_mut();
+        if let Some(&verdict) = memo.0.get(&key).and_then(|m| m.get(s)) {
+            return verdict;
+        }
+        let verdict = regex.is_full_match(s);
+        if memo.1 >= REGEX_MEMO_LIMIT {
+            memo.0.clear();
+            memo.1 = 0;
+        }
+        memo.0.entry(key).or_default().insert(Box::from(s), verdict);
+        memo.1 += 1;
+        verdict
+    })
 }
 
 impl StringMatcher {
@@ -55,6 +93,8 @@ impl StringMatcher {
                             kind: Kind::Equals,
                         };
                     }
+                    let set = values.iter().map(|v| if case_sensitive { Box::from(v.as_str()) } else { fold_str(v).into_boxed_str() }).collect();
+                    return StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Set(Arc::new(set), Arc::new(values)) };
                 }
                 StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Regex(r) }
             }
@@ -83,7 +123,14 @@ impl StringMatcher {
                     strtools::equals_ignore_case(s, &self.pattern)
                 }
             }
-            Kind::Regex(r) => r.is_full_match(s),
+            Kind::Set(set, _) => {
+                if self.case_sensitive || s.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
+                    set.contains(s)
+                } else {
+                    set.contains(fold_str(s).as_str())
+                }
+            }
+            Kind::Regex(r) => regex_memo(r, s),
             Kind::Never => false,
         }
     }
@@ -93,6 +140,7 @@ impl StringMatcher {
         match &self.kind {
             Kind::Equals => Some(vec![self.pattern.to_string()]),
             Kind::Regex(r) => r.possible_values(),
+            Kind::Set(_, values) => Some(values.as_ref().clone()),
             Kind::Never => None,
         }
     }

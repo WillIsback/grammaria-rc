@@ -17,6 +17,7 @@ pub mod disambig;
 pub mod disambiguator;
 pub mod dump;
 pub mod french;
+pub mod fx;
 pub mod json;
 pub mod pattern;
 pub mod performer;
