@@ -1,7 +1,7 @@
 # Grammaria
 
 **A state-of-the-art French grammar and spelling checker, written in Rust — a drop-in
-replacement for LanguageTool that is ~25× faster on the same text.**
+replacement for LanguageTool that is 15–23× faster on the same text.**
 
 Grammaria re-implements the LanguageTool French checking pipeline natively in Rust:
 tokenizer → POS tagger (634k-entry French lexicon) → rule-based disambiguator
@@ -15,8 +15,8 @@ real  0m0.16s                               real  0m4.06s
 
 | | Grammaria | LanguageTool 6.6 | speed-up |
 |---|---|---|---|
-| simple French paragraph (17 words) | **0.16 s** | 4.06 s | **25.6×** |
-| 10-sentence article (107 words) | **0.32 s** | 4.05 s | 12.5× |
+| simple French paragraph (3 sentences) | **0.16 s** | 3.69 s | **22.7×** |
+| 10-sentence article (108 words) | **0.27 s** | 4.19 s | 15.3× |
 
 Both numbers are complete CLI invocations (process start, data load, checking, output)
 measured with `tools/bench.py`.
@@ -131,12 +131,22 @@ Two harnesses measure the port against the reference implementation:
 
 * `tools/eval_pos.py` — POS-tag agreement with LanguageTool on a sentence fixture
   (`tools/gen_lt_fixtures.py` records LanguageTool's own `--verbose` output and JSON
-  matches). **~62 %** of tokens carry exactly the same tag set; differences are almost
-  all in LanguageTool's context disambiguation.
-* `tools/eval_rules.py` — recall on the 8 193 `<example>` sentences embedded in
+  matches). **88 %** of tokens (272/308) carry exactly the same tag set. The work that
+  got it there: `<unify>` groups must keep their feature-agreement test (flattening them
+  to plain tokens silently disabled it), a bare `<disambig postag="X"/>` is the *filter*
+  action, `<pattern case_sensitive="yes">` propagates to every token, and
+  `scope="previous"`/`"next"` exceptions use whole-token rather than `find()` semantics.
+* `tools/eval_rules.py` — detection on the 8 193 `<example>` sentences embedded in
   LanguageTool's French rules (the ground truth used to validate the rules themselves).
-  **~72 %** of positive examples are detected at the marked span, and the topic areas
-  that matter most for users — determiner agreement (`D_N`: 68/77 = 88 %) — are covered.
+  On a stratified 800-sentence sample: **49 %** of the marked errors are detected at the
+  marked span, and **72 %** of the sentences LanguageTool considers clean are left clean.
+  The common, user-facing agreement rules score far higher than the average —
+  `AGREEMENT_TOUT_LE` 44/45 on a 1 000-example sample, `D_N` 49/60 with the identical
+  rule id — while the remainder of the gap is concentrated in rules that need
+  LanguageTool's disambiguation refinements (homophone sets such as `D_N_E_OU_E`,
+  `ETRE_VPPA_OU_ADJ`) and Java filters that search the morphological dictionary.
+  Only rules whose semantics are faithfully reproducible are enabled; the rest are
+  skipped rather than left to over-fire.
 * `tools/bench.py` — the speed comparison above.
 
 ```sh
