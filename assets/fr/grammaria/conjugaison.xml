@@ -415,8 +415,8 @@ corrections (subjonctif imparfait, puis présent).
                 <pattern>
                     <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">vouloir|préférer|souhaiter|exiger|désirer|craindre|regretter|attendre|redouter|falloir|aimer|détester|adorer|refuser|proposer|permettre|empêcher|éviter|interdire|importer|demander|suffire|ordonner|nécessiter
                         <exception postag="N.*" postag_regexp="yes"/>
-                        <exception>attendu</exception>
-                        <exception scope="previous">qui</exception></token>
+                        <exception regexp="yes">attendue?s?</exception>
+                        <exception scope="previous" regexp="yes">qui|-.*</exception></token>
                     <token min="0" regexp="yes">pas|plus|jamais|vraiment|bien|toujours|absolument|donc|aussi|tant|tellement</token>
                     <token regexp="yes">que|qu'</token>
                     <token postag="&sujet;" postag_regexp="yes">
@@ -432,14 +432,14 @@ corrections (subjonctif imparfait, puis présent).
                 <message>Après « \1 que », le verbe se met au subjonctif.</message>
                 <suggestion><match no="7" postag="V (avoir |etre )?(?:ind (?:pres|impa|futu)|con pres) ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub pres $2"/></suggestion>
                 <example correction="soient">Je veux que les enfants <marker>sont</marker> couchés à neuf heures.</example>
-                <example>Je veux que les enfants soient couchés à neuf heures.</example>
+                <example>Attendu que le prévenu était absent, l'audience fut reportée.</example>
             </rule>
             <rule>
                 <pattern>
                     <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">vouloir|préférer|souhaiter|exiger|désirer|craindre|regretter|attendre|redouter|falloir|aimer|détester|adorer|refuser|proposer|permettre|empêcher|éviter|interdire|importer|demander|suffire|ordonner|nécessiter
                         <exception postag="N.*" postag_regexp="yes"/>
-                        <exception>attendu</exception>
-                        <exception scope="previous">qui</exception></token>
+                        <exception regexp="yes">attendue?s?</exception>
+                        <exception scope="previous" regexp="yes">qui|-.*</exception></token>
                     <token min="0" regexp="yes">pas|plus|jamais|vraiment|bien|toujours|absolument|donc|aussi|tant|tellement</token>
                     <token regexp="yes">que|qu'</token>
                     <token postag="&sujet;" postag_regexp="yes">
@@ -456,7 +456,7 @@ corrections (subjonctif imparfait, puis présent).
                 <suggestion><match no="7" postag="V (avoir |etre )?ind psim ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub impa $2"/></suggestion>
                 <suggestion><match no="7" postag="V (avoir |etre )?ind psim ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub pres $2"/></suggestion>
                 <example correction="vînt|vienne">Elle aurait préféré que le notaire <marker>vint</marker> plus tôt.</example>
-                <example>Je veux que les enfants soient couchés à neuf heures.</example>
+                <example>Attendu que le prévenu était absent, l'audience fut reportée.</example>
             </rule>
             <rule>
                 <antipattern>
@@ -750,8 +750,7 @@ corrections (subjonctif imparfait, puis présent).
             </rule>
             <rule>
                 <pattern>
-                    <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">tenir|veiller|consentir|opposer
-                        <exception scope="previous" regexp="yes">cela|ça|ceci|ce|qui</exception></token>
+                    <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">veiller|consentir|opposer</token>
                     <token min="0" regexp="yes">pas|plus|jamais|vraiment|bien|toujours|absolument|donc|aussi|tant|tellement</token>
                     <token>à</token>
                     <token>ce</token>
@@ -773,13 +772,12 @@ corrections (subjonctif imparfait, puis présent).
                 </pattern>
                 <message>Après « \1 à ce que », le verbe se met au subjonctif.</message>
                 <suggestion><match no="9" postag="V (avoir |etre )?(?:ind (?:pres|impa|futu)|con pres) ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub pres $2"/></suggestion>
-                <example correction="soit">Je tiens à ce que le travail n'<marker>est</marker> pas bâclé.</example>
-                <example>Cela tient à ce que le travail est mal payé.</example>
+                <example correction="morde">Veille à ce que le chien ne <marker>mord</marker> pas les invités.</example>
+                <example>Veille à ce que le chien ne morde pas les invités.</example>
             </rule>
             <rule>
                 <pattern>
-                    <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">tenir|veiller|consentir|opposer
-                        <exception scope="previous" regexp="yes">cela|ça|ceci|ce|qui</exception></token>
+                    <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">veiller|consentir|opposer</token>
                     <token min="0" regexp="yes">pas|plus|jamais|vraiment|bien|toujours|absolument|donc|aussi|tant|tellement</token>
                     <token>à</token>
                     <token>ce</token>
@@ -803,7 +801,66 @@ corrections (subjonctif imparfait, puis présent).
                 <suggestion><match no="9" postag="V (avoir |etre )?ind psim ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub impa $2"/></suggestion>
                 <suggestion><match no="9" postag="V (avoir |etre )?ind psim ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub pres $2"/></suggestion>
                 <example correction="chauffât|chauffe">Elle veilla à ce que le feu <marker>chauffa</marker> la pièce.</example>
-                <example>Cela tient à ce que le travail est mal payé.</example>
+                <example>Veille à ce que le chien ne morde pas les invités.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">je|j'|tu|il|elle|on|nous|vous|ils|elles</token>
+                    <token min="0" regexp="yes">ne|n'|y</token>
+                    <token inflected="yes" postag="V.*" postag_regexp="yes">tenir</token>
+                    <token min="0" regexp="yes">pas|plus|jamais|vraiment|bien|toujours|absolument|donc|aussi|tant|tellement</token>
+                    <token>à</token>
+                    <token>ce</token>
+                    <token regexp="yes">que|qu'</token>
+                    <token postag="&sujet;" postag_regexp="yes">
+                        <exception regexp="yes">de|d'|du</exception></token>
+                    <token min="0" max="3" postag="[NJ] .*" postag_regexp="yes">
+                        <exception postag="&fini;" postag_regexp="yes"/></token>
+                    <token min="0" max="3" regexp="yes">ne|n'|&clitique;</token>
+                    <marker>
+                        <token postag="V (avoir |etre )?(ind (pres|impa|futu)|con pres) .*" postag_regexp="yes" regexp="yes" case_sensitive="yes">&indicatifsur;
+                            <exception postag="V (avoir |etre )?sub.*|&nonfini;|&nonverbe;" postag_regexp="yes"/></token>
+                    </marker>
+                    <or>
+                        <token regexp="yes">pas|plus|jamais|point|guère</token>
+                        <token postag="D .*" postag_regexp="yes">
+                            <exception scope="next" regexp="yes">&temporel;</exception></token>
+                    </or>
+                </pattern>
+                <message>Après « tenir à ce que », le verbe se met au subjonctif.</message>
+                <suggestion><match no="11" postag="V (avoir |etre )?(?:ind (?:pres|impa|futu)|con pres) ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub pres $2"/></suggestion>
+                <example correction="soit">Je tiens à ce que le travail n'<marker>est</marker> pas bâclé.</example>
+                <example>Son succès tient à ce que le public est fidèle.</example>
+            </rule>
+            <rule>
+                <pattern>
+                    <token regexp="yes">je|j'|tu|il|elle|on|nous|vous|ils|elles</token>
+                    <token min="0" regexp="yes">ne|n'|y</token>
+                    <token inflected="yes" postag="V.*" postag_regexp="yes">tenir</token>
+                    <token min="0" regexp="yes">pas|plus|jamais|vraiment|bien|toujours|absolument|donc|aussi|tant|tellement</token>
+                    <token>à</token>
+                    <token>ce</token>
+                    <token regexp="yes">que|qu'</token>
+                    <token postag="&sujet;" postag_regexp="yes">
+                        <exception regexp="yes">de|d'|du</exception></token>
+                    <token min="0" max="3" postag="[NJ] .*" postag_regexp="yes">
+                        <exception postag="&fini;" postag_regexp="yes"/></token>
+                    <token min="0" max="3" regexp="yes">ne|n'|&clitique;</token>
+                    <marker>
+                        <token postag="V (avoir |etre )?ind psim .*" postag_regexp="yes" regexp="yes" case_sensitive="yes">&minuscule;
+                            <exception postag="V (avoir |etre )?(sub|ind (pres|impa|futu)|con|imp).*|&nonfini;|&nonverbe;" postag_regexp="yes"/></token>
+                    </marker>
+                    <or>
+                        <token regexp="yes">pas|plus|jamais|point|guère</token>
+                        <token postag="D .*" postag_regexp="yes">
+                            <exception scope="next" regexp="yes">&temporel;</exception></token>
+                    </or>
+                </pattern>
+                <message>Après « tenir à ce que », le verbe se met au subjonctif.</message>
+                <suggestion><match no="11" postag="V (avoir |etre )?ind psim ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub impa $2"/></suggestion>
+                <suggestion><match no="11" postag="V (avoir |etre )?ind psim ([123] [sp])" postag_regexp="yes" postag_replace="V $1sub pres $2"/></suggestion>
+                <example correction="lût|lise">Il tenait à ce que le notaire <marker>lut</marker> le testament.</example>
+                <example>Son succès tient à ce que le public est fidèle.</example>
             </rule>
             <rule>
                 <pattern>
@@ -1743,6 +1800,7 @@ corrections (subjonctif imparfait, puis présent).
                 </antipattern>
                 <pattern>
                     <token>toi
+                        <exception scope="previous" postag="D.*|P" postag_regexp="yes"/>
                         <exception scope="previous" regexp="yes">comme|que|qu'</exception></token>
                     <token min="0" max="2" postag="A|P" postag_regexp="yes"/>
                     <token>qui</token>
@@ -1756,6 +1814,7 @@ corrections (subjonctif imparfait, puis présent).
                 <suggestion><match no="5" postag="V (avoir |etre )?(ind|con|sub) (pres|impa|psim|futu) 3 s" postag_regexp="yes" postag_replace="V $1$2 $3 2 s"/></suggestion>
                 <example correction="sais">Toi qui <marker>sait</marker> tout, réponds.</example>
                 <example>Toi qui sais tout, réponds.</example>
+                <example>C'est l'enfant en toi qui le veut.</example>
             </rule>
             <rule>
                 <pattern>

@@ -102,6 +102,12 @@ sont cherchées en minuscules pour écarter les noms propres homographes
         </rulegroup>
         <rulegroup id="GRM_PREP_PRONOM_VERBE_CONJUGUE" name="préposition + pronom + verbe conjugué au lieu de l'infinitif">
             <rule>
+                <antipattern>
+                    <token postag="SENT_START|M.*" postag_regexp="yes"/>
+                    <token>de</token>
+                    <token>la</token>
+                    <example>De la viennent tous nos ennuis.</example>
+                </antipattern>
                 <pattern raw_pos="yes">
                     <token regexp="yes">de|d'|à|pour|sans</token>
                     <token regexp="yes" case_sensitive="yes">me|m'|te|t'|se|s'|le|la|l'|les|leur|y|en</token>
@@ -109,7 +115,8 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                     <marker>
                         <token postag="&fini;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&minuscule;
                             <exception postag="&nonverbe;|&nonfini;" postag_regexp="yes"/>
-                            <exception regexp="yes">va|arrache|jure</exception></token>
+                            <exception regexp="yes">va|arrache|jure</exception>
+                            <exception scope="next" regexp="yes">pas|plus|jamais|rien|point|guère|personne|aucune?</exception></token>
                     </marker>
                 </pattern>
                 <message>Après une préposition et un pronom, le verbe se met à l'infinitif.</message>
@@ -120,6 +127,7 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example>Il était certain de la retrouver un jour.</example>
                 <example>Elle sort pour s'amuser un peu.</example>
                 <example>Ils ont tout fait à l'arrache.</example>
+                <example>Mon voisin de l'entend pas ainsi.</example>
             </rule>
         </rulegroup>
         <rulegroup id="GRM_INFINITIF_NEGATIF" name="ne pas, ne plus, ne jamais + pronom + verbe non infinitif">
@@ -526,7 +534,8 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                     <token regexp="yes" case_sensitive="yes">la|l'</token>
                     <marker>
                         <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;
-                            <exception postag="N.*" postag_regexp="yes"/></token>
+                            <exception postag="N.*" postag_regexp="yes"/>
+                            <exception regexp="yes">incarcérée?|internée?|opérée?|assassinée?|accidentée?|suppliciée?|persécutée?|tuée?|décédée?|aimée?|hospitalisée?|emprisonnée?|licenciée?|expulsée?|enterrée?|noyée?</exception></token>
                     </marker>
                 </pattern>
                 <message>Ce participe passé n'est pas un nom : après « \1 \2 », le verbe se met à l'infinitif.</message>
@@ -536,6 +545,7 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example>Au lieu de la déranger, il attendit dehors.</example>
                 <example>Le souvenir de la regrettée Louise reste vif.</example>
                 <example>Le traitement de la donnée est automatique.</example>
+                <example>Le gardien apporta le dossier de l'incarcéré.</example>
             </rule>
         </rulegroup>
         <rulegroup id="GRM_REGIME_DE_PPA" name="adjectif, locution ou verbe construits avec « de » + participe passé">
