@@ -33,7 +33,7 @@ enum Kind {
     Equals,
     /// A regex that can only match a finite set of strings is a set lookup
     /// (the strings are case-folded when the matcher ignores case).
-    Set(Arc<std::collections::HashSet<Box<str>>>, Arc<Vec<String>>),
+    Set(Arc<std::collections::HashSet<Box<str>>>),
     Regex(Arc<Regex>),
     /// The expression does not compile: it matches nothing.
     Never,
@@ -80,23 +80,31 @@ impl StringMatcher {
         if !is_regexp || pattern == "\\0" {
             return StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp, kind: Kind::Equals };
         }
+        // Rule files repeat the same expressions thousands of times: one
+        // matcher is shared by all its users.
+        static SHARED: std::sync::OnceLock<std::sync::Mutex<crate::engine::fx::FxMap<(Box<str>, bool), StringMatcher>>> = std::sync::OnceLock::new();
+        let shared = SHARED.get_or_init(Default::default);
+        if let Some(found) = shared.lock().unwrap().get(&(Box::from(pattern), case_sensitive)) {
+            return found.clone();
+        }
+        let matcher = StringMatcher::build_regexp(pattern, case_sensitive);
+        shared.lock().unwrap().entry((Box::from(pattern), case_sensitive)).or_insert(matcher).clone()
+    }
+
+    fn build_regexp(pattern: &str, case_sensitive: bool) -> StringMatcher {
         let flags = if case_sensitive { Flags::default() } else { Flags::IGNORE_CASE };
-        match re::compile(pattern, flags) {
+        match Regex::new(pattern, flags) {
             Ok(r) => {
-                // A regex with a single possible value is a plain comparison.
+                // A regex that can only match a few given strings is replaced
+                // by those strings (one: a plain comparison), and dropped.
                 if let Some(values) = r.possible_values() {
                     if values.len() == 1 {
-                        return StringMatcher {
-                            pattern: Arc::from(values[0].as_str()),
-                            case_sensitive,
-                            is_regexp: true,
-                            kind: Kind::Equals,
-                        };
+                        return StringMatcher { pattern: Arc::from(values[0].as_str()), case_sensitive, is_regexp: true, kind: Kind::Equals };
                     }
                     let set = values.iter().map(|v| if case_sensitive { Box::from(v.as_str()) } else { fold_str(v).into_boxed_str() }).collect();
-                    return StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Set(Arc::new(set), Arc::new(values)) };
+                    return StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Set(Arc::new(set)) };
                 }
-                StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Regex(r) }
+                StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Regex(re::share(pattern, flags, r)) }
             }
             Err(_) => StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Never },
         }
@@ -123,7 +131,7 @@ impl StringMatcher {
                     strtools::equals_ignore_case(s, &self.pattern)
                 }
             }
-            Kind::Set(set, _) => {
+            Kind::Set(set) => {
                 if self.case_sensitive || s.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
                     set.contains(s)
                 } else {
@@ -141,7 +149,7 @@ impl StringMatcher {
             Kind::Equals => Some(vec![self.pattern.to_string()]),
             // A regex with a finite value set was made a `Set` or `Equals`.
             Kind::Regex(_) => None,
-            Kind::Set(_, values) => Some(values.as_ref().clone()),
+            Kind::Set(set) => Some(set.iter().map(|v| v.to_string()).collect()),
             Kind::Never => None,
         }
     }
@@ -267,6 +275,19 @@ pub struct PatternToken {
 }
 
 impl PatternToken {
+    /// The token behind an `Arc`, its lists trimmed to their length.
+    pub fn shared(mut self) -> Arc<PatternToken> {
+        self.trim();
+        Arc::new(self)
+    }
+
+    fn trim(&mut self) {
+        for list in [&mut self.current_and_next_exceptions, &mut self.previous_exceptions, &mut self.and_group, &mut self.or_group] {
+            list.iter_mut().for_each(PatternToken::trim);
+            list.shrink_to_fit();
+        }
+    }
+
     /// `new PatternToken(inflected, textMatcher)`.
     pub fn new(inflected: bool, text: StringMatcher) -> PatternToken {
         let test_string = !text.pattern.is_empty();

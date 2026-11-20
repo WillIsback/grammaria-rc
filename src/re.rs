@@ -295,6 +295,7 @@ impl<'a> Parser<'a> {
         if alts.len() == 1 {
             return Ok(alts.pop().unwrap());
         }
+        alts.shrink_to_fit();
         Ok(Node::Alt(alts, OnceLock::new()))
     }
 
@@ -335,7 +336,10 @@ impl<'a> Parser<'a> {
         Ok(match items.len() {
             0 => Node::Empty,
             1 => items.pop().unwrap(),
-            _ => Node::Concat(items),
+            _ => {
+                items.shrink_to_fit();
+                Node::Concat(items)
+            }
         })
     }
 
@@ -2181,14 +2185,29 @@ impl Captures {
 /// Compiled patterns are shared: rule files repeat the same expressions
 /// thousands of times.
 pub fn compile(src: &str, flags: Flags) -> Result<Arc<Regex>, Error> {
-    static CACHE: OnceLock<Mutex<HashMap<(String, Flags), Arc<Regex>>>> = OnceLock::new();
-    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let cache = static_cache();
     if let Some(r) = cache.lock().unwrap().get(&(src.to_string(), flags)) {
         return Ok(r.clone());
     }
     let r = Arc::new(Regex::new(src, flags)?);
     cache.lock().unwrap().insert((src.to_string(), flags), r.clone());
     Ok(r)
+}
+
+fn static_cache() -> &'static Mutex<HashMap<(String, Flags), Arc<Regex>>> {
+    static CACHE: OnceLock<Mutex<HashMap<(String, Flags), Arc<Regex>>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[doc(hidden)]
+pub fn node_size() -> usize {
+    std::mem::size_of::<Node>()
+}
+
+/// Puts an already compiled pattern in the shared cache of [`compile`] (or
+/// returns the one that is there).
+pub fn share(src: &str, flags: Flags, regex: Regex) -> Arc<Regex> {
+    static_cache().lock().unwrap().entry((src.to_string(), flags)).or_insert_with(|| Arc::new(regex)).clone()
 }
 
 #[cfg(test)]

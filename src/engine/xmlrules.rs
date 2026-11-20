@@ -973,7 +973,7 @@ impl GrammarHandler {
                         t.inside_marker = true;
                     }
                 }
-                let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(Arc::new).collect(), true));
+                let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(PatternToken::shared).collect(), true));
                 if with_marker {
                     rule.start_position_correction = self.start_pos;
                     rule.end_position_correction = self.end_pos - self.token_count_for_marker;
@@ -1182,7 +1182,7 @@ impl GrammarHandler {
             let info = self.info();
             let (filter, filter_args) = make_filter(self.filter_class.as_deref(), self.filter_args.as_deref(), factory);
             if !tmp.is_empty() {
-                let mut rule = TokenRule::new(TokenPattern::new(tmp.into_iter().map(Arc::new).collect(), false));
+                let mut rule = TokenRule::new(TokenPattern::new(tmp.into_iter().map(PatternToken::shared).collect(), false));
                 rule.message = self.c.message.clone();
                 rule.short_message = short_message;
                 rule.suggestions_out_msg = self.c.suggestions_out_msg.clone();
@@ -1408,7 +1408,7 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
             match name.as_str() {
                 "rule" => {
                     let tokens = std::mem::take(&mut c.pattern_tokens);
-                    let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(Arc::new).collect(), true));
+                    let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(PatternToken::shared).collect(), true));
                     if start_pos != -1 && end_pos != -1 {
                         rule.start_position_correction = start_pos;
                         rule.end_position_correction = end_pos - token_count_for_marker;
@@ -1502,7 +1502,7 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
                 }
                 "antipattern" => {
                     let tokens = std::mem::take(&mut c.pattern_tokens);
-                    let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(Arc::new).collect(), true));
+                    let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(PatternToken::shared).collect(), true));
                     if start_pos != -1 && end_pos != -1 {
                         rule.start_position_correction = start_pos;
                         rule.end_position_correction = end_pos - token_count_for_marker;

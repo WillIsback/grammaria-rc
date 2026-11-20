@@ -253,6 +253,7 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
         return Err(e);
     }
     let mut french = french;
+    release_free_memory();
     if with_profile {
         if let Some(profile) = dir.parent().map(|p| p.join("grammaria").join("profile.txt")).and_then(|p| std::fs::read_to_string(p).ok()) {
             french.apply_profile(&Profile::parse(&profile));
@@ -362,4 +363,19 @@ impl Profile {
 /// The same checker with the given rule files only.
 pub fn load_french_with_rules(dir: &Path, rule_files: &[PathBuf]) -> io::Result<French> {
     French::load_rule_files(dir, rule_files, |_| Extensions::default())
+}
+
+/// Loading parses megabytes of XML on several threads; the memory it frees
+/// stays with the allocator unless it is asked to give it back.
+fn release_free_memory() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    {
+        extern "C" {
+            fn malloc_trim(pad: usize) -> i32;
+        }
+        // SAFETY: `malloc_trim` only returns free heap pages to the system.
+        unsafe {
+            malloc_trim(0);
+        }
+    }
 }

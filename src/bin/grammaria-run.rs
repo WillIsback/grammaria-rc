@@ -80,6 +80,7 @@ fn main() {
         french.checker.select(|_, _| true);
     }
     let loaded = started.elapsed();
+    let loaded_rss = rss_kb();
     let input = std::fs::read_to_string(file).expect("text file");
     let texts: Vec<String> = input.lines().map(unescape).collect();
     let threads = std::env::var("GRAMMARIA_THREADS")
@@ -119,8 +120,17 @@ fn main() {
     print!("{buf}");
     if time {
         let words: usize = texts.iter().map(|t| t.split_whitespace().count()).sum();
+        eprintln!("memory: {} MiB after load, {} MiB at the end", loaded_rss / 1024, rss_kb() / 1024);
         eprintln!("load {loaded:?}; {} texts, {words} words in {ran:?} on {threads} thread(s): {:.0} words/s", texts.len(), words as f64 / ran.as_secs_f64());
     }
+}
+
+/// Resident memory of this process in kB (Linux; 0 elsewhere).
+fn rss_kb() -> usize {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| s.lines().find(|l| l.starts_with("VmRSS:")).and_then(|l| l.split_whitespace().nth(1)?.parse().ok()))
+        .unwrap_or(0)
 }
 
 fn line(french: &French, mode: &str, text: &str) -> String {
