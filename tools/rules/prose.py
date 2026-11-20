@@ -43,7 +43,7 @@ for name in sorted(os.listdir(prose)):
         sys.exit(out.stderr)
     for text, line in zip(open(path, encoding="utf-8").read().split("\n"), out.stdout.split("\n")):
         words += len(text.split())
-        for m in json.loads(line):
+        for m in json.loads(line or "[]"):
             a, b = m[1], m[1] + m[2]
             by_rule[m[5]].append(f"{name}: …{text[max(0, a - 60):a]}[{text[a:b]}]{text[b:b + 40]}… -> {m[3][:2]}")
 total = sum(len(v) for v in by_rule.values())

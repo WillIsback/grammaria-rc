@@ -60,7 +60,7 @@ for name in sets:
         if split != "all" and it["split"] != split:
             continue
         text = it["text"]
-        for m in json.loads(line):
+        for m in json.loads(line or "[]"):
             rid = m[0]
             if only and rid != only:
                 continue
