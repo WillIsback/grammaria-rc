@@ -1,0 +1,479 @@
+[
+ {
+  "name": "marche-160-mots",
+  "text": "Hier, je suis aller au marché avec mes amis pour acheter des légumes frais. Il faisait beau et les gens était nombreux dans les allées. Nous avons trouver des tomates magnifiques, mais elles coûtait trop cher pour notre budget. Ma soeur a dit qu'elle préférait les courgettes, parce que ils sont plus faciles a cuisiner. Ensuite, nous somme allés boire un café sur la place principale. Le serveur nous a apporté des croissants que nous avions pas commandé. J'ai essayer de lui expliquer, mais il ne comprenais pas bien le français. Finalement, nous avons rit de la situation et nous avons gardé les croissants. En rentrant, j'ai réalisé que j'avais oublier mon portefeuille sur la table du café. Heureusement, le serveur l'avait mis de côté et me la rendu avec un grand sourire. Cette journée m'a rappelé que les petites erreurs peuvent parfois créer de beaux souvenirs. La semaine prochaine, nous retournerons au même marché, si le temps le permet.",
+  "corrected": "Hier, je suis allé au marché avec mes amis pour acheter des légumes frais. Il faisait beau et les gens étaient nombreux dans les allées. Nous avons trouvé des tomates magnifiques, mais elles coûtaient trop cher pour notre budget. Ma sœur a dit qu'elle préférait les courgettes, parce qu'elles sont plus faciles à cuisiner. Ensuite, nous sommes allés boire un café sur la place principale. Le serveur nous a apporté des croissants que nous n'avions pas commandés. J'ai essayé de lui expliquer, mais il ne comprenait pas bien le français. Finalement, nous avons ri de la situation et nous avons gardé les croissants. En rentrant, j'ai réalisé que j'avais oublié mon portefeuille sur la table du café. Heureusement, le serveur l'avait mis de côté et me l'a rendu avec un grand sourire. Cette journée m'a rappelé que les petites erreurs peuvent parfois créer de beaux souvenirs. La semaine prochaine, nous retournerons au même marché, si le temps le permet.",
+  "spans": [
+   [
+    14,
+    19
+   ],
+   [
+    104,
+    109
+   ],
+   [
+    147,
+    154
+   ],
+   [
+    191,
+    198
+   ],
+   [
+    231,
+    236
+   ],
+   [
+    283,
+    290
+   ],
+   [
+    309,
+    310
+   ],
+   [
+    335,
+    340
+   ],
+   [
+    436,
+    442
+   ],
+   [
+    447,
+    455
+   ],
+   [
+    462,
+    469
+   ],
+   [
+    499,
+    509
+   ],
+   [
+    555,
+    558
+   ],
+   [
+    649,
+    656
+   ],
+   [
+    747,
+    749
+   ]
+  ]
+ },
+ {
+  "name": "courriel-pro",
+  "text": "Bonjour Madame, je vous écrit suite a notre réunion de mardi dernier. Comme convenus, je vous envoi le compte rendu ainsi que les documents demandé. Les chiffres du trimestre sont meilleur que prévus, malgré que certains clients ont annulés leur commande. Je reste a votre disposition pour tout renseignements complémentaire. Dans l'attente de votre retour, je vous pris d'agréer mes salutations distingués.",
+  "corrected": "Bonjour Madame, je vous écris suite à notre réunion de mardi dernier. Comme convenu, je vous envoie le compte rendu ainsi que les documents demandés. Les chiffres du trimestre sont meilleurs que prévu, bien que certains clients aient annulé leur commande. Je reste à votre disposition pour tout renseignement complémentaire. Dans l'attente de votre retour, je vous prie d'agréer mes salutations distinguées.",
+  "spans": [
+   [
+    24,
+    29
+   ],
+   [
+    36,
+    37
+   ],
+   [
+    76,
+    84
+   ],
+   [
+    94,
+    99
+   ],
+   [
+    140,
+    147
+   ],
+   [
+    180,
+    188
+   ],
+   [
+    193,
+    199
+   ],
+   [
+    201,
+    207
+   ],
+   [
+    229,
+    232
+   ],
+   [
+    233,
+    240
+   ],
+   [
+    265,
+    266
+   ],
+   [
+    295,
+    309
+   ],
+   [
+    366,
+    370
+   ],
+   [
+    396,
+    406
+   ]
+  ]
+ },
+ {
+  "name": "accords",
+  "text": "Les enfants était content de leur vacances. Ils ont manger des glaces et ils se sont baigné tout les jours. Leur parents, eux, sont rester à l'ombre. La petite fille que j'ai vu hier portait une robe bleu. Quelques soit le temps, ils sortent se promené.",
+  "corrected": "Les enfants étaient contents de leurs vacances. Ils ont mangé des glaces et ils se sont baignés tous les jours. Leurs parents, eux, sont restés à l'ombre. La petite fille que j'ai vue hier portait une robe bleue. Quel que soit le temps, ils sortent se promener.",
+  "spans": [
+   [
+    12,
+    17
+   ],
+   [
+    18,
+    25
+   ],
+   [
+    29,
+    33
+   ],
+   [
+    52,
+    58
+   ],
+   [
+    85,
+    91
+   ],
+   [
+    92,
+    96
+   ],
+   [
+    108,
+    112
+   ],
+   [
+    132,
+    138
+   ],
+   [
+    175,
+    177
+   ],
+   [
+    200,
+    204
+   ],
+   [
+    206,
+    214
+   ],
+   [
+    245,
+    252
+   ]
+  ]
+ },
+ {
+  "name": "homophones",
+  "text": "Sa fait longtemps que je ne t'ai pas vu. Ou est-ce que tu habite maintenant ? Ont m'a dit que tu a déménagé près de la mère. Ces vraiment dommage que tu ne sois pas venu a la fête, on c'est bien amusés. Je ne sais pas si tu peut venir se week-end, mais sa me ferait plaisir.",
+  "corrected": "Ça fait longtemps que je ne t'ai pas vu. Où est-ce que tu habites maintenant ? On m'a dit que tu as déménagé près de la mer. C'est vraiment dommage que tu ne sois pas venu à la fête, on s'est bien amusés. Je ne sais pas si tu peux venir ce week-end, mais ça me ferait plaisir.",
+  "spans": [
+   [
+    0,
+    2
+   ],
+   [
+    41,
+    43
+   ],
+   [
+    58,
+    64
+   ],
+   [
+    78,
+    81
+   ],
+   [
+    97,
+    98
+   ],
+   [
+    119,
+    123
+   ],
+   [
+    125,
+    128
+   ],
+   [
+    170,
+    171
+   ],
+   [
+    184,
+    189
+   ],
+   [
+    224,
+    228
+   ],
+   [
+    235,
+    237
+   ],
+   [
+    253,
+    255
+   ]
+  ]
+ },
+ {
+  "name": "sans-faute",
+  "text": "Le conseil municipal s'est réuni hier soir pour examiner le budget de l'année prochaine. Après deux heures de débat, les élus ont adopté le texte à une large majorité. Les travaux de la médiathèque commenceront au printemps.",
+  "corrected": "Le conseil municipal s'est réuni hier soir pour examiner le budget de l'année prochaine. Après deux heures de débat, les élus ont adopté le texte à une large majorité. Les travaux de la médiathèque commenceront au printemps.",
+  "spans": []
+ },
+ {
+  "name": "typographie",
+  "text": "Est-ce que tu viens demain? Je ne sais pas ,peut-être... Il a dit : \"non\" . Le prix est de 12,5 euros,et c'est trop chère !  Il y a  deux espaces ici. au début d'une phrase sans majuscule.",
+  "corrected": "Est-ce que tu viens demain ? Je ne sais pas, peut-être… Il a dit : « non ». Le prix est de 12,5 euros, et c'est trop cher ! Il y a deux espaces ici. Au début d'une phrase sans majuscule.",
+  "spans": [
+   [
+    116,
+    121
+   ],
+   [
+    151,
+    153
+   ]
+  ]
+ },
+ {
+  "name": "conjugaison",
+  "text": "Si j'aurais su, je serais pas venu. Il faut que tu vient me voir avant que je part. Nous avons décider de partir tôt, bien que la route est longue. Je vous serais gré de bien vouloir me répondre. Elle c'est levé tôt et à pris le train.",
+  "corrected": "Si j'avais su, je ne serais pas venu. Il faut que tu viennes me voir avant que je parte. Nous avons décidé de partir tôt, bien que la route soit longue. Je vous saurais gré de bien vouloir me répondre. Elle s'est levée tôt et a pris le train.",
+  "spans": [
+   [
+    3,
+    11
+   ],
+   [
+    19,
+    20
+   ],
+   [
+    51,
+    56
+   ],
+   [
+    78,
+    82
+   ],
+   [
+    95,
+    102
+   ],
+   [
+    136,
+    139
+   ],
+   [
+    156,
+    162
+   ],
+   [
+    201,
+    206
+   ],
+   [
+    207,
+    211
+   ],
+   [
+    219,
+    220
+   ]
+  ]
+ },
+ {
+  "name": "court",
+  "text": "Je mange un pomme.",
+  "corrected": "Je mange une pomme.",
+  "spans": [
+   [
+    9,
+    11
+   ]
+  ]
+ },
+ {
+  "name": "apostrophes-typographiques",
+  "text": "L’enfant n’a pas compris qu’il fallait venir. Aujourd’hui, c’est l’heure d’aller a l’école. Je crois qu’ il viendra jusqu’à ce soir. Qu’en penses-tu ? C'est l’été qu’on préfère.",
+  "corrected": "L’enfant n’a pas compris qu’il fallait venir. Aujourd’hui, c’est l’heure d’aller à l’école. Je crois qu’il viendra jusqu’à ce soir. Qu’en penses-tu ? C'est l’été qu’on préfère.",
+  "spans": [
+   [
+    81,
+    82
+   ]
+  ]
+ },
+ {
+  "name": "emojis",
+  "text": "Je suis trop content 😀 de te voir ! On se voit demain 👍 ? Les fille sont arrivé 🎉 avec leur parents 👨‍👩‍👧. C'est vraiment génial 🇫🇷 et sa me fait plaisir ❤️.",
+  "corrected": "Je suis trop content 😀 de te voir ! On se voit demain 👍 ? Les filles sont arrivées 🎉 avec leurs parents 👨‍👩‍👧. C'est vraiment génial 🇫🇷 et ça me fait plaisir ❤️.",
+  "spans": [
+   [
+    62,
+    67
+   ],
+   [
+    73,
+    79
+   ],
+   [
+    87,
+    91
+   ],
+   [
+    135,
+    137
+   ]
+  ]
+ },
+ {
+  "name": "majuscules",
+  "text": "PARIS EST UNE BELLE VILLE. je suis allé a paris en Juillet avec Marie et jean. LES ENFANTS ÉTAIT CONTENT DE LEUR VACANCES. Le Lundi, nous visitons le Musée du Louvre. Etat, Ecole et Eglise s'écrivent avec un accent.",
+  "corrected": "PARIS EST UNE BELLE VILLE. Je suis allé à Paris en juillet avec Marie et Jean. LES ENFANTS ÉTAIENT CONTENTS DE LEURS VACANCES. Le lundi, nous visitons le musée du Louvre. État, École et Église s'écrivent avec un accent.",
+  "spans": [
+   [
+    27,
+    29
+   ],
+   [
+    40,
+    41
+   ],
+   [
+    42,
+    47
+   ],
+   [
+    51,
+    58
+   ],
+   [
+    73,
+    77
+   ],
+   [
+    91,
+    96
+   ],
+   [
+    97,
+    104
+   ],
+   [
+    108,
+    112
+   ],
+   [
+    126,
+    131
+   ],
+   [
+    150,
+    155
+   ],
+   [
+    167,
+    171
+   ],
+   [
+    173,
+    178
+   ],
+   [
+    182,
+    188
+   ]
+  ]
+ },
+ {
+  "name": "ponctuation",
+  "text": "« Bonjour » , dit-il… Puis il ajouta: « tu viens ? » — Oui ! répondit-elle. Il y avait : des pommes ; des poires , et des cerises.Le magasin ferme à 19h00 ! ! Vraiment ?! (enfin, je crois.) Voici une liste - premier point - deuxième point.",
+  "corrected": "« Bonjour », dit-il… Puis il ajouta : « tu viens ? » — Oui ! répondit-elle. Il y avait : des pommes ; des poires, et des cerises. Le magasin ferme à 19h00 ! Vraiment ?! (enfin, je crois.) Voici une liste - premier point - deuxième point.",
+  "spans": []
+ },
+ {
+  "name": "dates-chiffres-adresses",
+  "text": "Le lundi 3 mars 2026, nous avons rendez-vous à 14 h 30. Le 31 février 2025 n'existe pas. J'ai 3 chat et 2,5 kg de pomme. Écris-moi à jean.dupont@example.com ou va sur https://example.com/page?x=1 pour t'inscrire. Il a gagné 1 000 000 d'euros en 1999.",
+  "corrected": "Le lundi 3 mars 2026, nous avons rendez-vous à 14 h 30. Le 31 février 2025 n'existe pas. J'ai 3 chats et 2,5 kg de pommes. Écris-moi à jean.dupont@example.com ou va sur https://example.com/page?x=1 pour t'inscrire. Il a gagné 1 000 000 d'euros en 1999.",
+  "spans": [
+   [
+    96,
+    100
+   ],
+   [
+    114,
+    119
+   ]
+  ]
+ },
+ {
+  "name": "lignes-et-liste",
+  "text": "Liste des courses :\n- du pain\n- des oeufs\n- du lait demi-écrémé\n\nNe pas oublié les piles pour la télécommande.\nMerci d'avance !",
+  "corrected": "Liste des courses :\n- du pain\n- des œufs\n- du lait demi-écrémé\n\nNe pas oublier les piles pour la télécommande.\nMerci d'avance !",
+  "spans": [
+   [
+    36,
+    41
+   ],
+   [
+    72,
+    78
+   ]
+  ]
+ },
+ {
+  "name": "sans-faute-long",
+  "text": "La bibliothèque de quartier a rouvert ses portes après six mois de travaux. Les lecteurs y découvrent des salles plus lumineuses, des fauteuils confortables et un espace réservé aux enfants, où des animatrices proposent chaque mercredi des lectures à voix haute. Le fonds a été enrichi de plusieurs milliers d'ouvrages, parmi lesquels des romans récents, des bandes dessinées et des livres en langues étrangères. Les horaires ont également été élargis : la bibliothèque est désormais ouverte le dimanche matin, ce que de nombreux habitants réclamaient depuis longtemps. Selon la directrice, la fréquentation a doublé dès la première semaine. Elle espère que ce succès durera et que les nouveaux inscrits prendront l'habitude de revenir régulièrement. Un club de lecture se réunira une fois par mois pour discuter d'un livre choisi ensemble.",
+  "corrected": "La bibliothèque de quartier a rouvert ses portes après six mois de travaux. Les lecteurs y découvrent des salles plus lumineuses, des fauteuils confortables et un espace réservé aux enfants, où des animatrices proposent chaque mercredi des lectures à voix haute. Le fonds a été enrichi de plusieurs milliers d'ouvrages, parmi lesquels des romans récents, des bandes dessinées et des livres en langues étrangères. Les horaires ont également été élargis : la bibliothèque est désormais ouverte le dimanche matin, ce que de nombreux habitants réclamaient depuis longtemps. Selon la directrice, la fréquentation a doublé dès la première semaine. Elle espère que ce succès durera et que les nouveaux inscrits prendront l'habitude de revenir régulièrement. Un club de lecture se réunira une fois par mois pour discuter d'un livre choisi ensemble.",
+  "spans": []
+ },
+ {
+  "name": "recit",
+  "text": "Le train de sept heures était encore en retard ce matin. Sur le quai, les voyageurs regardait leurs montres en soupirant, et quelques un téléphonaient déjà à leur bureau pour prévenir. Une dame âgée, assise sur un banc, racontait à qui voulait l'entendre que de son temps, les trains partaient toujours a l'heure. Un jeune homme lui a répondu poliment qu'il en doutait, ce qui l'a fait rire. Quand le train est enfin arrivé, tout le monde s'est précipité vers les portes. J'ai trouvé une place près de la fenêtre et j'ai regardé défiler les champs encore couvert de brume. Le contrôleur est passé, il a vérifié les billets et il nous a souhaité une bonne journée malgré le retard. Arrivée en ville, j'ai marché jusqu'au bureau en passant par le parc, où les jardiniers plantaient des tulipes pour le printemps.",
+  "corrected": "Le train de sept heures était encore en retard ce matin. Sur le quai, les voyageurs regardaient leurs montres en soupirant, et quelques-uns téléphonaient déjà à leur bureau pour prévenir. Une dame âgée, assise sur un banc, racontait à qui voulait l'entendre que de son temps, les trains partaient toujours à l'heure. Un jeune homme lui a répondu poliment qu'il en doutait, ce qui l'a fait rire. Quand le train est enfin arrivé, tout le monde s'est précipité vers les portes. J'ai trouvé une place près de la fenêtre et j'ai regardé défiler les champs encore couverts de brume. Le contrôleur est passé, il a vérifié les billets et il nous a souhaité une bonne journée malgré le retard. Arrivée en ville, j'ai marché jusqu'au bureau en passant par le parc, où les jardiniers plantaient des tulipes pour le printemps.",
+  "spans": [
+   [
+    84,
+    93
+   ],
+   [
+    125,
+    136
+   ],
+   [
+    303,
+    304
+   ],
+   [
+    555,
+    562
+   ]
+  ]
+ }
+]
