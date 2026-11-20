@@ -18,3 +18,4 @@ pub mod rule;
 pub mod strtools;
 pub mod token;
 pub mod unifier;
+pub mod xmlrules;
