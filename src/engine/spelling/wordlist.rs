@@ -79,7 +79,11 @@ pub fn prepare_line_for_speller(line: &str) -> String {
     }
     if form_tag.len() > 1 {
         let tag = java_trim(form_tag[1]);
-        return if tag.starts_with('Z') || tag.starts_with('N') || tag == "A" { form.to_string() } else { String::new() };
+        return if tag.starts_with('Z') || tag.starts_with('N') || tag == "A" {
+            form.to_string()
+        } else {
+            String::new()
+        };
     }
     line.to_string()
 }

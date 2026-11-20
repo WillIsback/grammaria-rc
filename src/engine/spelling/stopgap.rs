@@ -9,8 +9,10 @@
 //! * [`StopgapTagger`] follows `FrenchTagger.tag` for one word: the word as
 //!   written, its lowercase form when it is capitalised or in capitals, its
 //!   title-case form when in capitals, `œ` for `oe`; readings come from the
-//!   dictionary and `added.txt`, minus `removed.txt`. The productive prefixes
-//!   (`FrenchTagger.additionalTags`) are **not** handled.
+//!   dictionary and `added.txt`, minus `removed.txt`; an unknown word made
+//!   of a productive prefix and a known word takes the readings of that word
+//!   (`FrenchTagger.additionalTags`). The chunk tags about apostrophes are
+//!   not set.
 //! * [`StopgapTokenizer`] follows `FrenchWordTokenizer.tokenize`, without the
 //!   final joining of e-mail addresses and URLs.
 
@@ -51,7 +53,9 @@ fn manual_entries(dir: &Path, names: &[&str]) -> HashMap<String, Vec<(String, St
             if parts.len() != 3 {
                 continue;
             }
-            map.entry(parts[0].to_string()).or_default().push((parts[1].to_string(), java_trim(parts[2]).to_string()));
+            map.entry(parts[0].to_string())
+                .or_default()
+                .push((parts[1].to_string(), java_trim(parts[2]).to_string()));
         }
     }
     map
@@ -89,15 +93,14 @@ impl StopgapTagger {
         }
     }
 
-    /// `FrenchTagger.tagWord`, without `additionalTags`.
+    /// `FrenchTagger.tagWord`.
     fn tag_word_readings(&self, word: &str) -> Vec<(String, String)> {
         const AMBIGUOUS: [&str; 11] = ["-Le", "-Les", "-La", "-Elle", "-Elles", "-On", "-Tu", "-Vous", "-Il", "-Ils", "-Ce"];
         let mut l = Vec::new();
         let lower = word.to_lowercase();
         let is_start_upper = strtools::is_capitalized_word(word);
         let is_all_upper = strtools::is_all_uppercase(word);
-        let is_hyphenated_title_case =
-            !AMBIGUOUS.contains(&word) && word.contains('-') && word == strtools::convert_to_title_case_iterating_chars(&lower);
+        let is_hyphenated_title_case = !AMBIGUOUS.contains(&word) && word.contains('-') && word == strtools::convert_to_title_case_iterating_chars(&lower);
         self.word_tagger(word, &mut l);
         if is_all_upper || is_start_upper || is_hyphenated_title_case {
             self.word_tagger(&lower, &mut l);
@@ -105,7 +108,68 @@ impl StopgapTagger {
         if l.is_empty() && is_all_upper {
             self.word_tagger(&strtools::convert_to_title_case_iterating_chars(&lower), &mut l);
         }
+        if l.is_empty() {
+            l = self.additional_tags(word);
+        }
         l
+    }
+
+    /// `FrenchTagger.additionalTags`: `auto`, `re-`, `sur-` before a verb,
+    /// `mini`, `méga` or a hyphenated prefix before a noun, an adjective or a
+    /// past participle.
+    fn additional_tags(&self, word: &str) -> Vec<(String, String)> {
+        const HYPHENATED: [&str; 26] = [
+            "post-", "sur-", "mini-", "méga-", "demi-", "péri-", "anti-", "géo-", "nord-", "sud-", "néo-", "ultra-", "pro-", "inter-", "micro-", "macro-",
+            "sous-", "haut-", "auto-", "ré-", "pré-", "super-", "vice-", "hyper-", "proto-", "grand-",
+        ];
+        let lower = word.to_lowercase();
+        let is_noun_adj = |tag: &str| tag.starts_with("N ") && tag.len() > 2 || tag.starts_with("J ") && tag.len() > 2 || tag.starts_with("V ppa");
+        let is_verb = |tag: &str| tag.starts_with("V ") && tag.len() > 2;
+        // The readings of `rest` (lowercased) that `keep` accepts, with the
+        // prefix added to their lemma.
+        let with_prefix = |prefix: &str, keep: &dyn Fn(&str) -> bool| -> Vec<(String, String)> {
+            let mut found = Vec::new();
+            self.word_tagger(&lower[prefix.len()..], &mut found);
+            found
+                .into_iter()
+                .filter(|(_, tag)| keep(tag))
+                .map(|(lemma, tag)| (format!("{prefix}{lemma}"), tag))
+                .collect()
+        };
+        // `[^-].*[aeiou...].+[aeiou...].*`: the rest of the word has two
+        // vowels with something in between.
+        let two_vowels = |rest: &str| {
+            let chars: Vec<char> = rest.chars().collect();
+            let vowel = |c: &char| "aeiouêàéèíòóïü".contains(*c);
+            chars.first().is_some_and(|c| *c != '-')
+                && chars
+                    .iter()
+                    .skip(1)
+                    .position(vowel)
+                    .is_some_and(|first| chars.iter().skip(first + 3).any(vowel))
+        };
+        for prefix in ["auto-", "auto", "re-", "sur-"] {
+            if lower.starts_with(prefix) && two_vowels(&lower[prefix.len()..]) {
+                let tags = with_prefix(prefix, &is_verb);
+                if !tags.is_empty() {
+                    return tags;
+                }
+            }
+        }
+        for prefix in ["mini", "méga"] {
+            if lower.starts_with(prefix) && two_vowels(&lower[prefix.len()..]) {
+                let tags = with_prefix(prefix, &is_noun_adj);
+                if !tags.is_empty() {
+                    return tags;
+                }
+            }
+        }
+        for prefix in HYPHENATED.iter().chain(&["pseudo-"]) {
+            if lower.starts_with(prefix) && lower.len() > prefix.len() {
+                return with_prefix(prefix, &is_noun_adj);
+            }
+        }
+        Vec::new()
     }
 
     /// True when the word has a reading (`tag(word).isTagged()`).
@@ -145,8 +209,10 @@ impl WordTagger for StopgapTagger {
 
 /// `FrenchWordTokenizer.wordCharacters`.
 fn is_word_character(c: char) -> bool {
-    matches!(c, '§' | '©' | '@' | '€' | '£' | '$' | '_' | '-' | '\u{a8}' | '°' | '%' | '‰' | '‱' | '&' | '\u{fffd}' | '\u{ad}' | '\u{ac}')
-        || c.is_ascii_digit()
+    matches!(
+        c,
+        '§' | '©' | '@' | '€' | '£' | '$' | '_' | '-' | '\u{a8}' | '°' | '%' | '‰' | '‱' | '&' | '\u{fffd}' | '\u{ad}' | '\u{ac}'
+    ) || c.is_ascii_digit()
         || matches!(c as u32, 0x300..=0x36F | 0x2070..=0x209F)
         || java_is_letter(c)
 }
@@ -209,9 +275,28 @@ impl StopgapTokenizer {
             return vec![text.to_string()];
         }
         const DO_NOT_SPLIT: [&str; 22] = [
-            "mers-cov", "mcgraw-hill", "sars-cov-2", "sars-cov", "ph-metre", "ph-metres", "anti-ivg", "anti-uv", "anti-vih", "al-qaïda",
-            "c'est-à-dire", "add-on", "add-ons", "rendez-vous", "garde-à-vous", "chez-eux", "chez-moi", "chez-nous", "chez-soi", "chez-toi",
-            "chez-vous", "m'as-tu-vu",
+            "mers-cov",
+            "mcgraw-hill",
+            "sars-cov-2",
+            "sars-cov",
+            "ph-metre",
+            "ph-metres",
+            "anti-ivg",
+            "anti-uv",
+            "anti-vih",
+            "al-qaïda",
+            "c'est-à-dire",
+            "add-on",
+            "add-ons",
+            "rendez-vous",
+            "garde-à-vous",
+            "chez-eux",
+            "chez-moi",
+            "chez-nous",
+            "chez-soi",
+            "chez-toi",
+            "chez-vous",
+            "m'as-tu-vu",
         ];
         let p = tokenizer_patterns();
         let mut l: Vec<String> = Vec::new();
@@ -362,6 +447,12 @@ mod tests {
         assert!(tagger.tag_word("oeuvre").is_tagged(), "oe stands for œ");
         assert!(!tagger.tag_word("connaisance").is_tagged());
         assert!(!tagger.tag_word("maiSon").is_tagged());
+        assert!(tagger.tag_word("auto-défense").has_pos_tag("N f s"), "a prefix before a noun");
+        assert_eq!(
+            tagger.tag_word("sous-couvert").readings[0].lemma.as_deref().map(|l| l.starts_with("sous-")),
+            Some(true)
+        );
+        assert!(!tagger.tag_word("sous-xyzzy").is_tagged());
         assert_eq!(&*tagger.tag_word("l’homme").token, "l'homme");
     }
 

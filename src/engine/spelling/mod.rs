@@ -112,3 +112,66 @@ impl FrenchSpelling {
         }
     }
 }
+
+/// What the tests of this module share: the speller loaded from the
+/// repository's resources, and sentences analysed with the provisional
+/// tokenizer and tagger. The expected values of those tests were produced by
+/// LanguageTool (Java) on the same inputs.
+#[cfg(test)]
+pub(crate) mod testing {
+    use std::sync::{Arc, OnceLock};
+
+    use super::super::pattern::WordTagger;
+    use super::super::token::{Reading, Readings, Sentence, SENTENCE_START};
+    use super::stopgap::{StopgapTagger, StopgapTokenizer};
+    use super::FrenchSpelling;
+    use crate::morfologik::Dictionary;
+
+    pub struct Tools {
+        pub spelling: FrenchSpelling,
+        tagger: Arc<StopgapTagger>,
+        tokenizer: StopgapTokenizer,
+    }
+
+    /// `None` when the resources are not there (tests are then skipped).
+    pub fn tools() -> Option<&'static Tools> {
+        static TOOLS: OnceLock<Option<Tools>> = OnceLock::new();
+        TOOLS
+            .get_or_init(|| {
+                let assets = std::path::Path::new("assets/fr/lt");
+                let dictionary = Arc::new(Dictionary::load(assets.join("french.dict"), assets.join("french.info")).ok()?);
+                let tagger = Arc::new(StopgapTagger::new(dictionary, assets));
+                Some(Tools {
+                    spelling: FrenchSpelling::load_with_stopgaps(assets).ok()?,
+                    tokenizer: StopgapTokenizer::new(tagger.clone()),
+                    tagger,
+                })
+            })
+            .as_ref()
+    }
+
+    impl Tools {
+        /// One sentence: `SENT_START`, then the tokens of `text` with the
+        /// readings the tagger gives them.
+        pub fn analyse(&self, text: &str) -> Sentence {
+            let mut tokens = vec![Readings::new(vec![Reading::from_strs("", Some(SENTENCE_START), None)], 0)];
+            let mut pos = 0;
+            let mut previous: Arc<str> = Arc::from("");
+            for token in self.tokenizer.tokenize(text) {
+                let tagged = self.tagger.tag_word(&token);
+                let text_of: Arc<str> = Arc::from(token.as_str());
+                let readings = tagged
+                    .readings
+                    .iter()
+                    .map(|r| Reading::new(text_of.clone(), r.pos_tag, r.lemma.clone()))
+                    .collect();
+                let mut readings = Readings::new(readings, pos);
+                readings.set_whitespace_before(&previous);
+                pos += token.len();
+                previous = text_of;
+                tokens.push(readings);
+            }
+            Sentence::new(Arc::from(text), tokens, Vec::new())
+        }
+    }
+}

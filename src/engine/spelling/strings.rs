@@ -27,7 +27,7 @@ pub fn remove_diacritics(s: &str) -> String {
         if (0x0300..=0x036F).contains(&cp) {
             continue;
         }
-        if cp < 0xC0 || cp > 0xFFFF || (0xAC00..=0xD7A3).contains(&cp) {
+        if !(0xC0..=0xFFFF).contains(&cp) || (0xAC00..=0xD7A3).contains(&cp) {
             out.push(c);
             continue;
         }
@@ -153,8 +153,8 @@ pub fn java_is_all_uppercase(s: &str) -> bool {
 pub fn java_is_mixed_case(s: &str) -> bool {
     let units: Vec<u16> = s.encode_utf16().collect();
     let all_uppercase = !units.iter().any(|&c| unicode::is_letter(c) && unicode::is_lower_case(c));
-    let capitalized = units.first().is_some_and(|&c| unicode::is_upper_case(c))
-        && !units[1..].iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
+    let capitalized =
+        units.first().is_some_and(|&c| unicode::is_upper_case(c)) && !units[1..].iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
     let not_all_lowercase = units.iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
     !all_uppercase && !capitalized && not_all_lowercase
 }

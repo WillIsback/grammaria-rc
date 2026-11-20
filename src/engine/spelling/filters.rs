@@ -41,7 +41,9 @@ pub struct EditDistance {
 impl EditDistance {
     pub fn new(base_string: &str) -> EditDistance {
         let base: Vec<u16> = base_string.encode_utf16().collect();
-        EditDistance { base: if base.is_empty() { None } else { Some(base) } }
+        EditDistance {
+            base: if base.is_empty() { None } else { Some(base) },
+        }
     }
 
     /// `compare` (`DamerauLevenshteinDistance`).
@@ -178,7 +180,11 @@ pub struct FindSuggestionsFilter {
 
 impl FindSuggestionsFilter {
     pub fn new(morfologik_rule: Arc<FrenchSpellerRule>, tagger: Arc<dyn WordTagger>) -> FindSuggestionsFilter {
-        FindSuggestionsFilter { morfologik_rule, tagger, cache: Mutex::new(HashMap::new()) }
+        FindSuggestionsFilter {
+            morfologik_rule,
+            tagger,
+            cache: Mutex::new(HashMap::new()),
+        }
     }
 
     /// `getSpellingSuggestions`: the speller's suggestions for the word (made
@@ -459,7 +465,11 @@ pub struct SuppressMisspelledSuggestionsFilter {
 
 impl SuppressMisspelledSuggestionsFilter {
     pub fn new(spelling_rule: Arc<FrenchSpellerRule>, tagger: Arc<dyn WordTagger>, tokenize: Tokenize) -> SuppressMisspelledSuggestionsFilter {
-        SuppressMisspelledSuggestionsFilter { spelling_rule, tagger, tokenize }
+        SuppressMisspelledSuggestionsFilter {
+            spelling_rule,
+            tagger,
+            tokenize,
+        }
     }
 
     /// `isMisspelled(s, language)`: one of the tokens of `s` is misspelled.
@@ -545,6 +555,123 @@ mod tests {
         assert_eq!(clean_suggestion("la maison"), "maison");
         assert_eq!(clean_suggestion("a lot"), "a");
         assert_eq!(clean_suggestion("maison"), "maison");
+    }
+
+    fn context(tools: &super::super::testing::Tools) -> RuleContext {
+        let mut lang = super::super::super::pattern::Lang::default();
+        lang.synthesizer = super::super::super::synth::FrenchSynthesizer::load(std::path::Path::new("assets/fr/lt"))
+            .ok()
+            .map(|s| Arc::new(s) as _);
+        lang.tagger = Some(tools.spelling.tagger.clone());
+        lang.speller = Some(tools.spelling.spell_checker());
+        RuleContext {
+            lang,
+            unifier: Default::default(),
+            disambig_unifier: Default::default(),
+        }
+    }
+
+    fn arguments(args: &str) -> HashMap<String, String> {
+        args.split(' ')
+            .filter_map(|a| a.split_once(':'))
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+
+    /// A match over the `marked` tokens of the sentence (indexes among its
+    /// non-whitespace tokens) with the given suggestions in its message.
+    fn rule_match(sentence: &Sentence, marked: (usize, usize), suggestions: &[&str]) -> RuleMatch {
+        let (from, to) = (sentence.tok(marked.0).start_pos, sentence.tok(marked.1).end_pos());
+        let message: String = suggestions.iter().map(|s| format!("<suggestion>{s}</suggestion>")).collect();
+        RuleMatch::new(0, &sentence.text, from, to, from, to, message, String::new(), false, false, "")
+    }
+
+    #[test]
+    fn find_suggestions_filter() {
+        let Some(tools) = super::super::testing::tools() else { return };
+        let ctx = context(tools);
+        let filter = tools.spelling.filter("FindSuggestionsFilter").unwrap();
+        let run = |text: &str, pattern: (usize, usize), marked: (usize, usize), suggestions: &[&str], args: &str| -> Option<Vec<String>> {
+            let sentence = tools.analyse(text);
+            let tokens = sentence.non_ws_tokens();
+            let m = rule_match(&sentence, marked, suggestions);
+            let positions = vec![1; pattern.1 - pattern.0 + 1];
+            filter
+                .accept(m, &arguments(args), pattern.0, &tokens[pattern.0..=pattern.1], &positions, &sentence, &ctx)
+                .map(|m| m.suggestions.into_iter().take(5).collect())
+        };
+        // JE_VERBE[1]: a verb in the first person for the unknown word.
+        assert_eq!(
+            run(
+                "Je connai ton frère.",
+                (1, 2),
+                (2, 2),
+                &[],
+                "wordFrom:2 desiredPostag:V.*1.s|R.* removeSuggestionsRegexp:^.*[éè]$"
+            ),
+            Some(s(&["donnai", "cannai", "sonnai", "tonnai", "monnaie"]))
+        );
+        // ILS_VERBE[2].
+        assert_eq!(
+            run(
+                "ils le ferront crever à petit feu",
+                (1, 3),
+                (3, 3),
+                &[],
+                "wordFrom:3 desiredPostag:V.*3.p|R.pers.obj.*"
+            ),
+            Some(s(&["feront", "seront", "verront", "ferrent", "ferreront"]))
+        );
+        // LETTRE_UNIQUE[6]: a known word is first made wrong ("fïlle"); the
+        // placeholder of the rule's suggestion takes each proposal.
+        assert_eq!(
+            run(
+                "C'est s fille.",
+                (2, 4),
+                (3, 4),
+                &["fille", "s'{suggestion}"],
+                "wordFrom:3 desiredPostag:V.* RemoveSuggestionsRegexp:^.*[éè]$"
+            ),
+            Some(s(&["fille", "s'file", "s'filé", "s'faille", "s'fallu"]))
+        );
+        // Nothing to propose: the match goes away when the rule asks for it.
+        assert_eq!(
+            run("Je xyzzyqw", (1, 2), (2, 2), &[], "wordFrom:2 desiredPostag:V.*1.s suppressMatch:true"),
+            None
+        );
+        assert_eq!(run("Je xyzzyqw", (1, 2), (2, 2), &[], "wordFrom:2 desiredPostag:V.*1.s"), Some(Vec::new()));
+    }
+
+    #[test]
+    fn suppress_misspelled_suggestions_filter() {
+        let Some(tools) = super::super::testing::tools() else { return };
+        let ctx = context(tools);
+        let filter = tools.spelling.filter("FrenchSuppressMisspelledSuggestionsFilter").unwrap();
+        let run = |suggestions: &[&str], args: &str| -> Option<Vec<String>> {
+            let sentence = tools.analyse("auto défense");
+            let tokens = sentence.non_ws_tokens();
+            let mut m = rule_match(&sentence, (1, 2), &[]);
+            m.suggestions = s(suggestions);
+            filter
+                .accept(m, &arguments(args), 1, &tokens[1..=2], &[1, 1], &sentence, &ctx)
+                .map(|m| m.suggestions)
+        };
+        // "auto-défense" is one token (the tagger knows the prefix) that the
+        // dictionary does not have.
+        assert_eq!(run(&["autodéfense", "auto-défense"], "suppressMatch:true"), Some(s(&["autodéfense"])));
+        assert_eq!(run(&["auto-défense", "autodéfence"], "suppressMatch:true"), None);
+        assert_eq!(run(&["auto-défense"], "suppressMatch:false"), Some(Vec::new()));
+        // Every token of a suggestion is checked.
+        assert_eq!(
+            run(&["l'autodéfense", "l'autodéfence", "dit-il"], "suppressMatch:true"),
+            Some(s(&["l'autodéfense", "dit-il"]))
+        );
+        assert_eq!(run(&["maison", "chat"], "suppressMatch:true FilterPostag:N.f.*"), Some(s(&["maison"])));
+        assert_eq!(run(&["maison", "chat"], "suppressMatch:true SuppressPostag:N.f.*"), Some(s(&["chat"])));
+    }
+
+    fn s(list: &[&str]) -> Vec<String> {
+        list.iter().map(|x| x.to_string()).collect()
     }
 
     #[test]

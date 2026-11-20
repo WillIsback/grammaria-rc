@@ -45,7 +45,11 @@ pub struct MorfologikSpeller {
 impl MorfologikSpeller {
     pub fn new(dictionary: Arc<Dictionary>, max_edit_distance: usize) -> MorfologikSpeller {
         assert!(max_edit_distance > 0, "maxEditDistance must be > 0: {max_edit_distance}");
-        MorfologikSpeller { dictionary, max_edit_distance, contains_separators: AtomicBool::new(true) }
+        MorfologikSpeller {
+            dictionary,
+            max_edit_distance,
+            contains_separators: AtomicBool::new(true),
+        }
     }
 
     /// `isMisspelled`.
@@ -111,11 +115,17 @@ impl MorfologikSpeller {
         if length < 50 {
             // slow for long words (the limit is arbitrary)
             for candidate in speller.find_replacement_candidates(word) {
-                suggestions.push(WeightedSuggestion { word: candidate.word, weight: candidate.distance });
+                suggestions.push(WeightedSuggestion {
+                    word: candidate.word,
+                    weight: candidate.distance,
+                });
             }
         }
         for candidate in speller.replace_run_on_word_candidates(word) {
-            suggestions.push(WeightedSuggestion { word: candidate.word, weight: candidate.distance });
+            suggestions.push(WeightedSuggestion {
+                word: candidate.word,
+                weight: candidate.distance,
+            });
         }
         let converting_case = self.dictionary.metadata.convert_case;
         if converting_case && java_is_all_uppercase(word) {
@@ -240,7 +250,12 @@ impl MorfologikMultiSpeller {
         if let Some(dictionary) = plain_text {
             spellers.push(MorfologikSpeller::new(dictionary, max_edit_distance));
         }
-        MorfologikMultiSpeller { spellers, converts_case, misspelled: RwLock::new(HashMap::new()), default_dict_suggestions: Mutex::new(HashMap::new()) }
+        MorfologikMultiSpeller {
+            spellers,
+            converts_case,
+            misspelled: RwLock::new(HashMap::new()),
+            default_dict_suggestions: Mutex::new(HashMap::new()),
+        }
     }
 
     /// `isMisspelled`: no dictionary knows the word.
@@ -310,7 +325,10 @@ mod tests {
     use super::*;
 
     fn ws(word: &str, weight: i32) -> WeightedSuggestion {
-        WeightedSuggestion { word: word.to_string(), weight }
+        WeightedSuggestion {
+            word: word.to_string(),
+            weight,
+        }
     }
 
     #[test]

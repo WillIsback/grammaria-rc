@@ -122,7 +122,11 @@ pub fn build_fsa5(words: &[&[u8]]) -> Vec<u8> {
             }
         }
         for (i, &label) in word.iter().enumerate().skip(common) {
-            path[i].push(Arc { label, is_final: i == word.len() - 1, target: 0 });
+            path[i].push(Arc {
+                label,
+                is_final: i == word.len() - 1,
+                target: 0,
+            });
             if path.len() <= i + 1 {
                 path.push(Vec::new());
             }
@@ -218,8 +222,10 @@ mod tests {
 
     #[test]
     fn accepts_exactly_the_words_in_order() {
-        let lines: Vec<String> =
-            ["chat", "chats", "chien", "a", "ab", "Joe Biden", "école", "chat", "zèbre", "abc", "b"].iter().map(|s| s.to_string()).collect();
+        let lines: Vec<String> = ["chat", "chats", "chien", "a", "ab", "Joe Biden", "école", "chat", "zèbre", "abc", "b"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let fsa = fsa_from_lines(&lines).unwrap();
         let mut expected: Vec<&[u8]> = lines.iter().map(|l| l.as_bytes()).collect();
         expected.sort_unstable();

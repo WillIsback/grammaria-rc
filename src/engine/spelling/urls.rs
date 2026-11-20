@@ -16,7 +16,11 @@ const PROTOCOLS: [&str; 18] = [
 fn no_protocol_url() -> &'static Arc<Regex> {
     static PATTERN: OnceLock<Arc<Regex>> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        re::compile("([a-zA-Z0-9][a-zA-Z0-9-]+\\.)?([a-zA-Z0-9][a-zA-Z0-9-]+)\\.([a-zA-Z0-9][a-zA-Z0-9-]+)/.*", Flags::default()).expect("valid pattern")
+        re::compile(
+            "([a-zA-Z0-9][a-zA-Z0-9-]+\\.)?([a-zA-Z0-9][a-zA-Z0-9-]+)\\.([a-zA-Z0-9][a-zA-Z0-9-]+)/.*",
+            Flags::default(),
+        )
+        .expect("valid pattern")
     })
 }
 

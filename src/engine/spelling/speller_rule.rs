@@ -48,14 +48,69 @@ const MESSAGE: &str = "Faute de frappe possible trouvée.";
 const SHORT_MESSAGE: &str = "Faute de frappe";
 
 const TOKEN_AT_START: [&str; 25] = [
-    "non", "en", "a", "le", "la", "les", "pour", "de", "du", "des", "un", "une", "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses",
-    "leur", "leurs", "ce", "cet",
+    "non", "en", "a", "le", "la", "les", "pour", "de", "du", "des", "un", "une", "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses", "leur", "leurs",
+    "ce", "cet",
 ];
 const PREFIX_WITH_WHITESPACE: [&str; 59] = [
-    "agro", "anti", "archi", "auto", "aéro", "cardio", "co", "cyber", "demi", "ex", "extra", "géo", "hospitalo", "hydro", "hyper", "hypo",
-    "infra", "inter", "macro", "mega", "meta", "mi", "micro", "mini", "mono", "multi", "musculo", "méga", "méta", "néo", "omni", "pan", "para",
-    "pluri", "poly", "post", "prim", "pro", "proto", "pré", "pseudo", "psycho", "péri", "re", "retro", "ré", "semi", "simili", "socio", "super",
-    "supra", "sus", "trans", "tri", "télé", "ultra", "uni", "vice", "éco",
+    "agro",
+    "anti",
+    "archi",
+    "auto",
+    "aéro",
+    "cardio",
+    "co",
+    "cyber",
+    "demi",
+    "ex",
+    "extra",
+    "géo",
+    "hospitalo",
+    "hydro",
+    "hyper",
+    "hypo",
+    "infra",
+    "inter",
+    "macro",
+    "mega",
+    "meta",
+    "mi",
+    "micro",
+    "mini",
+    "mono",
+    "multi",
+    "musculo",
+    "méga",
+    "méta",
+    "néo",
+    "omni",
+    "pan",
+    "para",
+    "pluri",
+    "poly",
+    "post",
+    "prim",
+    "pro",
+    "proto",
+    "pré",
+    "pseudo",
+    "psycho",
+    "péri",
+    "re",
+    "retro",
+    "ré",
+    "semi",
+    "simili",
+    "socio",
+    "super",
+    "supra",
+    "sus",
+    "trans",
+    "tri",
+    "télé",
+    "ultra",
+    "uni",
+    "vice",
+    "éco",
 ];
 const EXCEPTIONS_EGRAVE: [&str; 3] = ["burkinabè", "koinè", "épistémè"];
 const SPLIT_DIGITS_AT_END: [&str; 7] = ["et", "ou", "de", "en", "à", "aux", "des"];
@@ -218,8 +273,10 @@ impl FrenchSpellerRule {
                 }
             });
             let tokenize = &tokenize;
-            let handles: Vec<_> =
-                ignore_words.chunks(chunk_size).map(|part| scope.spawn(move || part.iter().map(|line| tokenize(line)).collect::<Vec<Vec<String>>>())).collect();
+            let handles: Vec<_> = ignore_words
+                .chunks(chunk_size)
+                .map(|part| scope.spawn(move || part.iter().map(|line| tokenize(line)).collect::<Vec<Vec<String>>>()))
+                .collect();
             let tokenized: Vec<Vec<String>> = handles.into_iter().flat_map(|h| h.join().expect("tokenizer thread panicked")).collect();
             (fsa.join().expect("dictionary thread panicked"), tokenized)
         });
@@ -264,7 +321,8 @@ impl FrenchSpellerRule {
     /// `tokens` is the entry cut by the word tokenizer.
     fn add_ignore_words(&mut self, line: String, tokens: Vec<String>) {
         if tokens.len() > 1 {
-            self.phrases.add(tokens.into_iter().filter(|t| !super::strings::java_trim(t).is_empty()).collect());
+            self.phrases
+                .add(tokens.into_iter().filter(|t| !super::strings::java_trim(t).is_empty()).collect());
         } else {
             self.words_to_be_ignored.insert(line);
         }
@@ -355,8 +413,11 @@ impl FrenchSpellerRule {
                 // The suggestions of the sentence's first word are capitalised.
                 let mut new_replacements: Vec<String> = Vec::new();
                 for replacement in &matches[0].suggestions {
-                    let replacement =
-                        if *replacement == replacement.to_lowercase() { strtools::uppercase_first_char(replacement) } else { replacement.clone() };
+                    let replacement = if *replacement == replacement.to_lowercase() {
+                        strtools::uppercase_first_char(replacement)
+                    } else {
+                        replacement.clone()
+                    };
                     if !new_replacements.contains(&replacement) {
                         new_replacements.push(replacement);
                     }
@@ -391,7 +452,11 @@ impl FrenchSpellerRule {
         if so_far.last().is_some_and(|prev| prev.from == prev_pos) {
             so_far.pop();
         }
-        Pending { from: prev_pos, to: pos + covered_word.len(), suggestions: vec![format!("{suggestion1} {suggestion2}").trim().to_string()] }
+        Pending {
+            from: prev_pos,
+            to: pos + covered_word.len(),
+            suggestions: vec![format!("{suggestion1} {suggestion2}").trim().to_string()],
+        }
     }
 
     /// `getRuleMatches`: the match for one misspelled word, if any.
@@ -445,7 +510,11 @@ impl FrenchSpellerRule {
                     match &mut rule_match {
                         None => {
                             if frequency(&sugg) >= frequency(prev_word) {
-                                rule_match = Some(Pending { from: prev_start_pos, to: start_pos + word.len(), suggestions: vec![sugg] });
+                                rule_match = Some(Pending {
+                                    from: prev_start_pos,
+                                    to: start_pos + word.len(),
+                                    suggestions: vec![sugg],
+                                });
                                 before_suggestion_str = format!("{prev_word} ");
                             }
                         }
@@ -490,7 +559,11 @@ impl FrenchSpellerRule {
                     match &mut rule_match {
                         None => {
                             if frequency(&sugg) >= frequency(next_word) {
-                                rule_match = Some(Pending { from: start_pos, to: next_start_pos + next_word.len(), suggestions: vec![sugg] });
+                                rule_match = Some(Pending {
+                                    from: start_pos,
+                                    to: next_start_pos + next_word.len(),
+                                    suggestions: vec![sugg],
+                                });
                                 after_suggestion_str = format!(" {next_word}");
                             }
                         }
@@ -502,7 +575,11 @@ impl FrenchSpellerRule {
                 }
             }
         }
-        let mut rule_match = rule_match.unwrap_or(Pending { from: start_pos, to: start_pos + word.len(), suggestions: Vec::new() });
+        let mut rule_match = rule_match.unwrap_or(Pending {
+            from: start_pos,
+            to: start_pos + word.len(),
+            suggestions: Vec::new(),
+        });
 
         let mut prevent_further_suggestions = false;
         let mut clean_word = word;
@@ -526,7 +603,9 @@ impl FrenchSpellerRule {
         if !prevent_further_suggestions {
             // `appendLazySuggestions` + `joinBeforeAfterSuggestions`.
             for suggestion in self.calc_speller_suggestions(clean_word).iter() {
-                rule_match.suggestions.push(format!("{before_suggestion_str}{suggestion}{after_suggestion_str}"));
+                rule_match
+                    .suggestions
+                    .push(format!("{before_suggestion_str}{suggestion}{after_suggestion_str}"));
             }
         }
         Some(rule_match)
@@ -623,7 +702,9 @@ impl FrenchSpellerRule {
     fn find_suggestion(&self, word: &str, split: &Split, recursive: bool) -> Vec<String> {
         let mut new_suggestions = Vec::new();
         let chars: Vec<char> = word.chars().collect();
-        let Some(caps) = split.word.full_match_chars(&chars) else { return new_suggestions };
+        let Some(caps) = split.word.full_match_chars(&chars) else {
+            return new_suggestions;
+        };
         let group1 = caps.get(&chars, 1).unwrap_or_default();
         let group2 = caps.get(&chars, 2).unwrap_or_default();
         let new_suggestion = if split.position == 1 { &group1 } else { &group2 };
@@ -636,7 +717,11 @@ impl FrenchSpellerRule {
         if recursive {
             let more = self.speller1.suggestions(new_suggestion);
             for (i, suggestion) in more.iter().enumerate() {
-                let new_word = if split.position == 1 { format!("{suggestion}{group2}") } else { format!("{group1}{suggestion}") };
+                let new_word = if split.position == 1 {
+                    format!("{suggestion}{group2}")
+                } else {
+                    format!("{group1}{suggestion}")
+                };
                 new_suggestions.extend(self.find_suggestion(&new_word, split, false));
                 if i > 5 {
                     break;
@@ -651,7 +736,11 @@ impl FrenchSpellerRule {
     pub fn spelling_suggestions(&self, word: &str) -> Vec<String> {
         let token = Readings::untagged(word, 0);
         let sentence = Sentence::new(Arc::from(word), vec![token], Vec::new());
-        self.match_sentence(usize::MAX, &sentence).into_iter().next().map(|m| m.suggestions).unwrap_or_default()
+        self.match_sentence(usize::MAX, &sentence)
+            .into_iter()
+            .next()
+            .map(|m| m.suggestions)
+            .unwrap_or_default()
     }
 }
 
@@ -679,8 +768,7 @@ fn order_suggestions(suggestions: Vec<String>, word: &str) -> Vec<String> {
         // set at the top of the list the suggestions that only differ in
         // diacritics
         let mut pos_new_sugg = 0;
-        while new_suggestions.len() > pos_new_sugg
-            && strtools::equals_ignore_case(&remove_diacritics(&new_suggestions[pos_new_sugg]), &word_without_diacritics)
+        while new_suggestions.len() > pos_new_sugg && strtools::equals_ignore_case(&remove_diacritics(&new_suggestions[pos_new_sugg]), &word_without_diacritics)
         {
             pos_new_sugg += 1;
         }
@@ -714,7 +802,9 @@ fn is_speller_emoji(word: &str) -> bool {
     if !word.chars().any(|c| c as u32 > 0xFFFF) {
         return false;
     }
-    !word.chars().all(|c| java_is_letter(c) || c.is_ascii_digit() || is_punctuation(c) || super::strings::is_space_separator(c))
+    !word
+        .chars()
+        .all(|c| java_is_letter(c) || c.is_ascii_digit() || is_punctuation(c) || super::strings::is_space_separator(c))
 }
 
 /// `\p{P}`, as far as a word can tell.
@@ -731,7 +821,10 @@ fn starts_with_numbers_bullets(word: &str) -> Option<usize> {
         return None;
     }
     let end = if first.is_ascii_digit() {
-        word.char_indices().skip(1).find(|(_, c)| !(c.is_ascii_digit() || matches!(c, '.' | ','))).map(|(i, _)| i)
+        word.char_indices()
+            .skip(1)
+            .find(|(_, c)| !(c.is_ascii_digit() || matches!(c, '.' | ',')))
+            .map(|(i, _)| i)
     } else if !java_is_letter(first) {
         word.char_indices().find(|(_, c)| java_is_letter(*c)).map(|(i, _)| i)
     } else {
@@ -797,14 +890,20 @@ mod tests {
         // Suggestions that only differ by diacritics come first.
         assert_eq!(order_suggestions(s(&["près", "tués", "très"]), "tres"), s(&["très", "près", "tués"]));
         // "prefix word" splits and one-letter first parts are dropped.
-        assert_eq!(order_suggestions(s(&["anti virus", "antivirus", "l antivirus", "a virus"]), "antivirrus"), s(&["a virus", "antivirus"]));
+        assert_eq!(
+            order_suggestions(s(&["anti virus", "antivirus", "l antivirus", "a virus"]), "antivirrus"),
+            s(&["a virus", "antivirus"])
+        );
         // A split after a determiner moves up.
         assert_eq!(order_suggestions(s(&["lamaison", "la maison"]), "lamaisson"), s(&["la maison", "lamaison"]));
         // A final è is not French.
         assert_eq!(order_suggestions(s(&["informè", "informé", "koinè"]), "informe"), s(&["informé", "koinè"]));
         // From the third suggestion on, a form with apostrophe or hyphen that
         // is otherwise the word goes to the second place.
-        assert_eq!(order_suggestions(s(&["sale", "salué", "s'allie", "s'alle"]), "salle"), s(&["sale", "s'alle", "salué", "s'allie"]));
+        assert_eq!(
+            order_suggestions(s(&["sale", "salué", "s'allie", "s'alle"]), "salle"),
+            s(&["sale", "s'alle", "salué", "s'allie"])
+        );
     }
 
     #[test]
@@ -821,10 +920,115 @@ mod tests {
         let mut phrases = IgnoredPhrases::default();
         phrases.add(s(&["Joe", "Biden"]));
         phrases.add(s(&["Guillain", "-", "Barré"]));
-        let tokens: Vec<Readings> =
-            ["", "Joe", "Biden", "et", "Guillain", "-", "Barré", "Joe"].iter().enumerate().map(|(i, t)| Readings::untagged(t, i)).collect();
+        let tokens: Vec<Readings> = ["", "Joe", "Biden", "et", "Guillain", "-", "Barré", "Joe"]
+            .iter()
+            .enumerate()
+            .map(|(i, t)| Readings::untagged(t, i))
+            .collect();
         let refs: Vec<&Readings> = tokens.iter().collect();
         assert_eq!(phrases.mark(&refs), [false, true, true, false, true, true, true, false]);
+    }
+
+    #[test]
+    fn words_checked_alone() {
+        let Some(tools) = super::super::testing::tools() else { return };
+        let rule = &tools.spelling.rule;
+        for known in ["maison", "Alexi", "Entra", "LanguageTool", ""] {
+            assert!(!rule.is_misspelled(known), "{known}");
+            assert!(rule.spelling_suggestions(known).is_empty(), "{known}");
+        }
+        let first = |word: &str, n: usize| rule.spelling_suggestions(word).into_iter().take(n).collect::<Vec<_>>();
+        assert!(rule.is_misspelled("connaisance"));
+        assert_eq!(first("connaisance", 9), ["connaissance", "connaissances"]);
+        // Morfologik's own ranking, quirks included.
+        assert_eq!(
+            first("annuyant", 9),
+            ["ennuyant", "annulant", "ennuyait", "ennuyante", "ennuyants", "ennoyant", "ennuyât"]
+        );
+        // A missing apostrophe or hyphen comes first.
+        assert_eq!(first("lhomme", 9), ["l'homme", "homme", "Lomme", "chômé", "chôme"]);
+        assert_eq!(first("Mangezle", 9), ["Mangez-le", "Mangez le"]);
+        assert_eq!(first("dit'il", 9), ["dit-il", "DIT-il", "détail"]);
+        // Through the suggestions of the part to tag ("urri" -> "erre").
+        assert_eq!(first("Murri", 4), ["M'erre", "M'erra", "Mûri", "Muri"]);
+        // Glued words and units.
+        assert_eq!(first("BonjourMonde", 9), ["Bonjour Monde"]);
+        assert_eq!(first("mot12", 9), ["mot 12", "Moto2"]);
+        assert_eq!(first("m2", 3), ["M2", "m²", "mm"]);
+        assert_eq!(first("voulai", 3), ["voulais", "voulait", "coulé"]);
+        // Nothing at distance 1: distance 2.
+        assert_eq!(first("Sonneborn", 9), ["Bonnebosq", "Bonnecourt"]);
+        // An entry of several words of the word lists.
+        assert_eq!(first("New Yrok Times", 9), ["New York Times"]);
+    }
+
+    #[test]
+    fn sentences() {
+        let Some(tools) = super::super::testing::tools() else { return };
+        let check = |text: &str| -> Vec<(String, Vec<String>)> {
+            let sentence = tools.analyse(text);
+            tools
+                .spelling
+                .rule
+                .match_sentence(0, &sentence)
+                .into_iter()
+                .map(|m| (m.original_error_str, m.suggestions.into_iter().take(5).collect()))
+                .collect()
+        };
+        let m = |covered: &str, suggestions: &[&str]| (covered.to_string(), s(suggestions));
+        assert_eq!(check("La connaisance est utile."), [m("connaisance", &["connaissance", "connaissances"])]);
+        // The suggestions of the first word are capitalised.
+        assert_eq!(check("connaisance utile pour tous."), [m("connaisance", &["Connaissance", "Connaissances"])]);
+        assert_eq!(check("•Premierement il faut partir."), [m("Premierement", &["Premièrement"])]);
+        assert_eq!(check("CONNAISANCE DES RISQUES."), [m("CONNAISANCE", &["CONNAISSANCE"])]);
+        // A space in the wrong place: the match covers both tokens.
+        assert_eq!(
+            check("Il a un ordi nateur tout neuf."),
+            [m("ordi nateur", &["ordinateur", "ordi batteur", "ordi nageur", "ordi dateur", "ordi natter"])]
+        );
+        assert_eq!(check("Elle a pris le déj euner tôt."), [m("déj euner", &["déjeuner"])]);
+        assert_eq!(check("Les enfa nts jouent dehors."), [m("enfa nts", &["enfants"])]);
+        assert_eq!(
+            check("C'est un texte avec im portant détail."),
+            [m("im portant", &["important", "IM portant", "il portant", "km portant", "cm portant"])]
+        );
+        // Multi-word entries of the word lists.
+        assert_eq!(check("Nous avons vu Joe Biden et Entra hier."), []);
+        // A word glued to a number.
+        assert_eq!(
+            check("Le 2eme jour, il a mangé 3pommes."),
+            [m("2eme", &["2 été", "2 même", "2 me", "2 âme", "2 ère"]), m("3pommes", &["3 pommes"])]
+        );
+        assert_eq!(
+            check("Il habite à Paris en frrance depuis lontemps."),
+            [
+                m("frrance", &["France", "franque", "errance", "francs", "franc"]),
+                m("lontemps", &["longtemps"])
+            ]
+        );
+        assert_eq!(check("J'ai lu le New Yrok Times."), [m("Yrok", &["York", "Grok"])]);
+    }
+
+    #[test]
+    fn tokens_that_are_not_checked() {
+        let Some(tools) = super::super::testing::tools() else { return };
+        let rule = &tools.spelling.rule;
+        let token = |text: &str| Readings::untagged(text, 0);
+        assert!(!rule.can_be_ignored(&token("connaisance"), false));
+        assert!(rule.can_be_ignored(&token("connaisance"), true), "part of a multi-word entry");
+        assert!(rule.can_be_ignored(&token("https://example.org/pagge"), false));
+        assert!(rule.can_be_ignored(&token("jean.dupond@exemple.fr"), false));
+        assert!(rule.can_be_ignored(&token("1234"), false), "no Latin letter");
+        assert!(rule.can_be_ignored(&token("Привет"), false), "no Latin letter");
+        assert!(rule.can_be_ignored(&token("AFPA"), false), "in ignore.txt");
+        assert!(!rule.can_be_ignored(&token("afpa"), false), "the list has the word in capitals only");
+        assert!(rule.can_be_ignored(&token("Wesh"), false), "the list has the lowercase form");
+        let mut flagged = token("connaisance");
+        flagged.ignored_by_speller = true;
+        assert!(rule.can_be_ignored(&flagged, false));
+        let mut immunized = token("connaisance");
+        immunized.immunized = true;
+        assert!(rule.can_be_ignored(&immunized, false));
     }
 
     #[test]

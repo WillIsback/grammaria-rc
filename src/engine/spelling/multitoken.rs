@@ -76,7 +76,10 @@ impl MultitokenEntries {
     /// The files of `FrenchMultitokenSpeller`: `multiwords.txt`,
     /// `spelling_global.txt` and `hyphenated_words.txt`.
     pub fn french(assets: &Path) -> MultitokenEntries {
-        let contents: Vec<String> = ["multiwords.txt", "spelling_global.txt", "hyphenated_words.txt"].iter().filter_map(|name| read_resource(&assets.join(name))).collect();
+        let contents: Vec<String> = ["multiwords.txt", "spelling_global.txt", "hyphenated_words.txt"]
+            .iter()
+            .filter_map(|name| read_resource(&assets.join(name)))
+            .collect();
         let contents: Vec<&str> = contents.iter().map(String::as_str).collect();
         MultitokenEntries::new(&contents)
     }
@@ -128,7 +131,10 @@ impl MultitokenEntries {
                 (c, order.into_iter().filter_map(|i| slots[i].take()).collect())
             })
             .collect();
-        MultitokenEntries { suggestions_map, suggestions_map_no_spaces_key: no_spaces }
+        MultitokenEntries {
+            suggestions_map,
+            suggestions_map_no_spaces_key: no_spaces,
+        }
     }
 }
 
@@ -190,7 +196,9 @@ impl MultitokenSpeller {
             }
             weighted_candidates.extend(candidates.iter().map(|c| (c.as_str(), 0)));
         }
-        let Some(first_char) = normalized_word.chars().next() else { return Vec::new() };
+        let Some(first_char) = normalized_word.chars().next() else {
+            return Vec::new();
+        };
         if let Some(keys) = self.suggestions_map.get(&first_char).filter(|_| weighted_candidates.is_empty()) {
             let word_parts = split_non_empty(&normalized_word, ' ');
             let min_length = len16(&word) - MAX_LENGTH_DIFF;
@@ -280,7 +288,9 @@ fn stop_searching(candidates: &[String], original_word: &str) -> bool {
     if candidates.iter().any(|c| c == original_word) {
         return true;
     }
-    candidates.iter().any(|c| *c == c.to_lowercase() && strtools::convert_to_title_case_iterating_chars(c) == original_word)
+    candidates
+        .iter()
+        .any(|c| *c == c.to_lowercase() && strtools::convert_to_title_case_iterating_chars(c) == original_word)
 }
 
 /// `maxEditDistance`: the longer the part that differs, the more edits are
@@ -309,7 +319,11 @@ fn first_character_distances(s1: &str, s2: &str) -> Vec<f32> {
     let parts1 = split_non_empty(s1, ' ');
     let parts2 = split_non_empty(s2, ' ');
     if parts1.len() == parts2.len() && parts1.len() == 2 {
-        parts1.iter().zip(&parts2).map(|(a, b)| char_distance(a.chars().next().unwrap_or(' '), b.chars().next().unwrap_or(' '))).collect()
+        parts1
+            .iter()
+            .zip(&parts2)
+            .map(|(a, b)| char_distance(a.chars().next().unwrap_or(' '), b.chars().next().unwrap_or(' ')))
+            .collect()
     } else {
         vec![0.0]
     }
@@ -430,8 +444,11 @@ impl RuleFilter for MultitokenSpellerFilter {
             }
             if pattern_token_pos == words_start_pos {
                 for replacement in suggestions.iter() {
-                    let new_replacement =
-                        if *replacement == replacement.to_lowercase() { strtools::uppercase_first_char(replacement) } else { replacement.clone() };
+                    let new_replacement = if *replacement == replacement.to_lowercase() {
+                        strtools::uppercase_first_char(replacement)
+                    } else {
+                        replacement.clone()
+                    };
                     if !replacements.contains(&new_replacement) && underlined_error != new_replacement {
                         replacements.push(new_replacement);
                     }
@@ -458,8 +475,14 @@ mod tests {
         assert_eq!(levenshtein_distance("tokyo", "tokio"), 0, "y and i are the same letter");
         assert_eq!(levenshtein_distance("york", "yrok"), 1, "an anagram of the same length");
         assert_eq!(levenshtein_distance("knight", "night"), 1);
-        assert_eq!(distances_per_word(&["dark".to_string(), "knight".to_string()], &["derk", "knight"], "dark knight", "derk knight"), [1, 0]);
-        assert_eq!(distances_per_word(&["dark".to_string(), "knight".to_string()], &["darkknight"], "dark knight", "darkknight"), [0]);
+        assert_eq!(
+            distances_per_word(&["dark".to_string(), "knight".to_string()], &["derk", "knight"], "dark knight", "derk knight"),
+            [1, 0]
+        );
+        assert_eq!(
+            distances_per_word(&["dark".to_string(), "knight".to_string()], &["darkknight"], "dark knight", "darkknight"),
+            [0]
+        );
         assert_eq!(number_of_correct_chars("dark knight rises", "derk knight rises"), 11);
         // 17 characters, 11 of them in correct tokens: 6 <= 7.
         assert_eq!(max_edit_distance("dark knight rises", "derk knight rises"), 2);
@@ -467,6 +490,26 @@ mod tests {
         assert_eq!(max_edit_distance("dark knight", "bark knight"), 1);
         // Nothing right over 11 characters: 2 + 0.25 * 4 - 0.6 * 2 = 1.8.
         assert_eq!(max_edit_distance("dark knight", "sark znight"), 1);
+    }
+
+    #[test]
+    fn suggestions_for_names() {
+        let Some(tools) = super::super::testing::tools() else { return };
+        let speller = MultitokenSpeller::french(std::path::Path::new("assets/fr/lt"), tools.spelling.rule.clone());
+        let suggest = |text: &str| speller.suggestions(text, false).to_vec();
+        assert_eq!(suggest("The Derk Knight Rises"), ["The Dark Knight Rises"]);
+        assert_eq!(suggest("Rocky Mountains Naional Park"), ["Rocky Mountain National Park"]);
+        assert_eq!(suggest("Christina Aguillera"), ["Christina Aguilera"]);
+        assert_eq!(suggest("Alfred Hitchkock"), ["Alfred Hitchcock"]);
+        assert_eq!(suggest("General Motor"), ["General Motors"]);
+        assert_eq!(suggest("Etats-Unis"), ["États-Unis"]);
+        assert_eq!(suggest("Alpes Maritimæ"), ["Alpes-Maritimes"]);
+        // An entry as it is written, or in title case, needs nothing.
+        assert!(suggest("The Dark Knight Rises").is_empty());
+        assert!(suggest("New York Times").is_empty());
+        // Two words that only need their space moved are left to the
+        // single-word speller.
+        assert!(suggest("ordi nateur").is_empty());
     }
 
     #[test]
