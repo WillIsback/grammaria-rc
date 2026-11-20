@@ -114,6 +114,9 @@ fn build_rule_cache(assets: &str, out: &str) -> std::io::Result<()> {
         set.rules.extend(s.rules);
     }
     let dest = Path::new(out).join("fr.rules");
+    // Build the lookup index before saving so it can be persisted with the
+    // cache and reloaded instead of rebuilt at start-up.
+    set.build_index();
     set.save_cache(&dest)?;
     // The disambiguation rules are read verbatim at load time: ship them next
     // to the rule cache so that a data directory is self-contained.
@@ -141,7 +144,7 @@ fn build_rule_cache(assets: &str, out: &str) -> std::io::Result<()> {
 ///   `#!forbidden`    words always flagged as misspelled
 fn build_word_lists(assets: &str, out: &str) -> std::io::Result<()> {
     let mut buf = String::new();
-    let mut push_section = |buf: &mut String, name: &str| {
+    let push_section = |buf: &mut String, name: &str| {
         buf.push_str("#!");
         buf.push_str(name);
         buf.push('\n');

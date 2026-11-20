@@ -666,7 +666,7 @@ impl Lexicon {
                 check[slot] = slot_of[node] as u32;
             }
             // remove consumed slots from the free list
-            let mut rm = |sl: usize, prev: &mut Vec<u32>, next: &mut Vec<u32>, first_free: &mut usize| {
+            let rm = |sl: usize, prev: &mut Vec<u32>, next: &mut Vec<u32>, first_free: &mut usize| {
                 if sl == 0 || sl >= nstates {
                     return;
                 }

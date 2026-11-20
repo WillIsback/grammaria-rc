@@ -491,12 +491,6 @@ impl Disambiguation {
                     if idx >= s.tokens.len() {
                         continue;
                     }
-                    if std::env::var("GR_DEBUG_DIS").is_ok() {
-                        let before = s.tokens[idx].tags.len();
-                        eprintln!("DBG {:?} action={:?} postag={:?} expl={} tok={:?} tags={:?}",
-                            r.id, r.action, r.postag, r.postag_explicit, s.tokens[idx].text, s.tokens[idx].tags);
-                        let _ = before;
-                    }
                     if let Some(group) = r.match_group {
                         // `<match no="N" postag="P"/>`: the action applies to
                         // the token of group N (the marked span) and keeps
@@ -1007,9 +1001,6 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
     t.negate_pos = n.attr("negate_pos") == Some("yes");
     let is_regexp = n.attr("regexp") == Some("yes");
     let content = n.text();
-    if std::env::var("GRM_TOK_DEBUG").is_ok() {
-        eprintln!("convert_token: name={} attrs={:?} content={:?}", n.name, n.attrs, content);
-    }
     let content = content.trim();
     if !content.is_empty() {
         if is_regexp {
@@ -1065,33 +1056,3 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
 }
 
 
-/// Count pattern elements before/inside the `<marker>` group.
-///
-/// The count must mirror exactly the element list produced by
-/// `convert_children`, because `marker_start` is used as an index into
-/// `Match::per_elem`.
-fn marker_layout(node: &XmlNode, in_marker: bool, before: &mut Vec<()>, marked: &mut Vec<()>) {
-    for c in &node.children {
-        let DomItem::Node(n) = c else { continue };
-        match n.name.as_str() {
-            "marker" => marker_layout(n, true, before, marked),
-            "token" => {
-                if in_marker {
-                    marked.push(());
-                } else {
-                    before.push(());
-                }
-            }
-            "and" | "unify" | "unify-ignore" => marker_layout(n, in_marker, before, marked),
-            "or" => {
-                // count each alternative as one element (matches convert_children)
-                if in_marker {
-                    marked.push(());
-                } else {
-                    before.push(());
-                }
-            }
-            _ => {}
-        }
-    }
-}

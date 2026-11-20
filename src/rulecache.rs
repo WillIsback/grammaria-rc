@@ -36,6 +36,11 @@ impl W {
         self.u32(s.len() as u32);
         self.buf.extend_from_slice(s.as_bytes());
     }
+    /// Append a length-prefixed raw byte blob.
+    fn str_raw(&mut self, b: &[u8]) {
+        self.u32(b.len() as u32);
+        self.buf.extend_from_slice(b);
+    }
     fn opt_str(&mut self, s: &Option<String>) {
         match s {
             Some(x) => {
@@ -101,6 +106,23 @@ impl<'a> R<'a> {
             .to_string();
         self.p += n;
         Ok(s)
+    }
+
+    /// Read an optional trailing length-prefixed blob. Returns `None` (rather
+    /// than an error) when the stream has ended, so images written before the
+    /// blob existed still load.
+    fn opt_blob(&mut self) -> io::Result<Option<Vec<u8>>> {
+        if self.p + 4 > self.b.len() {
+            return Ok(None);
+        }
+        let n = u32::from_le_bytes(self.b[self.p..self.p + 4].try_into().unwrap()) as usize;
+        self.p += 4;
+        if self.p + n > self.b.len() {
+            return Ok(None);
+        }
+        let v = self.b[self.p..self.p + n].to_vec();
+        self.p += n;
+        Ok(Some(v))
     }
 
     /// Advance past a length-prefixed string without allocating it.
@@ -404,6 +426,31 @@ impl RuleSet {
                 w.str(&e.kind);
             }
         }
+        // Persist the lookup index so loading does not have to rebuild it from
+        // the decoded patterns (9 433 literal keys + 15 postag buckets + the
+        // generic list).
+        let mut idx = W { buf: Vec::new() };
+        idx.u32(self.by_literal.len() as u32);
+        for (k, v) in &self.by_literal {
+            idx.str(k);
+            idx.u32(v.len() as u32);
+            for r in v {
+                idx.u32(*r as u32);
+            }
+        }
+        idx.u32(self.by_postag.len() as u32);
+        for (k, v) in &self.by_postag {
+            idx.u8(*k as u8);
+            idx.u32(v.len() as u32);
+            for r in v {
+                idx.u32(*r as u32);
+            }
+        }
+        idx.u32(self.generic.len() as u32);
+        for r in &self.generic {
+            idx.u32(*r as u32);
+        }
+        w.str_raw(&idx.buf);
         w.buf
     }
 
@@ -506,7 +553,11 @@ impl RuleSet {
                 examples,
             });
         }
-        set.build_index();
+        // The lookup index is read back from the cache instead of being
+        // rebuilt from the decoded patterns (that walk is ~15 % of load time).
+        if !read_index(&mut r, &mut set)? {
+            set.build_index();
+        }
         Ok(set)
     }
 
@@ -527,4 +578,40 @@ impl RuleSet {
         f.read_to_end(&mut buf).ok()?;
         RuleSet::from_cache(&buf).ok()
     }
+}
+
+/// Read the persisted lookup index appended to the cache image.
+///
+/// Returns `false` when the image predates the index (the caller then rebuilds
+/// it), so old caches keep working.
+fn read_index(r: &mut R, set: &mut RuleSet) -> io::Result<bool> {
+    let Some(blob) = r.opt_blob()? else { return Ok(false) };
+    let mut b = R { b: &blob, p: 0 };
+    let n = b.u32()? as usize;
+    set.by_literal.reserve(n);
+    for _ in 0..n {
+        let k = b.str()?;
+        let m = b.u32()? as usize;
+        let mut v = Vec::with_capacity(m);
+        for _ in 0..m {
+            v.push(b.u32()? as usize);
+        }
+        set.by_literal.insert(k, v);
+    }
+    let n = b.u32()? as usize;
+    for _ in 0..n {
+        let k = b.u8()? as char;
+        let m = b.u32()? as usize;
+        let mut v = Vec::with_capacity(m);
+        for _ in 0..m {
+            v.push(b.u32()? as usize);
+        }
+        set.by_postag.insert(k, v);
+    }
+    let n = b.u32()? as usize;
+    set.generic.reserve(n);
+    for _ in 0..n {
+        set.generic.push(b.u32()? as usize);
+    }
+    Ok(true)
 }

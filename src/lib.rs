@@ -1,7 +1,13 @@
+#![allow(private_interfaces)]
 //! Grammaria: a fast French grammar and spelling checker in Rust.
 //!
 //! Rule files and data are taken from LanguageTool (LGPL) and are re-implemented
 //! natively in Rust; see `THIRD_PARTY_LICENSES.md`.
+//!
+//! `private_interfaces` is allowed because the public API deliberately exposes
+//! a few internals (`RegexCache::get`, `ValueMatcher::Regex`) for diagnostics
+//! and tests; exposing the `Regex` type itself would enlarge the public surface
+//! for no benefit.
 
 pub mod api;
 pub mod filters;

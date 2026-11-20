@@ -1,0 +1,173 @@
+[
+ {
+  "text": "Cette événement est important.",
+  "matches": [
+   [
+    "D_N",
+    0,
+    17,
+    [
+     {
+      "value": "Ce événement"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "La toit fuit.",
+  "matches": [
+   [
+    "D_N",
+    0,
+    7,
+    [
+     {
+      "value": "Le toit"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Les voiture sont belles.",
+  "matches": [
+   [
+    "D_N",
+    0,
+    11,
+    [
+     {
+      "value": "Les voitures"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Tout les enfants jouent.",
+  "matches": [
+   [
+    "AGREEMENT_TOUT_LE",
+    0,
+    16,
+    [
+     {
+      "value": "tous"
+     },
+     {
+      "value": "toutes"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Toute les hommes sont grands.",
+  "matches": [
+   [
+    "AGREEMENT_TOUT_LE",
+    0,
+    9,
+    [
+     {
+      "value": "tous"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Tous les années sont bonnes.",
+  "matches": [
+   [
+    "AGREEMENT_TOUT_LE",
+    0,
+    8,
+    [
+     {
+      "value": "toutes"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Il faut que je peux le faire.",
+  "matches": []
+ },
+ {
+  "text": "Voilà pourquoi Je convie tous les Français.",
+  "matches": [
+   [
+    "PRONOMS_PERSONNELS_MINUSCULE",
+    7,
+    11,
+    [
+     {
+      "value": "pourquoi. Je"
+     },
+     {
+      "value": "pourquoi je"
+     },
+     {
+      "value": "pourquoi, je"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Les femmes que j'ai aidé.",
+  "matches": []
+ },
+ {
+  "text": "Je vous envoie les documents ci-joint.",
+  "matches": []
+ },
+ {
+  "text": "Le chat mange la souris.",
+  "matches": []
+ },
+ {
+  "text": "Il faut que grand carre soit à gauche.",
+  "matches": [
+   [
+    "D_N_E_OU_E",
+    12,
+    11,
+    []
+   ]
+  ]
+ },
+ {
+  "text": "Une homme est entré il y a cinq minutes.",
+  "matches": [
+   [
+    "D_N",
+    0,
+    9,
+    [
+     {
+      "value": "Une femme"
+     },
+     {
+      "value": "Un homme"
+     }
+    ]
+   ]
+  ]
+ },
+ {
+  "text": "Les enfants joues dans le jardin.",
+  "matches": []
+ },
+ {
+  "text": "La femme que j'ai aidée.",
+  "matches": []
+ },
+ {
+  "text": "Sacha le rencontre alors qu'il parle.",
+  "matches": []
+ }
+]
