@@ -637,16 +637,6 @@ impl Disambiguation {
                     let l = if lemma.is_empty() { text.clone() } else { lemma.clone() };
                     tok.add(&l, tag);
                 }
-                // A bare `<disambig postag="X"/>` (no `<wd>` children) adds
-                // the `postag` itself to the marked reading -- LanguageTool's
-                // `ADD` action with a `postag` attribute. `RB-ADVERBES`
-                // (`<disambig postag="A"/>`) and `QUE` (`<disambig
-                // postag="C sub"/>`) rely on this to keep the adverb and
-                // conjunction readings.
-                if r.add_tags.is_empty() && !r.postag.is_empty() && r.postag_explicit {
-                    let l = tok.lemmas.first().cloned().unwrap_or_else(|| text.clone());
-                    tok.add(&l, &r.postag);
-                }
             }
             DisambigAction::Immunize => {}
         }
@@ -707,12 +697,13 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
             "ignore_spelling" => DisambigAction::Immunize,
             "remove" => DisambigAction::Remove,
             // A bare `<disambig postag="X"/>` (no `action` attribute) is
-            // LanguageTool's "ADD" action: it *adds* tag X to the marked
-            // readings. Verified against LanguageTool 6.6: `RB-ADVERBES` ends
-            // in `<disambig postag="A"/>` and LT keeps `alors[alors/A]`, and
-            // `QUE` ends in `<disambig postag="C sub"/>` and LT keeps
-            // `qu'[que/C sub]`. Defaulting to REMOVE wiped those readings.
-            _ => DisambigAction::Add,
+            // LanguageTool's FILTER action: it keeps only the readings that
+            // match `postag`. Verified against the LanguageTool 6.6
+            // disambiguator log:
+            //   QUE[1]:           que[C sub,R inte,R rel e sp] -> que[C sub]
+            //   POUVOIRINITIF[2]: le[D m s,le/R pers obj 3 m s] -> le[R pers obj 3 m s]
+            //   RB-ADVERBES[1]:   alors[A] -> alors[A]      (unchanged)
+            _ => DisambigAction::Filter,
         };
         r.postag = dis.attr("postag").unwrap_or("").to_string();
         r.postag_explicit = dis.attr("postag").is_some();
