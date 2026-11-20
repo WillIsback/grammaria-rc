@@ -11,7 +11,8 @@
 //! only; `--all-rules` also runs the rules that are off by default or
 //! reserved to the picky level; `--lt-only` runs LanguageTool's rules alone,
 //! without this project's rule files and profile (for comparisons with the
-//! reference); `--time` prints load and run times on stderr.
+//! reference); `--time` prints load and run times on stderr and
+//! `--slow MS` the texts that took at least MS milliseconds.
 
 use std::path::PathBuf;
 
@@ -41,6 +42,7 @@ fn unescape(line: &str) -> String {
 fn main() {
     let mut assets = PathBuf::from("assets/fr/lt");
     let mut time = false;
+    let mut slow: Option<u128> = None;
     let mut all_rules = false;
     let mut lt_only = false;
     let mut rule_files: Vec<PathBuf> = Vec::new();
@@ -50,6 +52,7 @@ fn main() {
         match a.as_str() {
             "--assets" => assets = PathBuf::from(args.next().unwrap_or_default()),
             "--time" => time = true,
+            "--slow" => slow = args.next().and_then(|v| v.parse().ok()),
             "--all-rules" => all_rules = true,
             "--lt-only" => lt_only = true,
             "--rules" => rule_files.push(PathBuf::from(args.next().unwrap_or_default())),
@@ -89,7 +92,21 @@ fn main() {
     let out: Vec<String> = std::thread::scope(|scope| {
         let handles: Vec<_> = texts
             .chunks(chunk)
-            .map(|part| scope.spawn(move || part.iter().map(|text| line(french, mode, text)).collect::<Vec<String>>()))
+            .map(|part| {
+                scope.spawn(move || {
+                    part.iter()
+                        .map(|text| {
+                            let started = std::time::Instant::now();
+                            let out = line(french, mode, text);
+                            let ms = started.elapsed().as_millis();
+                            if slow.is_some_and(|limit| ms >= limit) {
+                                eprintln!("slow: {ms} ms, {} words: {}", text.split_whitespace().count(), text.chars().take(100).collect::<String>().replace('\n', " "));
+                            }
+                            out
+                        })
+                        .collect::<Vec<String>>()
+                })
+            })
             .collect();
         handles.into_iter().flat_map(|h| h.join().expect("worker panicked")).collect()
     });
