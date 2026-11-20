@@ -37,18 +37,12 @@ impl Tag {
     }
 }
 
-/// Intern a string for the lifetime of the process (lemmas created at run
-/// time; dictionary lemmas already live that long).
-pub fn intern_str(s: &str) -> &'static str {
-    crate::sym::intern(s).as_str()
-}
-
 /// One reading of a token (`AnalyzedToken`).
 #[derive(Clone, Debug)]
 pub struct Reading {
     pub token: Arc<str>,
     pub pos_tag: Option<Tag>,
-    pub lemma: Option<&'static str>,
+    pub lemma: Option<Arc<str>>,
     pub whitespace_before: bool,
     /// `hasNoTag()`: no tag, or only the structural `SENT_END`/`PARA_END`.
     pub has_no_tag: bool,
@@ -65,7 +59,7 @@ impl PartialEq for Reading {
 }
 
 impl Reading {
-    pub fn new(token: Arc<str>, pos_tag: Option<Tag>, lemma: Option<&'static str>) -> Reading {
+    pub fn new(token: Arc<str>, pos_tag: Option<Tag>, lemma: Option<Arc<str>>) -> Reading {
         let has_no_tag = match pos_tag {
             None => true,
             Some(t) => t.as_str() == SENTENCE_END || t.as_str() == PARAGRAPH_END,
@@ -74,7 +68,7 @@ impl Reading {
     }
 
     pub fn from_strs(token: &str, pos_tag: Option<&str>, lemma: Option<&str>) -> Reading {
-        Reading::new(Arc::from(token), pos_tag.map(|t| Tag::new(t.trim())), lemma.map(intern_str))
+        Reading::new(Arc::from(token), pos_tag.map(|t| Tag::new(t.trim())), lemma.map(Arc::from))
     }
 
     #[inline]
@@ -85,7 +79,7 @@ impl Reading {
     /// `lemmaOrToken`: what an inflected pattern token is compared with.
     #[inline]
     pub fn lemma_or_token(&self) -> &str {
-        match self.lemma {
+        match &self.lemma {
             Some(l) => l,
             None => &self.token,
         }
@@ -105,8 +99,8 @@ impl Reading {
         if !an.token.is_empty() {
             found = an.token == self.token;
         }
-        if let Some(l) = an.lemma {
-            found &= Some(l) == self.lemma;
+        if an.lemma.is_some() {
+            found &= an.lemma == self.lemma;
         }
         if let Some(t) = an.pos_tag {
             found &= Some(t) == self.pos_tag;
@@ -208,11 +202,11 @@ impl Readings {
     }
 
     pub fn has_pos_tag_and_lemma(&self, tag: &str, lemma: &str) -> bool {
-        self.readings.iter().any(|r| r.pos() == Some(tag) && r.lemma == Some(lemma))
+        self.readings.iter().any(|r| r.pos() == Some(tag) && r.lemma.as_deref() == Some(lemma))
     }
 
     pub fn has_lemma(&self, lemma: &str) -> bool {
-        self.readings.iter().any(|r| r.lemma == Some(lemma))
+        self.readings.iter().any(|r| r.lemma.as_deref() == Some(lemma))
     }
 
     pub fn has_any_lemma(&self, lemmas: &[&str]) -> bool {
@@ -237,7 +231,7 @@ impl Readings {
     }
 
     pub fn reading_with_lemma(&self, lemma: &str) -> Option<&Reading> {
-        self.readings.iter().find(|r| r.lemma == Some(lemma))
+        self.readings.iter().find(|r| r.lemma.as_deref() == Some(lemma))
     }
 
     pub fn matches_chunk_regex(&self, re: &crate::re::Regex) -> bool {
@@ -263,7 +257,7 @@ impl Readings {
     /// `removeReading`: drop the readings `token` describes; the structural
     /// end-of-sentence readings are put back when they were removed.
     pub fn remove_reading(&mut self, token: &Reading) {
-        let mut tmp = Reading::new(token.token.clone(), token.pos_tag, token.lemma);
+        let mut tmp = Reading::new(token.token.clone(), token.pos_tag, token.lemma.clone());
         tmp.whitespace_before = self.whitespace_before;
         let mut removed_sent_end = false;
         let mut removed_para_end = false;
@@ -297,7 +291,7 @@ impl Readings {
 
     /// `leaveReading`: keep only the readings `token` describes.
     pub fn leave_reading(&mut self, token: &Reading) {
-        let mut tmp = Reading::new(token.token.clone(), token.pos_tag, token.lemma);
+        let mut tmp = Reading::new(token.token.clone(), token.pos_tag, token.lemma.clone());
         tmp.whitespace_before = self.whitespace_before;
         let mut kept: Vec<Reading> = self.readings.drain(..).filter(|r| r.matches(&tmp)).collect();
         if kept.is_empty() {
@@ -312,14 +306,14 @@ impl Readings {
 
     pub fn set_paragraph_end(&mut self) {
         if !self.is_para_end {
-            let lemma = self.readings[0].lemma;
+            let lemma = self.readings[0].lemma.clone();
             self.add_reading(Reading::new(self.token.clone(), Some(Tag::new(PARAGRAPH_END)), lemma));
         }
     }
 
     pub fn set_sent_end(&mut self) {
         if !self.is_sent_end {
-            let lemma = self.readings[0].lemma;
+            let lemma = self.readings[0].lemma.clone();
             self.add_reading(Reading::new(self.token.clone(), Some(Tag::new(SENTENCE_END)), lemma));
         }
     }
@@ -358,8 +352,8 @@ impl Readings {
     }
 
     fn are_lemmas_same(&self) -> bool {
-        let first = self.readings[0].lemma;
-        self.readings.iter().all(|r| r.lemma == first)
+        let first = &self.readings[0].lemma;
+        self.readings.iter().all(|r| &r.lemma == first)
     }
 
     /// `isNonWord`: a single punctuation or operator character.
@@ -410,7 +404,7 @@ impl Sentence {
         for t in &tokens {
             token_set.insert(t.token.to_lowercase());
             for r in &t.readings {
-                if let Some(l) = r.lemma {
+                if let Some(l) = &r.lemma {
                     lemma_set.insert(l.to_lowercase());
                 }
             }
@@ -451,7 +445,7 @@ mod tests {
         assert!(t.is_sent_end && t.is_para_end);
         assert_eq!(t.readings.len(), 3);
         assert_eq!(t.readings[1].pos(), Some(SENTENCE_END));
-        assert_eq!(t.readings[1].lemma, Some("."));
+        assert_eq!(t.readings[1].lemma.as_deref(), Some("."));
         // The structural readings do not make the token "tagged" on their own.
         let mut u = Readings::untagged("xyz", 0);
         u.set_sent_end();
@@ -469,7 +463,7 @@ mod tests {
         assert!(!t.has_same_lemmas);
         t.remove_reading(&rd("a", Some("N m sp"), None));
         assert_eq!(t.readings.len(), 1);
-        assert_eq!(t.readings[0].lemma, Some("avoir"));
+        assert_eq!(t.readings[0].lemma.as_deref(), Some("avoir"));
         assert!(t.has_same_lemmas);
         t.remove_reading(&rd("a", Some("V avoir ind pres 3 s"), None));
         assert_eq!(t.readings.len(), 1);
