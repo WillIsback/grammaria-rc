@@ -1182,6 +1182,58 @@ impl Regex {
         self.names.iter().find(|(n, _)| n == name).map(|(_, i)| *i)
     }
 
+    /// The finite set of strings this pattern can match, when it is built only
+    /// from literals, groups, alternation and `?` (LanguageTool's
+    /// `StringMatcher.getPossibleRegexpValues`). `None` when the pattern uses
+    /// anything else, or when the set would be large.
+    pub fn possible_values(&self) -> Option<Vec<String>> {
+        fn expand(node: &Node) -> Option<Vec<String>> {
+            const LIMIT: usize = 2000;
+            match node {
+                Node::Empty => Some(vec![String::new()]),
+                Node::Char(c, _) => Some(vec![c.to_string()]),
+                Node::Group(inner, _) => expand(inner),
+                Node::Alt(alts) => {
+                    let mut out = Vec::new();
+                    for a in alts {
+                        out.extend(expand(a)?);
+                        if out.len() > LIMIT {
+                            return None;
+                        }
+                    }
+                    Some(out)
+                }
+                Node::Concat(items) => {
+                    let mut out = vec![String::new()];
+                    for it in items {
+                        let part = expand(it)?;
+                        if out.len() * part.len() > LIMIT {
+                            return None;
+                        }
+                        let mut next = Vec::with_capacity(out.len() * part.len());
+                        for a in &out {
+                            for b in &part {
+                                next.push(format!("{a}{b}"));
+                            }
+                        }
+                        out = next;
+                    }
+                    Some(out)
+                }
+                Node::Repeat(inner, 0, 1, Greed::Greedy) => {
+                    let mut out = vec![String::new()];
+                    out.extend(expand(inner)?);
+                    Some(out)
+                }
+                _ => None,
+            }
+        }
+        let mut v = expand(&self.node)?;
+        v.sort();
+        v.dedup();
+        Some(v)
+    }
+
     /// `Matcher.matches()`: the whole input must match.
     pub fn is_full_match(&self, text: &str) -> bool {
         if let Some(set) = &self.literals {
@@ -1445,6 +1497,17 @@ mod tests {
         assert_eq!(r.replace_all("ab", "-"), "-a-b-");
         let r = Regex::new("(\\d+)\\.(\\d+)", Flags::default()).unwrap();
         assert_eq!(r.replace_all("1.5 et 2.25", "$2\\$$1"), "5$1 et 25$2");
+    }
+
+    #[test]
+    fn possible_values() {
+        let pv = |p: &str| Regex::new(p, Flags::default()).unwrap().possible_values();
+        assert_eq!(pv("une?"), Some(vec!["un".to_string(), "une".to_string()]));
+        assert_eq!(pv("(le|la)s?").map(|v| v.len()), Some(4));
+        assert_eq!(pv("tout|toute"), Some(vec!["tout".to_string(), "toute".to_string()]));
+        assert_eq!(pv("[mts]on"), None);
+        assert_eq!(pv("a+"), None);
+        assert_eq!(pv("a.c"), None);
     }
 
     #[test]

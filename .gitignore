@@ -13,3 +13,6 @@ data/*.gz
 /eval/out/
 /eval/oracle/*.tokens.jsonl
 /eval/oracle/*.raw.jsonl
+
+# Agent worktrees (local tooling)
+/.claude/

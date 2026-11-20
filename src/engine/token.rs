@@ -9,31 +9,73 @@
 
 use std::sync::Arc;
 
-use crate::sym::Sym;
-
 pub const SENTENCE_START: &str = "SENT_START";
 pub const SENTENCE_END: &str = "SENT_END";
 pub const PARAGRAPH_END: &str = "PARA_END";
 
 /// An interned part-of-speech tag. Tags form a small closed set, so they are
-/// compared and cached by handle.
+/// compared by handle, and [`Tag::id`] is a dense index usable in per-tag
+/// caches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Tag(pub Sym);
+pub struct Tag(u32);
+
+struct TagTable {
+    by_name: std::collections::HashMap<&'static str, u32>,
+    names: Vec<&'static str>,
+}
+
+fn tag_table() -> &'static std::sync::RwLock<TagTable> {
+    static TABLE: std::sync::OnceLock<std::sync::RwLock<TagTable>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        std::sync::RwLock::new(TagTable { by_name: std::collections::HashMap::new(), names: Vec::new() })
+    })
+}
+
+thread_local! {
+    /// Per-thread view of the tag table: tagging creates a `Tag` for every
+    /// reading, which must not take a shared lock each time.
+    static LOCAL_TAGS: std::cell::RefCell<std::collections::HashMap<&'static str, u32>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
 
 impl Tag {
     pub fn new(s: &str) -> Tag {
-        Tag(crate::sym::intern(s))
+        if let Some(id) = LOCAL_TAGS.with(|l| l.borrow().get(s).copied()) {
+            return Tag(id);
+        }
+        let known = {
+            let t = tag_table().read().unwrap_or_else(|e| e.into_inner());
+            t.by_name.get_key_value(s).map(|(k, v)| (*k, *v))
+        };
+        let (name, id) = match known {
+            Some(x) => x,
+            None => {
+                let mut t = tag_table().write().unwrap_or_else(|e| e.into_inner());
+                match t.by_name.get_key_value(s).map(|(k, v)| (*k, *v)) {
+                    Some(x) => x,
+                    None => {
+                        let name: &'static str = Box::leak(s.to_owned().into_boxed_str());
+                        let id = t.names.len() as u32;
+                        t.names.push(name);
+                        t.by_name.insert(name, id);
+                        (name, id)
+                    }
+                }
+            }
+        };
+        LOCAL_TAGS.with(|l| l.borrow_mut().insert(name, id));
+        Tag(id)
     }
 
-    #[inline]
     pub fn as_str(self) -> &'static str {
-        self.0.as_str()
+        let t = tag_table().read().unwrap_or_else(|e| e.into_inner());
+        t.names[self.0 as usize]
     }
 
-    /// Stable small integer, usable as an index in per-tag caches.
+    /// Dense index (0, 1, 2, ...) in creation order.
     #[inline]
     pub fn id(self) -> u32 {
-        self.0.as_u32()
+        self.0
     }
 }
 
@@ -42,6 +84,8 @@ impl Tag {
 pub struct Reading {
     pub token: Arc<str>,
     pub pos_tag: Option<Tag>,
+    /// The tag's text (kept next to the handle: it is read constantly).
+    pos_str: Option<&'static str>,
     pub lemma: Option<Arc<str>>,
     pub whitespace_before: bool,
     /// `hasNoTag()`: no tag, or only the structural `SENT_END`/`PARA_END`.
@@ -60,11 +104,9 @@ impl PartialEq for Reading {
 
 impl Reading {
     pub fn new(token: Arc<str>, pos_tag: Option<Tag>, lemma: Option<Arc<str>>) -> Reading {
-        let has_no_tag = match pos_tag {
-            None => true,
-            Some(t) => t.as_str() == SENTENCE_END || t.as_str() == PARAGRAPH_END,
-        };
-        Reading { token, pos_tag, lemma, whitespace_before: false, has_no_tag }
+        let pos_str = pos_tag.map(Tag::as_str);
+        let has_no_tag = matches!(pos_str, None | Some(SENTENCE_END) | Some(PARAGRAPH_END));
+        Reading { token, pos_tag, pos_str, lemma, whitespace_before: false, has_no_tag }
     }
 
     pub fn from_strs(token: &str, pos_tag: Option<&str>, lemma: Option<&str>) -> Reading {
@@ -73,7 +115,7 @@ impl Reading {
 
     #[inline]
     pub fn pos(&self) -> Option<&'static str> {
-        self.pos_tag.map(Tag::as_str)
+        self.pos_str
     }
 
     /// `lemmaOrToken`: what an inflected pattern token is compared with.
@@ -384,32 +426,59 @@ pub struct Sentence {
     /// Tokens as the tagger produced them, before disambiguation
     /// (`<pattern raw_pos="yes">` reads these).
     pub pre_disambig: Vec<Readings>,
-    /// Lower-cased surface forms and lemmas, to rule out rules quickly.
-    pub token_set: std::collections::HashSet<String>,
-    pub lemma_set: std::collections::HashSet<String>,
+    pub pre_non_ws: Vec<usize>,
+    /// Lower-cased surface form -> indices among the non-whitespace tokens
+    /// (`getTokenOffsets`), to rule out rules quickly.
+    pub token_offsets: std::collections::HashMap<String, Vec<usize>>,
+    /// Lower-cased lemma (or surface form when there is none) -> indices
+    /// (`getLemmaOffsets`).
+    pub lemma_offsets: std::collections::HashMap<String, Vec<usize>>,
+}
+
+/// LanguageTool's "non blank" tokens: everything but whitespace, except that
+/// a whitespace token marking the sentence start or end is kept.
+fn non_blank(tokens: &[Readings]) -> Vec<usize> {
+    tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, t)| !t.is_whitespace || t.is_sent_start || t.is_sent_end || t.is_para_end)
+        .map(|(i, _)| i)
+        .collect()
 }
 
 impl Sentence {
     pub fn new(text: Arc<str>, tokens: Vec<Readings>, pre_disambig: Vec<Readings>) -> Sentence {
-        // A whitespace token is skipped unless it is the sentence start or a
-        // field code (LanguageTool keeps those in the filtered list).
-        let non_ws = tokens
-            .iter()
-            .enumerate()
-            .filter(|(_, t)| !t.is_whitespace || t.is_sent_start || t.is_field_code())
-            .map(|(i, _)| i)
-            .collect();
-        let mut token_set = std::collections::HashSet::new();
-        let mut lemma_set = std::collections::HashSet::new();
-        for t in &tokens {
-            token_set.insert(t.token.to_lowercase());
+        let non_ws = non_blank(&tokens);
+        let pre_non_ws = non_blank(&pre_disambig);
+        let mut token_offsets: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
+        let mut lemma_offsets: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
+        for (i, &ti) in non_ws.iter().enumerate() {
+            let t = &tokens[ti];
+            token_offsets.entry(t.token.to_lowercase()).or_default().push(i);
             for r in &t.readings {
-                if let Some(l) = &r.lemma {
-                    lemma_set.insert(l.to_lowercase());
+                let list = lemma_offsets.entry(r.lemma_or_token().to_lowercase()).or_default();
+                if list.last() != Some(&i) {
+                    list.push(i);
                 }
             }
         }
-        Sentence { text, tokens, non_ws, pre_disambig, token_set, lemma_set }
+        Sentence { text, tokens, non_ws, pre_disambig, pre_non_ws, token_offsets, lemma_offsets }
+    }
+
+    /// `AnalyzedSentence.copy`: fresh token objects (so that immunization of
+    /// the copy leaves the original alone).
+    pub fn copy(&self) -> Sentence {
+        self.clone()
+    }
+
+    /// The non-whitespace tokens, in order.
+    pub fn non_ws_tokens(&self) -> Vec<&Readings> {
+        self.non_ws.iter().map(|&i| &self.tokens[i]).collect()
+    }
+
+    /// The non-whitespace tokens as the tagger produced them.
+    pub fn pre_disambig_non_ws_tokens(&self) -> Vec<&Readings> {
+        self.pre_non_ws.iter().map(|&i| &self.pre_disambig[i]).collect()
     }
 
     /// The i-th non-whitespace token.
@@ -498,6 +567,6 @@ mod tests {
         let s = Sentence::new(Arc::from("Il dort"), vec![start, a, sp, b], Vec::new());
         assert_eq!(s.len(), 3);
         assert_eq!(&*s.tok(2).token, "dort");
-        assert!(s.token_set.contains("il"));
+        assert_eq!(s.token_offsets.get("il"), Some(&vec![1]));
     }
 }
