@@ -15,6 +15,27 @@ use crate::api::json_escape;
 /// Build sentences from one dump line. The `PARA_END` reading is dropped: the
 /// pipeline adds it back after disambiguation, as LanguageTool does.
 pub fn sentences_from_dump(line: &str) -> Vec<Sentence> {
+    parse_dump(line, false).into_iter().map(|(text, tokens)| Sentence::new(Arc::from(text.as_str()), tokens.clone(), tokens)).collect()
+}
+
+/// Sentences as the rules see them: the disambiguated tokens of one dump
+/// line, with the tagger's output (`raw_line`) as their pre-disambiguation
+/// state, which `raw_pos` rules look at.
+pub fn sentences_from_dumps(line: &str, raw_line: Option<&str>) -> Vec<Sentence> {
+    let mut raw = raw_line.map(|l| parse_dump(l, true)).unwrap_or_default().into_iter();
+    parse_dump(line, true)
+        .into_iter()
+        .map(|(text, tokens)| {
+            let pre = match raw.next() {
+                Some((_, pre)) if pre.len() == tokens.len() => pre,
+                _ => tokens.clone(),
+            };
+            Sentence::new(Arc::from(text.as_str()), tokens, pre)
+        })
+        .collect()
+}
+
+fn parse_dump(line: &str, keep_paragraph_end: bool) -> Vec<(String, Vec<Readings>)> {
     let Some(v) = json::parse(line) else { return Vec::new() };
     let mut out = Vec::new();
     for s in v.as_arr() {
@@ -33,7 +54,7 @@ pub fn sentences_from_dump(line: &str) -> Vec<Sentence> {
                             let rd = rd.as_arr();
                             Reading::from_strs(token, rd.get(1).and_then(Value::as_str), rd.first().and_then(Value::as_str))
                         })
-                        .filter(|r| r.pos() != Some(PARAGRAPH_END))
+                        .filter(|r| keep_paragraph_end || r.pos() != Some(PARAGRAPH_END))
                         .collect()
                 })
                 .unwrap_or_default();
@@ -52,8 +73,7 @@ pub fn sentences_from_dump(line: &str) -> Vec<Sentence> {
             prev = Some(rs.token.clone());
             tokens.push(rs);
         }
-        let pre = tokens.clone();
-        out.push(Sentence::new(Arc::from(text.as_str()), tokens, pre));
+        out.push((text, tokens));
     }
     out
 }

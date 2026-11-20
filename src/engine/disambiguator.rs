@@ -55,15 +55,18 @@ impl Disambiguator {
         let Sentence { text, mut tokens, pre_disambig, .. } = raw;
         self.chunker_global.disambiguate(&mut tokens);
         self.chunker.disambiguate(&mut tokens);
-        let mut sentence = Sentence::new(text, tokens, pre_disambig);
+        // The tagger's tokens come back as the pre-disambiguation state at
+        // the end (`JLanguageTool.getAnalyzedSentence`).
+        let mut sentence = Sentence::new(text, tokens, Vec::new());
         for rule in &self.rules {
-            if let Some(next) = rule.replace(&sentence, ctx) {
+            if let Some(next) = rule.replace_with(&sentence, ctx, false) {
                 if std::env::var_os("GRAMMARIA_TRACE").is_some() {
                     eprintln!("disambig {}", rule.id);
                 }
                 sentence = next;
             }
         }
-        sentence
+        let Sentence { text, tokens, .. } = sentence;
+        Sentence::new(text, tokens, pre_disambig)
     }
 }

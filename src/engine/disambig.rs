@@ -87,6 +87,12 @@ impl Work {
 impl DisambigRule {
     /// `replace`: apply the rule to the sentence. `None` when nothing changed.
     pub fn replace(&self, sentence: &Sentence, ctx: &RuleContext) -> Option<Sentence> {
+        self.replace_with(sentence, ctx, true)
+    }
+
+    /// `replace`, without the pre-disambiguation bookkeeping when the caller
+    /// sets it itself at the end (the disambiguator does).
+    pub fn replace_with(&self, sentence: &Sentence, ctx: &RuleContext, track_previous: bool) -> Option<Sentence> {
         if self.rule.pattern.can_be_ignored_for(sentence) {
             return None;
         }
@@ -113,7 +119,19 @@ impl DisambigRule {
             }
         }
         if changed {
-            Some(Sentence::new(sentence.text.clone(), work.all, sentence.pre_disambig.clone()))
+            // As in LanguageTool, the new sentence's "pre-disambiguation"
+            // tokens are the tokens this rule started from (with the edits
+            // it made in place), not the tagger's output: a `raw_pos` grammar
+            // rule re-matched after one of its antipatterns fired therefore
+            // sees the disambiguated, immunized tokens.
+            let mut pre = Vec::new();
+            if track_previous {
+                pre = sentence.tokens.clone();
+                for (nw, &position) in sentence.non_ws.iter().enumerate() {
+                    pre[position] = work.view[nw].clone();
+                }
+            }
+            Some(Sentence::new(sentence.text.clone(), work.all, pre))
         } else {
             None
         }

@@ -888,27 +888,42 @@ fn set_matches_exact(set: &ClassSet, c: char) -> bool {
     }
 }
 
-fn set_matches(set: &ClassSet, c: char, ci: u8) -> bool {
-    if set_matches_exact(set, c) {
+/// Does `f` hold for `c` or, when matching case-insensitively, for one of its
+/// case variants?
+fn any_variant(c: char, ci: u8, f: impl Fn(char) -> bool) -> bool {
+    if f(c) {
         return true;
     }
     match ci {
         0 => false,
-        1 => {
-            c.is_ascii_alphabetic()
-                && (set_matches_exact(set, c.to_ascii_lowercase()) || set_matches_exact(set, c.to_ascii_uppercase()))
-        }
+        1 => c.is_ascii_alphabetic() && (f(c.to_ascii_lowercase()) || f(c.to_ascii_uppercase())),
         _ => {
-            let f = fold(c);
-            if f != c && set_matches_exact(set, f) {
+            let folded = fold(c);
+            if folded != c && f(folded) {
                 return true;
             }
             let mut up = c.to_uppercase();
             match (up.next(), up.next()) {
-                (Some(u), None) if u != c => set_matches_exact(set, u),
+                (Some(u), None) if u != c => f(u),
                 _ => false,
             }
         }
+    }
+}
+
+/// As in Java, case-insensitivity applies to the positive members of a class
+/// and the negation comes last: `(?i)[^a-z]` does not match `F`.
+fn set_matches(set: &ClassSet, c: char, ci: u8) -> bool {
+    let hit = set.items.iter().any(|item| match item {
+        ClassItem::Set(inner) => set_matches(inner, c, ci),
+        ClassItem::Range(a, b) => any_variant(c, ci, |x| *a <= x && x <= *b),
+        ClassItem::Prop(p, neg) => any_variant(c, ci, |x| prop_matches(*p, x)) != *neg,
+        other => item_matches(other, c),
+    });
+    if hit != set.neg {
+        set.and.iter().all(|s| set_matches(s, c, ci))
+    } else {
+        false
     }
 }
 
@@ -1572,5 +1587,16 @@ mod tests {
         assert!(full("[a\\-z]+", "a-z"));
         assert!(full("[-a]+", "-a"));
         assert!(full("\\.", "."));
+    }
+    #[test]
+    fn case_insensitive_negated_class() {
+        let ci = Flags { case_insensitive: true, unicode_case: true, ..Flags::default() };
+        let re = Regex::new("[^a-z].*|qui", ci).unwrap();
+        assert!(!re.is_full_match("faiblesse"));
+        assert!(!re.is_full_match("Faiblesse"));
+        assert!(re.is_full_match("3e"));
+        assert!(re.is_full_match("QUI"));
+        assert!(Regex::new("[^é]", ci).unwrap().is_full_match("e"));
+        assert!(!Regex::new("[^é]", ci).unwrap().is_full_match("É"));
     }
 }

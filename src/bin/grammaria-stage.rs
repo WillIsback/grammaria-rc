@@ -3,7 +3,7 @@
 //! (`tools/bench/`).
 //!
 //!   grammaria-stage disambig RAW.jsonl      tagger dump -> disambiguated tokens
-//!   grammaria-stage match    TOKENS.jsonl   disambiguated dump -> rule matches
+//!   grammaria-stage match    TOKENS.jsonl [RAW.jsonl]   disambiguated dump (and the tagger's) -> rule matches
 //!
 //! `--assets DIR` names the LanguageTool resource directory (default
 //! `assets/fr/lt`).
@@ -14,7 +14,7 @@ use std::sync::Arc;
 use grammaria::api::json_escape;
 use grammaria::engine::checker::{CheckRule, Checker};
 use grammaria::engine::disambiguator::Disambiguator;
-use grammaria::engine::dump::{dump_sentences, sentences_from_dump};
+use grammaria::engine::dump::{dump_sentences, sentences_from_dump, sentences_from_dumps};
 use grammaria::engine::pattern::Lang;
 use grammaria::engine::rule::{RuleContext, RuleFilter};
 use grammaria::engine::synth::FrenchSynthesizer;
@@ -40,7 +40,11 @@ fn main() {
         std::process::exit(2);
     };
     let input = std::fs::read_to_string(file).expect("dump file");
-    let lines: Vec<&str> = input.lines().collect();
+    let lines: Vec<(usize, &str)> = input.lines().enumerate().collect();
+    // The tagger's dump of the same texts, for `raw_pos` rules.
+    let raw_input = positional.get(2).map(|f| std::fs::read_to_string(f).expect("raw dump file")).unwrap_or_default();
+    let raw_lines: Vec<&str> = raw_input.lines().collect();
+    let raw_lines = &raw_lines;
     let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
     let chunk = lines.len().div_ceil(threads).max(1);
 
@@ -74,7 +78,7 @@ fn main() {
             .map(|part| {
                 scope.spawn(move || {
                     part.iter()
-                        .map(|line| match mode.as_str() {
+                        .map(|(no, line)| match mode.as_str() {
                             "disambig" => {
                                 let raw = sentences_from_dump(line);
                                 let n = raw.len();
@@ -89,7 +93,7 @@ fn main() {
                                 dump_sentences(&done, false)
                             }
                             _ => {
-                                let sentences = sentences_from_dump(line);
+                                let sentences = sentences_from_dumps(line, raw_lines.get(*no).copied());
                                 let mut parts: Vec<String> = Vec::new();
                                 for m in checker.check(&sentences) {
                                     let info = checker.info(m.rule);
