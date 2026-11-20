@@ -114,6 +114,9 @@ fn build_rule_cache(assets: &str, out: &str) -> std::io::Result<()> {
         set.rules.extend(s.rules);
     }
     let dest = Path::new(out).join("fr.rules");
+    // Build the lookup index before saving so it can be persisted with the
+    // cache and reloaded instead of rebuilt at start-up.
+    set.build_index();
     set.save_cache(&dest)?;
     eprintln!(
         "wrote {} ({} rules, {} bytes) in {:?}",
