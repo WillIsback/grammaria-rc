@@ -215,8 +215,10 @@ type Shard = RwLock<HashMap<Box<str>, Arc<Readings>, BuildHasherDefault<Fnv>>>;
 
 const SHARDS: usize = 64;
 /// A shard that grows past this is emptied: the cache stays bounded on
-/// texts with an endless supply of new tokens.
-const SHARD_CAPACITY: usize = 8192;
+/// texts with an endless supply of new tokens (numbers, identifiers).
+const SHARD_CAPACITY: usize = 2048;
+/// Longer tokens (URLs, mostly) are not worth keeping.
+const LONGEST_CACHED: usize = 64;
 
 struct Patterns {
     prefixes_for_verbs: Regex,
@@ -334,6 +336,9 @@ impl FrenchTagger {
             return hit.clone();
         }
         let readings = Arc::new(self.tag_uncached(word));
+        if word.len() > LONGEST_CACHED {
+            return readings;
+        }
         let mut map = shard.write().unwrap_or_else(|e| e.into_inner());
         if map.len() >= SHARD_CAPACITY {
             map.clear();
@@ -600,5 +605,17 @@ sœur\tsœur\tN f s
         assert_eq!(tagged.iter().map(|r| r.start_pos).collect::<Vec<_>>(), [0, 4, 8, 9]);
         assert!(t.is_tagged("peut-être") && !t.is_tagged("peut-etre"));
         assert!(tagged[2].is_whitespace && !tagged[2].is_tagged());
+        // cached or not, the same answer
+        let long = "x".repeat(LONGEST_CACHED + 1);
+        for word in ["chat", "chat", "Marché", "Marché", long.as_str(), long.as_str()] {
+            assert_eq!(show(&t.tag_token(word)), show(&t.tag_uncached(word)));
+        }
+        // these all fall in one shard, which is emptied when full
+        for i in 0..SHARD_CAPACITY + 500 {
+            t.tag_token(&format!("w{i:05}x"));
+        }
+        let sizes: Vec<usize> = t.cache.iter().map(|shard| shard.read().unwrap().len()).collect();
+        assert!(sizes.iter().all(|&n| n <= SHARD_CAPACITY) && sizes.contains(&500));
+        assert_eq!(show(&t.tag_token("chat")), "chat/Z m s chat/N m s");
     }
 }
