@@ -160,6 +160,7 @@ pub struct Regex {
     /// of a match.
     literals: Option<std::collections::HashSet<String>>,
     fold: u8,
+    inline_flags: bool,
     src: String,
 }
 
@@ -178,6 +179,8 @@ struct Parser<'a> {
     flags: Flags,
     groups: usize,
     names: Vec<(String, usize)>,
+    /// The pattern changes flags inline (`(?i)`, `(?-i:...)`).
+    inline_flags: bool,
     _src: &'a str,
 }
 
@@ -389,6 +392,7 @@ impl<'a> Parser<'a> {
             Node::Group(Box::new(inner), Some(idx))
         } else {
             // flags
+            self.inline_flags = true;
             let mut on = true;
             let mut f = self.flags;
             loop {
@@ -1179,7 +1183,7 @@ fn fold_str(s: &str, ci: u8) -> String {
 
 impl Regex {
     pub fn new(src: &str, flags: Flags) -> Result<Regex, Error> {
-        let mut p = Parser { c: src.chars().collect(), i: 0, flags, groups: 0, names: Vec::new(), _src: src };
+        let mut p = Parser { c: src.chars().collect(), i: 0, flags, groups: 0, names: Vec::new(), inline_flags: false, _src: src };
         let node = p.alt()?;
         if p.i < p.c.len() {
             return p.err("unbalanced )");
@@ -1201,7 +1205,7 @@ impl Regex {
         } else {
             (None, 0)
         };
-        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, src: src.to_string() })
+        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, inline_flags: p.inline_flags, src: src.to_string() })
     }
 
     pub fn source(&self) -> &str {
@@ -1261,6 +1265,10 @@ impl Regex {
                 }
                 _ => None,
             }
+        }
+        // With inline flags the values would not all compare the same way.
+        if self.inline_flags {
+            return None;
         }
         let mut v = expand(&self.node)?;
         v.sort();
@@ -1552,6 +1560,7 @@ mod tests {
         assert_eq!(pv("[mts]on"), None);
         assert_eq!(pv("a+"), None);
         assert_eq!(pv("a.c"), None);
+        assert_eq!(pv("(?-i)VIE"), None);
     }
 
     #[test]

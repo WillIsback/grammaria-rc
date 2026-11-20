@@ -991,6 +991,9 @@ mod tests {
         assert!(m.matches("ÊTRE"));
         assert_eq!(&*m.pattern, "être");
         assert!(!StringMatcher::create("a", true, false).matches(&"a".repeat(300)));
+        // An inline flag keeps the regex a regex: `(?-i)` restores case sensitivity.
+        let m = StringMatcher::create("(?-i)VIE", true, false);
+        assert!(m.matches("VIE") && !m.matches("vie"));
     }
 
     #[test]
