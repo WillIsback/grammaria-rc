@@ -33,16 +33,23 @@
 //! # Ok::<(), std::io::Error>(())
 //! ```
 //!
+//! A [`Dictionary`] is immutable and `Send + Sync`. Loading one is reading
+//! its file (about 2 ms and 1.3 MB for `french.dict`). Code that looks up
+//! many words should take a [`Lookup`] from [`Dictionary::lookup_session`]
+//! and reuse it and its output vector: nothing is allocated per word then.
+//!
 //! The code is a port of Morfologik 2.1.9 (BSD-3-Clause, © Dawid Weiss and
-//! Marcin Miłkowski); each file names the classes it comes from.
+//! Marcin Miłkowski); each file names the classes it comes from. It is
+//! tested against the outputs of the Java library, see
+//! `tools/morfologik/README.md`.
 
 pub mod dictionary;
 pub mod encoders;
 pub mod fsa;
 pub mod metadata;
-mod unicode_tables;
 pub mod speller;
 pub mod unicode;
+mod unicode_tables;
 
 pub use dictionary::{Dictionary, Lookup, WordData};
 pub use fsa::{Automaton, Fsa, MatchKind, MatchResult, SequenceIter};

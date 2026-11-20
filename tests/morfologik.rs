@@ -62,7 +62,10 @@ fn metadata_of_the_french_dictionaries() {
     assert!(!m.ignore_all_uppercase && !m.ignore_camel_case && !m.ignore_numbers);
     assert!(m.equivalent_chars.is_empty()); // commented out in the file
     assert_eq!(m.replacement_pairs.len(), 48);
-    assert_eq!(m.replacement_pairs[0], ("ent".to_string(), vec!["ement".to_string()]));
+    assert_eq!(
+        m.replacement_pairs[0],
+        ("ent".to_string(), vec!["ement".to_string()])
+    );
     let of = |k: &str| {
         m.replacement_pairs
             .iter()
@@ -72,10 +75,7 @@ fn metadata_of_the_french_dictionaries() {
     assert_eq!(of("ss").as_deref(), Some("s|c|ç"));
     assert_eq!(of("qu").as_deref(), Some("c|k|qu'"));
     assert_eq!(of("iens").as_deref(), Some("ients"));
-    assert_eq!(
-        m.attribute("fsa.dict.speller.runon-words"),
-        Some("true")
-    );
+    assert_eq!(m.attribute("fsa.dict.speller.runon-words"), Some("true"));
 
     let s = synth();
     assert_eq!(s.fsa.format_name(), "CFSA2");
@@ -146,14 +146,16 @@ fn dictionary_can_be_shared_between_threads() {
 
 /// Every line `form<TAB>lemma<TAB>tag` of the LanguageTool 6.6 text dump must
 /// be returned by the lookup of its form. The `.dict` is a later snapshot
-/// (6.9), so a few entries have genuinely changed; the test bounds their
-/// number and checks that they are data differences, not decoding errors
-/// (the binary dictionary is compared entry by entry with Java's own dump in
-/// `dump_matches_java` when that file is available).
+/// (6.9) whose data has changed a little: 142 lines are not found, namely
+/// 139 country names retagged from `N . sp` to `Z . s` ("Algérie"), "Cuba"
+/// (`Z e sp` → `Z m s`) and two forms that were removed ("bowwindow",
+/// "quizz"). These are data differences, not decoding errors: Java's own
+/// dump of the `.dict` is identical to ours (`dump_matches_java`).
 #[test]
 fn text_dump_is_found_by_lookup() {
     let d = french();
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr/languagetool-pos-dict.txt");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr/languagetool-pos-dict.txt");
     let text = std::fs::read_to_string(path).expect("languagetool-pos-dict.txt");
     let mut session = d.lookup_session();
     let mut out = Vec::new();
@@ -186,16 +188,9 @@ fn text_dump_is_found_by_lookup() {
         println!("  {e}");
     }
     assert_eq!(total, 634_004);
-    assert!(
-        form_missing + reading_missing <= MAX_DUMP_DIFFERENCES,
-        "{} lines of the text dump are not found",
-        form_missing + reading_missing
-    );
+    assert_eq!(form_missing, 2);
+    assert_eq!(reading_missing, 140);
 }
-
-/// Upper bound on the lines of the 6.6 text dump that the 6.9 `.dict` no
-/// longer contains (measured: see the test output).
-const MAX_DUMP_DIFFERENCES: usize = 2_000;
 
 #[test]
 fn enumeration_yields_every_entry() {
@@ -268,7 +263,10 @@ fn check_lookup_oracle(d: &Dictionary, text: &str) -> (usize, usize) {
         let word = it.next().unwrap_or("");
         let expected: Vec<&str> = it.collect();
         session.lookup_raw(word, &mut out);
-        let got: Vec<String> = out.iter().map(|w| format!("{}|{}", w.stem, w.tag)).collect();
+        let got: Vec<String> = out
+            .iter()
+            .map(|w| format!("{}|{}", w.stem, w.tag))
+            .collect();
         n += 1;
         if got != expected {
             bad += 1;
@@ -318,6 +316,42 @@ fn synthesis_dictionary_gives_forms_for_lemma_and_tag() {
     assert_eq!(bad, 0);
 }
 
+/// Stems encoded by Java's four `ISequenceEncoder`s must decode to the stem:
+/// lines `ENCODER<TAB>word<TAB>stem<TAB>hex of the encoded stem`. LanguageTool
+/// ships no dictionary with the INFIX encoder, so this is its only check.
+#[test]
+fn stem_decoders_match_java_encoders() {
+    use grammaria::morfologik::encoders;
+    let text = std::fs::read_to_string(fixture("encoders_oracle.tsv")).unwrap();
+    let mut counts: HashMap<&str, usize> = HashMap::new();
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let f: Vec<&str> = line.split('\t').collect();
+        let (name, word, stem, hex) = (f[0], f[1], f[2], f[3]);
+        let encoder = match name {
+            "SUFFIX" => EncoderType::Suffix,
+            "PREFIX" => EncoderType::Prefix,
+            "INFIX" => EncoderType::Infix,
+            "NONE" => EncoderType::None,
+            other => panic!("unknown encoder {other}"),
+        };
+        let encoded: Vec<u8> = (0..hex.len() / 2)
+            .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap())
+            .collect();
+        assert!(encoded.len() >= encoders::prefix_bytes(encoder));
+        encoders::decode(encoder, word.as_bytes(), &encoded, &mut out);
+        assert_eq!(
+            String::from_utf8_lossy(&out),
+            stem,
+            "{name} decoding of {hex} for {word:?}"
+        );
+        *counts.entry(name).or_default() += 1;
+    }
+    println!("stem encoders: {counts:?} pairs decoded as in Java");
+    assert_eq!(counts.len(), 4);
+    assert!(counts.values().all(|&n| n >= 800));
+}
+
 // ---------------------------------------------------------------------------
 // Speller
 // ---------------------------------------------------------------------------
@@ -350,7 +384,9 @@ fn speller_basics() {
     assert_eq!((oeufs[0].orig_distance, oeufs[0].distance), (0, 14));
     sp.reset();
     assert!(sp.find_replacements("maison").is_empty()); // known word
-    assert!(sp.find_similar_words("maison").contains(&"raison".to_string()));
+    assert!(sp
+        .find_similar_words("maison")
+        .contains(&"raison".to_string()));
     assert_eq!(sp.replace_run_on_words("parmis"), ["par mis", "parmi s"]);
     assert!(sp.replace_run_on_words("maison").is_empty());
     assert_eq!(
@@ -452,7 +488,11 @@ fn check_speller_oracle(d: &Dictionary, text: &str, shared: bool) -> SpellerStat
         "speller oracle ({}): {} words; is_misspelled {}, is_in_dictionary {}, frequency {}, \
          replacements (exact order and weights) {}, replacements (same set) {}, run-on {}, \
          similar words {}/{}",
-        if shared { "one speller reused" } else { "fresh speller per word" },
+        if shared {
+            "one speller reused"
+        } else {
+            "fresh speller per word"
+        },
         st.words,
         st.misspelled_ok,
         st.in_dict_ok,
@@ -573,7 +613,12 @@ fn character_classes_match_java() {
         }
     }
     for k in 0..7 {
-        println!("{}: {} differences {}", names[k], bad[k], examples[k].join(" "));
+        println!(
+            "{}: {} differences {}",
+            names[k],
+            bad[k],
+            examples[k].join(" ")
+        );
     }
 }
 
@@ -602,7 +647,8 @@ fn bench_load_and_lookup() {
         s.fsa.size_in_bytes()
     );
 
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr/languagetool-pos-dict.txt");
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr/languagetool-pos-dict.txt");
     let text = std::fs::read_to_string(path).unwrap();
     let mut forms: Vec<&str> = text.lines().filter_map(|l| l.split('\t').next()).collect();
     forms.dedup();
@@ -632,6 +678,34 @@ fn bench_load_and_lookup() {
         n as f64 / el / 1e6,
         el / n as f64 * 1e9
     );
+
+    // Running text: the words of the benchmark corpus, in reading order
+    // (frequent words dominate, as in real use).
+    let corpus = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("eval/bench/corpus.txt");
+    if let Ok(text) = std::fs::read_to_string(corpus) {
+        let tokens: Vec<&str> = text
+            .split(|c: char| !(c.is_alphanumeric() || c == '-' || c == '\''))
+            .filter(|t| !t.is_empty())
+            .collect();
+        let rounds = (2_000_000 / tokens.len().max(1)).max(1);
+        let mut known = 0usize;
+        let t = Instant::now();
+        for _ in 0..rounds {
+            for tok in &tokens {
+                session.lookup(tok, &mut out);
+                known += usize::from(!out.is_empty());
+            }
+        }
+        let el = t.elapsed().as_secs_f64();
+        let n = tokens.len() * rounds;
+        println!(
+            "lookup (running text, {} tokens x {rounds}): {:.2} M lookups/s, {:.0} ns each ({:.1} % known)",
+            tokens.len(),
+            n as f64 / el / 1e6,
+            el / n as f64 * 1e9,
+            known as f64 * 100.0 / n as f64
+        );
+    }
 
     let t = Instant::now();
     let mut readings = 0usize;
@@ -666,7 +740,16 @@ fn bench_load_and_lookup() {
         forms.len() as f64 / el / 1e6
     );
 
-    let typos = ["pome", "acceuil", "parmis", "oeufs", "mmaison", "apartement", "biensur", "language"];
+    let typos = [
+        "pome",
+        "acceuil",
+        "parmis",
+        "oeufs",
+        "mmaison",
+        "apartement",
+        "biensur",
+        "language",
+    ];
     let t = Instant::now();
     let mut total = 0usize;
     let rounds = 20;

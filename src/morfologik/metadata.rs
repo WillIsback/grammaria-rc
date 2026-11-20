@@ -514,8 +514,12 @@ mod tests {
 
     #[test]
     fn required_attributes_and_errors() {
-        assert!(DictionaryMetadata::parse("fsa.dict.separator=+\nfsa.dict.encoding=utf8\n").is_err());
-        assert!(DictionaryMetadata::parse("fsa.dict.encoder=SUFFIX\nfsa.dict.encoding=utf8\n").is_err());
+        assert!(
+            DictionaryMetadata::parse("fsa.dict.separator=+\nfsa.dict.encoding=utf8\n").is_err()
+        );
+        assert!(
+            DictionaryMetadata::parse("fsa.dict.encoder=SUFFIX\nfsa.dict.encoding=utf8\n").is_err()
+        );
         assert!(DictionaryMetadata::parse(
             "fsa.dict.separator=+\nfsa.dict.encoder=SUFFIX\nfsa.dict.encoding=iso-8859-2\n"
         )
