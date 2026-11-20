@@ -22,6 +22,7 @@ pub mod fx;
 pub mod json;
 pub mod pattern;
 pub mod performer;
+pub mod pipeline;
 pub mod rule;
 pub mod sentences;
 pub mod strtools;
