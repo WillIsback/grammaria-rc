@@ -564,7 +564,8 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                     <token min="0" regexp="yes">lui|leur|nous|vous</token>
                     <marker>
                         <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;
-                            <exception postag="N.*" postag_regexp="yes"/></token>
+                            <exception postag="N.*" postag_regexp="yes"/>
+                            <exception regexp="yes">sucré|salé|glacé|épicé|pimenté|fumé|grillé|poivré|acidulé</exception></token>
                     </marker>
                 </pattern>
                 <message>Après « avoir \3 \4 », le verbe se met à l'infinitif.</message>
@@ -572,6 +573,7 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example correction="insister">Tu as eu raison d'<marker>insisté</marker>.</example>
                 <example correction="parler">J'ai très envie de lui <marker>parlé</marker>.</example>
                 <example>Tu as eu raison d'insister.</example>
+                <example>J'ai envie de sucré.</example>
             </rule>
             <rule>
                 <pattern raw_pos="yes">
@@ -643,6 +645,12 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example>Il est question de données à caractère personnel.</example>
             </rule>
             <rule>
+                <antipattern>
+                    <token regexp="yes">de|d'</token>
+                    <token regexp="yes">la|l'|les|leur</token>
+                    <token regexp="yes">.*(é|ée|és|ées)</token>
+                    <token postag="[NJZ].*" postag_regexp="yes"/>
+                </antipattern>
                 <pattern raw_pos="yes">
                     <token inflected="yes" postag="V.*" postag_regexp="yes" regexp="yes">arrêter|cesser|essayer|tenter|oublier|omettre|refuser|accepter|choisir|éviter|mériter|promettre|craindre|regretter|envisager|négliger|feindre|proposer|suggérer|conseiller|permettre|interdire|défendre|empêcher|supplier|ordonner|achever|efforcer|dépêcher|hâter
                         <exception postag="N.*" postag_regexp="yes"/></token>
@@ -658,6 +666,7 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example correction="pousser">Il essaie de la <marker>poussée</marker> vers la sortie.</example>
                 <example>Il essaie de la pousser vers la sortie.</example>
                 <example>Le risque de la montée des eaux inquiète.</example>
+                <example>Il a oublié de la donnée brute le troisième chiffre.</example>
             </rule>
         </rulegroup>
         <rulegroup id="GRM_MODAL_PRONOM_PPA" name="verbe modal + pronom + participe passé au lieu de l'infinitif">
@@ -733,13 +742,15 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                     <token min="0" regexp="yes">pas|plus|jamais|point|guère</token>
                     <token regexp="yes">me|m'|te|t'|le|la|l'|les|lui|leur|nous|vous</token>
                     <marker>
-                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;</token>
+                        <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;
+                            <exception scope="next" regexp="yes">de|du|des|d'|qui|que|dont</exception></token>
                     </marker>
                 </pattern>
                 <message>Après « \3 » et un pronom, le verbe se met à l'infinitif.</message>
                 <suggestion><match no="6" postag="V (avoir |etre )?ppa.*" postag_regexp="yes" postag_replace="V $1inf"/></suggestion>
                 <example correction="amuser">Cela semble les <marker>amusés</marker>.</example>
                 <example>Cela semble les amuser.</example>
+                <example>Cela semble les invités de Paul.</example>
             </rule>
             <rule>
                 <pattern raw_pos="yes">
@@ -917,7 +928,8 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                     <token regexp="yes" case_sensitive="yes">la|l'|lui|leur|nous|vous</token>
                     <marker>
                         <token postag="&ppa;" postag_regexp="yes" regexp="yes" case_sensitive="yes">&ppae;
-                            <exception postag="N.*" postag_regexp="yes"/></token>
+                            <exception postag="N.*" postag_regexp="yes"/>
+                            <exception regexp="yes">dérobée|accoutumée|arrachée?|volée|criée|étouffée|débandade</exception></token>
                     </marker>
                 </pattern>
                 <message>Après « \1 à » et un pronom, le verbe se met à l'infinitif.</message>
@@ -925,6 +937,7 @@ sont cherchées en minuscules pour écarter les noms propres homographes
                 <example correction="détester">Elle commence à la <marker>détestée</marker>.</example>
                 <example correction="pardonner">Il hésite à leur <marker>pardonné</marker>.</example>
                 <example>Elle commence à la détester.</example>
+                <example>Il continue à la dérobée.</example>
             </rule>
             <rule>
                 <pattern raw_pos="yes">
