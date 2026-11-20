@@ -18,6 +18,16 @@ use std::io::{self, Write};
 use std::path::Path;
 
 pub const MAGIC: &[u8; 8] = b"GRMLXIC2";
+/// v3: `first`/`count` replaced by a bitset of sense-bearing slots plus a
+/// dense `(first,count)` table indexed by the slot's rank among them.
+///
+/// The v2 layout spent 8 bytes per *slot* on those two arrays while only 27 %
+/// of slots (475 097 of 1 777 184) carry readings; the dense form costs
+/// `nslots/8` for the bitset plus 8 bytes per bearing slot.
+pub const MAGIC_V3: &[u8; 8] = b"GRMLXIC3";
+
+/// Prefix-sum granularity of the v3 slot->rank index, in slots (bits).
+const RANK_STRIDE: usize = 1024;
 
 /// A word sense: interned lemma id + interned tag id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,8 +153,16 @@ struct RawLexicon {
     nslots: usize,
     base_off: usize,
     check_off: usize,
+    /// v2 only: direct per-slot arrays.
     first_off: usize,
     count_off: usize,
+    /// v3: bitset of slots that carry readings, and a dense `(first,count)`
+    /// table indexed by the slot's rank among those.
+    v3: bool,
+    bits_off: usize,
+    dense_off: usize,
+    /// v3: u32 prefix sums every `RANK_STRIDE` slots.
+    rank_off: usize,
     sense_ids_off: usize,
     nsense_ids: usize,
     senses_off: usize,
@@ -157,7 +175,8 @@ struct RawLexicon {
 
 impl RawLexicon {
     fn from_bytes(bytes: Vec<u8>) -> io::Result<RawLexicon> {
-        if bytes.len() < 28 || &bytes[..8] != MAGIC {
+        let is_v3 = bytes.len() >= 28 && &bytes[..8] == MAGIC_V3;
+        if !is_v3 && (bytes.len() < 28 || &bytes[..8] != MAGIC) {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "bad lexicon magic"));
         }
         let meta = |i: usize| read_u32(&bytes, 8 + i * 4) as usize;
@@ -168,6 +187,32 @@ impl RawLexicon {
         let ntags = meta(4);
         let base_off = 28;
         let check_off = base_off + nslots * 4;
+        if is_v3 {
+            let bits_off = check_off + nslots * 4;
+            let bits_len = (nslots + 7) / 8;
+            let nblocks = nslots / RANK_STRIDE + 1;
+            let rank_off = bits_off + bits_len;
+            let dense_off = rank_off + nblocks * 4;
+            // The dense table has one 8-byte entry per *sense-bearing* slot,
+            // not per slot: count them from the bitset.
+            let mut bearing = 0usize;
+            for b in 0..bits_len {
+                bearing += bytes[bits_off + b].count_ones() as usize;
+            }
+            let sense_ids_off = dense_off + bearing * 8;
+            let senses_off = sense_ids_off + nsense_ids * 4;
+            let lemmas_off = senses_off + nsenses * 8;
+            let lemmas_blob = lemmas_off + (nlemmas + 1) * 4;
+            let blob_len = read_u32(&bytes, lemmas_off + nlemmas * 4) as usize;
+            let tags_off = lemmas_blob + blob_len;
+            return Ok(RawLexicon {
+                bytes, nslots, base_off, check_off,
+                first_off: 0, count_off: 0,
+                v3: true, bits_off, dense_off, rank_off,
+                sense_ids_off, nsense_ids, senses_off, nsenses,
+                lemmas_off, nlemmas, tags_off, ntags,
+            });
+        }
         let first_off = check_off + nslots * 4;
         let count_off = first_off + nslots * 4;
         let sense_ids_off = count_off + nslots * 4;
@@ -190,6 +235,10 @@ impl RawLexicon {
             check_off,
             first_off,
             count_off,
+            v3: false,
+            bits_off: 0,
+            dense_off: 0,
+            rank_off: 0,
             sense_ids_off,
             nsense_ids,
             senses_off,
@@ -216,14 +265,56 @@ impl RawLexicon {
         self.u32_at(self.check_off + slot * 4)
     }
 
+    /// Is bit `slot` set in the v3 bitset?
+    #[inline]
+    fn bit(&self, slot: usize) -> bool {
+        let byte = self.bytes[self.bits_off + slot / 8];
+        byte & (1 << (slot % 8)) != 0
+    }
+
+    /// Number of sense-bearing slots before `slot` (its rank in the dense
+    /// table).
+    ///
+    /// `rank_base` holds a prefix sum every `RANK_STRIDE` bits, so this costs
+    /// at most `RANK_STRIDE/8` byte loads instead of a scan from slot 0.
+    fn rank(&self, slot: usize) -> u32 {
+        let words_per_block = RANK_STRIDE / 8;
+        let block = slot / RANK_STRIDE;
+        let mut n = self.u32_at(self.rank_off + block * 4);
+        let start = block * words_per_block;
+        let end = slot / 8;
+        for b in start..end {
+            n += self.bytes[self.bits_off + b].count_ones();
+        }
+        let rest = slot % 8;
+        if rest > 0 {
+            let byte = self.bytes[self.bits_off + end];
+            n += (byte & ((1u16 << rest) - 1) as u8).count_ones();
+        }
+        n
+    }
+
     #[inline]
     fn first(&self, slot: usize) -> u32 {
-        self.u32_at(self.first_off + slot * 4)
+        if self.v3 {
+            let r = self.rank(slot) as usize;
+            self.u32_at(self.dense_off + r * 8)
+        } else {
+            self.u32_at(self.first_off + slot * 4)
+        }
     }
 
     #[inline]
     fn count(&self, slot: usize) -> u32 {
-        self.u32_at(self.count_off + slot * 4)
+        if self.v3 {
+            if !self.bit(slot) {
+                return 0;
+            }
+            let r = self.rank(slot) as usize;
+            self.u32_at(self.dense_off + r * 8 + 4)
+        } else {
+            self.u32_at(self.count_off + slot * 4)
+        }
     }
 
     #[inline]
@@ -659,9 +750,10 @@ impl Lexicon {
         {
             let f = fs::File::create(&tmp)?;
             let mut w = io::BufWriter::with_capacity(1 << 20, f);
-            w.write_all(MAGIC)?;
+            w.write_all(MAGIC_V3)?;
+            let nslots = o.base.len();
             let meta = [
-                o.base.len() as u32,
+                nslots as u32,
                 o.sense_ids.len() as u32,
                 o.senses.len() as u32,
                 o.lemmas.len() as u32,
@@ -670,8 +762,40 @@ impl Lexicon {
             write_u32s(&mut w, &meta)?;
             write_u32s(&mut w, &o.base)?;
             write_u32s(&mut w, &o.check)?;
-            write_u32s(&mut w, &o.first)?;
-            write_u32s(&mut w, &o.count)?;
+            // v3: a bitset of slots carrying readings, a prefix-sum index over
+            // it, then a dense (first, count) table for those slots only.
+            let mut bits = vec![0u8; (nslots + 7) / 8];
+            for (slot, &c) in o.count.iter().enumerate() {
+                if c != 0 {
+                    bits[slot / 8] |= 1 << (slot % 8);
+                }
+            }
+            w.write_all(&bits)?;
+            let nblocks = nslots / RANK_STRIDE + 1;
+            let mut rank = vec![0u32; nblocks];
+            let mut running = 0u32;
+            for b in 0..nblocks {
+                rank[b] = running;
+                let end = ((b + 1) * RANK_STRIDE / 8).min(bits.len());
+                let start = (b * RANK_STRIDE / 8).min(bits.len());
+                for byte in &bits[start..end] {
+                    running += byte.count_ones();
+                }
+            }
+            write_u32s(&mut w, &rank)?;
+            let dense: Vec<u8> = o
+                .count
+                .iter()
+                .enumerate()
+                .filter(|(_, &c)| c != 0)
+                .flat_map(|(slot, &c)| {
+                    let mut v = [0u8; 8];
+                    v[..4].copy_from_slice(&o.first[slot].to_le_bytes());
+                    v[4..].copy_from_slice(&c.to_le_bytes());
+                    v
+                })
+                .collect();
+            w.write_all(&dense)?;
             write_u32s(&mut w, &o.sense_ids)?;
             let mut sb = Vec::with_capacity(o.senses.len() * 8);
             for s in &o.senses {
