@@ -101,7 +101,17 @@ fn tagging_matches_language_tool_for_a_simple_sentence() {
             .tags
             .clone()
     };
-    assert_eq!(word("chat"), vec!["N m s"]);
-    assert!(word("mange").contains(&"V ind pres 3 s".to_string()));
-    assert!(word("Le").contains(&"D m s".to_string()));
+    // LanguageTool reports `<S> Le[le/D m s,Le/_GN_MS] chat[chat/N m s,chat/_GN_MS]
+    // mange[...]`; the `_GN_*` nominal-group chunk tags are part of the
+    // analysis, so we compare the POS readings without them.
+    let pos = |w: &str| -> Vec<String> {
+        word(w)
+            .into_iter()
+            .filter(|t| !t.starts_with("_GN_"))
+            .collect()
+    };
+    assert_eq!(pos("chat"), vec!["N m s"]);
+    assert!(pos("mange").contains(&"V ind pres 3 s".to_string()));
+    assert!(pos("Le").contains(&"D m s".to_string()));
+    assert!(word("chat").contains(&"_GN_MS".to_string()));
 }

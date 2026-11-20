@@ -113,8 +113,15 @@ impl TokenPattern {
         }
         if let Some(re) = &self.regex {
             // `<token regexp="yes">`: LanguageTool requires the whole token to
-            // match (`Pattern.matcher(token).matches()`).
-            if !re.is_full_match(&tok.text) {
+            // match (`Pattern.matcher(token).matches()`), and -- like every
+            // token element -- the comparison is case-insensitive unless
+            // `case_sensitive="yes"`.
+            let hit = if self.case_sensitive {
+                re.is_full_match(&tok.text)
+            } else {
+                re.is_full_match_ignore_case(&tok.text)
+            };
+            if !hit {
                 return false;
             }
         }

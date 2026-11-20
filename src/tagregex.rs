@@ -880,6 +880,23 @@ impl ValueMatcher {
         }
     }
 
+    /// Like `is_full_match` but ignores letter case. LanguageTool's `<token
+    /// regexp="yes">` is case-insensitive unless `case_sensitive="yes"`, so
+    /// `<token regexp="yes">tout|toute|toutes</token>` must match "Toutes".
+    pub fn is_full_match_ignore_case(&self, text: &str) -> bool {
+        match self {
+            ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s, text),
+            _ => self
+                .compiled()
+                .map(|r| {
+                    r.is_full_match(text)
+                        || r.is_full_match(&crate::strutil::lower(text))
+                        || r.is_full_match(&crate::strutil::capitalize(text))
+                })
+                .unwrap_or(false),
+        }
+    }
+
     /// The original source text of the matcher.
     pub fn as_source(&self) -> &str {
         match self {

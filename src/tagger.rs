@@ -408,6 +408,11 @@ pub struct DisambigRule {
     pub is_regexp: bool,
     /// `(lemma, tag)` pairs added by `add`/`replace`.
     pub add_tags: Vec<(String, String)>,
+    /// For `action="add"`: the element index each `<wd>` belongs to. A `<wd>`
+    /// that follows a `<match no="N"/>` targets group N; a `<wd>` in a run
+    /// with no `<match>` targets the *next* element, in order (LanguageTool's
+    /// `getPatternToken()` during `addAnalysis`).
+    pub wd_index: Vec<usize>,
     /// `<match no="N" postag="..."/>`: the action applies to the tag that
     /// group N carries (when `postag` is empty).
     pub match_group: Option<usize>,
@@ -512,13 +517,13 @@ impl Disambiguation {
                         }
                         continue;
                     }
-                    self.apply_action(s, r, idx);
+                    self.apply_action(s, r, idx, m.token_start);
                 }
             }
         }
     }
 
-    fn apply_action(&self, s: &mut Sentence, r: &DisambigRule, idx: usize) {
+    fn apply_action(&self, s: &mut Sentence, r: &DisambigRule, idx: usize, base: usize) {
         // An empty `postag` on a legacy `<disambig postag=""/>` clears every
         // tag (LanguageTool semantics); `filterall` without postag is a no-op.
         let tag_match = |tag: &str| -> bool {
@@ -569,17 +574,19 @@ impl Disambiguation {
                 }
             }
             DisambigAction::Add => {
-                let add: Vec<(String, String)> = r.add_tags.clone();
+                // `action="add"` is positional: each `<wd>` belongs to a
+                // specific pattern element (`r.wd_index`), so a rule such as
+                // NOMINAL_GROUPS attaches `_GN_MS` to element 0, 1 and 2
+                // respectively rather than to every token of the span.
+                // `idx` is an absolute sentence index, so shift it by the
+                // match start to compare against element indices.
                 let text = tok.text.clone();
-                for (lemma, tag) in add.into_iter() {
-                    // `_GN_*` are nominal-group *chunk* tags in LanguageTool,
-                    // not part-of-speech readings; we do not expose chunk tags
-                    // to the rule engine, so they are not added as readings.
-                    if tag.starts_with("_GN_") {
+                for (k, (lemma, tag)) in r.add_tags.iter().enumerate() {
+                    if r.wd_index.get(k).copied().unwrap_or(0) + base != idx {
                         continue;
                     }
-                    let l = if lemma.is_empty() { text.clone() } else { lemma };
-                    tok.add(&l, &tag);
+                    let l = if lemma.is_empty() { text.clone() } else { lemma.clone() };
+                    tok.add(&l, tag);
                 }
             }
             DisambigAction::Immunize => {}
@@ -597,6 +604,7 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
         postag: String::new(),
         is_regexp: false,
         add_tags: Vec::new(),
+        wd_index: Vec::new(),
         match_group: None,
         match_postag: None,
         has_marker: false,
@@ -638,9 +646,30 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
             || r.postag.contains(".*")
             || r.postag.contains('[')
             || r.postag.contains('(');
-        for wd in dis.children_named("wd") {
-            if let Some(pos) = wd.attr("pos") {
-                r.add_tags.push((String::new(), pos.to_string()));
+        // `<wd>` elements are positional: each targets the element it belongs
+        // to. LanguageTool's `addAnalysis` walks the `<wd>` list and applies
+        // each to the pattern token that follows the current `<match no="N"/>`
+        // (or to the next element when no `<match>` is present).
+        let mut next_elem = 0usize;
+        let mut last_match: Option<usize> = None;
+        for child in &dis.children {
+            let DomItem::Node(n) = child else { continue };
+            match n.name.as_str() {
+                "match" => {
+                    last_match = n.attr("no").and_then(|x| x.parse::<usize>().ok());
+                }
+                "wd" => {
+                    let idx = match last_match {
+                        Some(g) => g.saturating_sub(1),
+                        None => next_elem,
+                    };
+                    if let Some(pos) = n.attr("pos") {
+                        r.add_tags.push((String::new(), pos.to_string()));
+                        r.wd_index.push(idx);
+                    }
+                    next_elem = idx + 1;
+                }
+                _ => {}
             }
         }
         for m in dis.children_named("match") {
