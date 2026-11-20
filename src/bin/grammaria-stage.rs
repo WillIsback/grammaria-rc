@@ -15,15 +15,12 @@ use grammaria::api::json_escape;
 use grammaria::engine::checker::{CheckRule, Checker};
 use grammaria::engine::disambiguator::Disambiguator;
 use grammaria::engine::dump::{dump_sentences, sentences_from_dump};
+use grammaria::engine::filters::{french_filter, FrenchFilters, SimpleAnalyzer, SimpleDictTagger};
 use grammaria::engine::pattern::Lang;
-use grammaria::engine::rule::{RuleContext, RuleFilter};
+use grammaria::engine::rule::RuleContext;
 use grammaria::engine::synth::FrenchSynthesizer;
 use grammaria::engine::unifier::UnifierConfiguration;
 use grammaria::engine::xmlrules::{load_grammar, GrammarRule};
-
-fn no_filters(_: &str) -> Option<Arc<dyn RuleFilter>> {
-    None
-}
 
 fn main() {
     let mut assets = PathBuf::from("assets/fr/lt");
@@ -46,17 +43,26 @@ fn main() {
 
     let mut unifier = UnifierConfiguration::default();
     let mut dis_unifier = UnifierConfiguration::default();
-    let disambiguator = Disambiguator::load(&assets, &no_filters, &mut dis_unifier).expect("disambiguation files");
+    let disambiguator = Arc::new(Disambiguator::load(&assets, &french_filter, &mut dis_unifier).expect("disambiguation files"));
     let mut rules: Vec<GrammarRule> = Vec::new();
     if mode == "match" {
         for (name, style) in [("grammar.xml", false), ("style.xml", true)] {
             let xml = std::fs::read_to_string(assets.join(name)).expect("rule file");
-            rules.extend(load_grammar(&xml, name, style, &no_filters, &mut unifier));
+            rules.extend(load_grammar(&xml, name, style, &french_filter, &mut unifier));
         }
     }
+    // What some filters need besides the match: the rules they run on a
+    // corrected text, and how to analyse that text.
+    let filters = FrenchFilters::global();
+    filters.set_rules(&rules);
+    filters.set_analyzer(Arc::new(SimpleAnalyzer::new(disambiguator.clone())));
     let mut lang = Lang::default();
     if let Ok(synth) = FrenchSynthesizer::load(&assets) {
         lang.synthesizer = Some(Arc::new(synth));
+    }
+    // Stopgap until the engine has its own tagger.
+    if let Ok(tagger) = SimpleDictTagger::load(&assets) {
+        lang.tagger = Some(Arc::new(tagger));
     }
     let rules: Vec<CheckRule> = rules
         .into_iter()
@@ -66,7 +72,7 @@ fn main() {
         })
         .collect();
     let checker = Checker::new(rules, RuleContext { lang, unifier, disambig_unifier: dis_unifier });
-    let (ctx, disambiguator, checker) = (&checker.ctx, &disambiguator, &checker);
+    let (ctx, disambiguator, checker) = (&checker.ctx, &*disambiguator, &checker);
 
     let out: Vec<String> = std::thread::scope(|scope| {
         let handles: Vec<_> = lines

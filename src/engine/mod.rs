@@ -16,6 +16,7 @@ pub mod chunker;
 pub mod disambig;
 pub mod disambiguator;
 pub mod dump;
+pub mod filters;
 pub mod french;
 pub mod json;
 pub mod pattern;
