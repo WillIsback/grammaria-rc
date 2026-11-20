@@ -123,7 +123,9 @@ fn month_from_name(month: &str) -> Option<i64> {
 }
 
 /// `StringTools.trimSpecialCharacters`: keeps letters, digits, whitespace and
-/// ASCII punctuation (soft hyphens and the like are removed).
+/// punctuation, which removes soft hyphens and the like. Only ASCII
+/// punctuation is kept here (Java keeps all of Unicode's); a month name has
+/// no other.
 fn trim_special_characters(s: &str) -> String {
     s.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace() || c.is_ascii_punctuation()).collect()
 }

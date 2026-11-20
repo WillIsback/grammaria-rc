@@ -13,6 +13,13 @@
 //! * the date filters read the current date: [`FrenchFilters::set_today`];
 //! * `IsEnglishWordFilter` tags English words:
 //!   [`FrenchFilters::set_english_tagger`].
+//!
+//! `InterrogativeVerbFilter` and `FrenchNumberInWordFilter` use the speller
+//! and the tagger of the language ([`Lang`](super::pattern::Lang)).
+//!
+//! Without a port: the speller-based `FindSuggestionsFilter`,
+//! `FrenchSuppressMisspelledSuggestionsFilter` and `MultitokenSpellerFilter`,
+//! and `DMYDateCheckFilter`, which no active rule uses.
 
 pub mod analysis;
 mod contractions;
@@ -289,7 +296,8 @@ impl FrenchFilters {
     /// Give the loaded grammar rules, for the filters that run rules on a
     /// corrected text (`JLanguageTool.getAllActiveRules()`): the active rules
     /// of the elision category, those `WordWithDeterminerFilter` names and
-    /// those named by a `ruleIDs` filter argument are kept. Only the first
+    /// those named by a `ruleIDs` filter argument are kept (as copies, which
+    /// hold their own filters and so keep this object alive). Only the first
     /// call counts.
     pub fn set_rules(&self, rules: &[GrammarRule]) {
         let mut wanted: Vec<&str> = determiner::RULES_TO_CHECK.to_vec();
