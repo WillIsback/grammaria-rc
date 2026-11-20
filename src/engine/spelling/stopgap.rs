@@ -26,19 +26,29 @@ use super::wordlist::{java_lines, read_resource};
 use crate::morfologik::{Dictionary, WordData};
 use crate::re::{self, Flags, Regex};
 
-/// `ManualTagger`: `form<TAB>lemma<TAB>tag` lines.
+/// `ManualTagger`: `form<SEP>lemma<SEP>tag` lines. The separator is a tab
+/// unless a `#separatorRegExp=` line names another one (`;` or `[\t;]` in the
+/// French files); the files are read as one stream, so it carries over.
 fn manual_entries(dir: &Path, names: &[&str]) -> HashMap<String, Vec<(String, String)>> {
     let mut map: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    let mut separators: Vec<char> = vec!['\t'];
     for name in names {
         let Some(content) = read_resource(&dir.join(name)) else { continue };
         for line in java_lines(&content) {
             let line = java_trim(line);
+            if let Some(regexp) = line.strip_prefix("#separatorRegExp=") {
+                let class = regexp.strip_prefix('[').and_then(|r| r.strip_suffix(']')).unwrap_or(regexp);
+                separators = class.replace("\\t", "\t").chars().collect();
+            }
             if line.is_empty() || line.starts_with('#') {
                 continue;
             }
-            let line = line.split('#').next().unwrap_or("");
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() < 3 {
+            let line = java_trim(line.split('#').next().unwrap_or(""));
+            let mut parts: Vec<&str> = line.split(|c| separators.contains(&c)).collect();
+            while parts.last().is_some_and(|p| p.is_empty()) {
+                parts.pop();
+            }
+            if parts.len() != 3 {
                 continue;
             }
             map.entry(parts[0].to_string()).or_default().push((parts[1].to_string(), java_trim(parts[2]).to_string()));

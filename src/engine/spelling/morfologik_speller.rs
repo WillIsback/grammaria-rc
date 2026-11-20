@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use super::super::strtools;
+use super::strings::{java_is_all_uppercase, java_is_mixed_case, java_starts_with_uppercase};
 use crate::morfologik::dictionary::apply_replacements;
 use crate::morfologik::{unicode, Automaton, Dictionary, MatchKind, Speller};
 
@@ -117,9 +118,9 @@ impl MorfologikSpeller {
             suggestions.push(WeightedSuggestion { word: candidate.word, weight: candidate.distance });
         }
         let converting_case = self.dictionary.metadata.convert_case;
-        if converting_case && strtools::is_all_uppercase(word) {
+        if converting_case && java_is_all_uppercase(word) {
             recase(&mut suggestions, word, |s| s.to_uppercase());
-        } else if converting_case && strtools::starts_with_uppercase(word) {
+        } else if converting_case && java_starts_with_uppercase(word) {
             recase(&mut suggestions, word, strtools::uppercase_first_char);
         }
         suggestions
@@ -153,7 +154,7 @@ fn recase(suggestions: &mut Vec<WeightedSuggestion>, word: &str, convert: impl F
     while (i as usize) < suggestions.len() {
         let at = i as usize;
         let mut converted = convert(&suggestions[at].word);
-        if converted == word || strtools::is_mixed_case(&suggestions[at].word) {
+        if converted == word || java_is_mixed_case(&suggestions[at].word) {
             converted = suggestions[at].word.clone();
         }
         let mut aux_index = suggestions.iter().position(|s| s.word == converted);
