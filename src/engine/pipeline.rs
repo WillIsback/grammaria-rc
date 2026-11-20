@@ -265,8 +265,9 @@ const SPELLING_RULE_ID: &str = "FR_SPELLING_RULE";
 
 /// Is this spelling match an unknown word that is probably a name: a
 /// capitalized word (`Fogg`, `Saint-Machin`) that is not the first word of
-/// its sentence or of a quotation, and that no suggestion corrects by
-/// accents or case alone (`Etat` stays an error: `État`)?
+/// its sentence or of a quotation, or a short acronym (`GAFI`), that no
+/// suggestion corrects by accents or case alone (`Etat` stays an error:
+/// `État`)?
 fn looks_like_a_proper_noun(m: &Found, sentences: &[Sentence]) -> bool {
     let mut start = 0;
     for sentence in sentences {
@@ -280,7 +281,10 @@ fn looks_like_a_proper_noun(m: &Found, sentences: &[Sentence]) -> bool {
         let capitalized = word.chars().next().is_some_and(char::is_uppercase)
             && word.chars().skip(1).any(char::is_lowercase)
             && word.split(['-', '\'', '’']).all(|part| part.chars().skip(1).all(|c| !c.is_uppercase()));
-        if !capitalized {
+        // A short word in capitals is an acronym (GAFI, EHESS).
+        let letters = word.chars().count();
+        let acronym = (2..=6).contains(&letters) && word.chars().all(|c| c.is_alphabetic() && c.is_uppercase());
+        if !capitalized && !acronym {
             return false;
         }
         let bare = |s: &str| -> String { s.chars().flat_map(char::to_lowercase).map(strip_accent).collect() };
@@ -288,12 +292,15 @@ fn looks_like_a_proper_noun(m: &Found, sentences: &[Sentence]) -> bool {
         if m.suggestions.iter().any(|s| bare(s) == target) {
             return false;
         }
-        // The word before it in its sentence: a name follows a word, a comma
-        // or an opening parenthesis; after anything else (nothing, a
-        // quotation mark, a dash, a colon) the capital may just open a
-        // sentence.
+        if acronym {
+            return true;
+        }
+        // The word before it in its sentence: a name follows a word, a
+        // comma, an opening parenthesis or the full stop of an abbreviation
+        // ("M. Despréaux"); after anything else (nothing, a quotation mark,
+        // a dash, a colon) the capital may just open a sentence.
         let previous = sentence.tokens.iter().filter(|t| !t.is_whitespace && !t.is_sent_start && t.start_pos < at).last();
-        return previous.is_some_and(|t| t.token.chars().any(char::is_alphanumeric) || matches!(&*t.token, "," | ";" | "(" | "'" | "’"));
+        return previous.is_some_and(|t| t.token.chars().any(char::is_alphanumeric) || matches!(&*t.token, "," | ";" | "(" | "'" | "’" | "."));
     }
     false
 }
