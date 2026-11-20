@@ -1,0 +1,172 @@
+//! What LanguageTool's `French` language class decides: rule priorities.
+
+use super::rule::RuleInfo;
+
+/// `id2prio`: priorities given to rule (or category) ids.
+const ID_PRIORITIES: &[(&str, i32)] = &[
+    ("AGREEMENT_EXCEPTIONS", 100),
+    ("EXPRESSIONS_VU", 100),
+    ("SA_CA_SE", 100),
+    ("SIL_VOUS_PLAIT", 100),
+    ("QUASI_NOM", 100),
+    ("MA", 100),
+    ("SON_SONT", 100),
+    ("JE_TES", 100),
+    ("A_INFINITIF", 100),
+    ("ON_ONT", 100),
+    ("LEURS_LEUR", 100),
+    ("DU_DU", 100),
+    ("ACCORD_CHAQUE", 100),
+    ("J_N2", 100),
+    ("CEST_A_DIRE", 100),
+    ("FAIRE_VPPA", 100),
+    ("D_N_E_OU_E", 100),
+    ("GENS_ACCORD", 100),
+    ("VIRGULE_EXPRESSIONS_FIGEES", 100),
+    ("TRAIT_UNION", 100),
+    ("PLURIEL_AL2", 100),
+    ("FR_SPLIT_WORDS_HYPHEN", 100),
+    ("PAS_DE_TRAIT_UNION", 50),
+    ("SOCIOCULTUREL", 40),
+    ("A_VERBE_INFINITIF", 20),
+    ("DE_OU_DES", 20),
+    ("EMPLOI_EMPLOIE", 20),
+    ("VOIR_VOIRE", 20),
+    ("D_VPPA", 20),
+    ("EST_CE_QUE", 20),
+    ("CONFUSION_PARLEZ_PARLER", 10),
+    ("AGREEMENT_TOUT_LE", 10),
+    ("ESPACE_UNITES", 10),
+    ("BYTES", 10),
+    ("Y_A", 10),
+    ("COTE", 10),
+    ("PEUTETRE", 10),
+    ("A_A_ACCENT", 10),
+    ("A_ACCENT_A", 10),
+    ("A_A_ACCENT2", 10),
+    ("A_ACCENT", 10),
+    ("JE_M_APPEL", 10),
+    ("ACCORD_R_PERS_VERBE", 10),
+    ("JE_SUI", 10),
+    ("R_VAVOIR_VINF", 10),
+    ("AN_EN", 10),
+    ("APOS_M", 10),
+    ("ACCORD_PLURIEL_ORDINAUX", 10),
+    ("SUJET_AUXILIAIRE", 10),
+    ("ADJ_ADJ_SENT_END", 10),
+    ("OU_PAS", 10),
+    ("PLACE_DE_LA_VIRGULE", 10),
+    ("SE_CE", -10),
+    ("PAS_DE_SOUCIS", 10),
+    ("J_N", -10),
+    ("TE_NV", -20),
+    ("TE_NV2", -10),
+    ("INTERROGATIVE_DIRECTE", -10),
+    ("V_J_A_R", -10),
+    ("TRES_TRES_ADJ", -10),
+    ("IMP_PRON", -10),
+    ("TOO_LONG_PARAGRAPH", -15),
+    ("PREP_VERBECONJUGUE", -20),
+    ("LA_LA2", -20),
+    ("FRENCH_WORD_REPEAT_RULE", -20),
+    ("PAS_DE_VERBE_APRES_POSSESSIF_DEMONSTRATIF", -20),
+    ("VIRGULE_VERBE", -20),
+    ("VERBES_FAMILIERS", -25),
+    ("VERB_PRONOUN", -50),
+    ("IL_VERBE", -50),
+    ("A_LE", -50),
+    ("ILS_VERBE", -50),
+    ("AGREEMENT_POSTPONED_ADJ", -50),
+    ("MULTI_ADJ", -50),
+    ("PARENTHESES", -50),
+    ("REP_ESSENTIEL", -50),
+    ("CONFUSION_AL_LA", -50),
+    ("LE_COVID", -60),
+    ("FR_SPELLING_RULE", -100),
+    ("VIRG_INF", -100),
+    ("ET_SENT_START", -151),
+    ("MAIS_SENT_START", -151),
+    ("EN_CE_QUI_CONCERNE", -152),
+    ("EN_MEME_TEMPS", -152),
+    ("ET_AUSSI", -152),
+    ("MAIS_AUSSI", -152),
+    ("ELISION", -200),
+    ("POINT", -200),
+    ("REPETITIONS_STYLE", -250),
+    ("POINTS_SUSPENSIONS_SPACE", -250),
+    ("UPPERCASE_SENTENCE_START", -300),
+    ("FRENCH_WHITESPACE_STRICT", -350),
+    ("TOUT_MAJUSCULES", -400),
+    ("VIRG_NON_TROUVEE", -400),
+    ("POINTS_2", -400),
+    ("MOTS_INCOMP", -400),
+    ("FRENCH_WHITESPACE", -400),
+    ("MOT_TRAIT_MOT", -400),
+    ("FRENCH_WORD_REPEAT_BEGINNING_RULE", -350),
+];
+
+/// `French.getPriorityForId`.
+pub fn priority_for_id(id: &str) -> i32 {
+    if let Some((_, p)) = ID_PRIORITIES.iter().find(|(k, _)| *k == id) {
+        return *p;
+    }
+    if id.starts_with("FR_COMPOUNDS") {
+        return 500;
+    }
+    match id {
+        "CAT_TYPOGRAPHIE" | "CAT_TOURS_CRITIQUES" | "CAT_HOMONYMES_PARONYMES" => return 20,
+        "SON" => return -5,
+        "CONFUSION_RULE_PREMIUM" => return -50,
+        _ => {}
+    }
+    if id.starts_with("CAR") {
+        return -50;
+    }
+    if id.starts_with("FR_MULTITOKEN_SPELLING_") {
+        return -90;
+    }
+    if id.starts_with("FR_SIMPLE_REPLACE") {
+        return 150;
+    }
+    if id.starts_with("grammalecte_") {
+        return -150;
+    }
+    // Language.getPriorityForId
+    if id.eq_ignore_ascii_case("TOO_LONG_SENTENCE") {
+        return -101;
+    }
+    if id == "REPETITIONS_STYLE" {
+        return -55;
+    }
+    if id.contains("STYLE") {
+        return -50;
+    }
+    0
+}
+
+/// `Language.getRulePriority`: the id's priority, else the rule's own
+/// (`prio` attribute), else its category's.
+pub fn rule_priority(info: &RuleInfo) -> i32 {
+    let by_id = priority_for_id(&info.id);
+    if by_id != 0 {
+        return by_id;
+    }
+    if info.priority != 0 {
+        return info.priority;
+    }
+    let by_category = priority_for_id(&info.category_id);
+    if by_category != 0 {
+        return by_category;
+    }
+    // This project's own rules (`GRM_...`) yield to a LanguageTool rule of
+    // ordinary priority on the same words, so that an error LanguageTool
+    // finds keeps LanguageTool's rule id and suggestions; they still win
+    // over style and spelling rules, whose priorities are well below.
+    if info.id.starts_with(OWN_RULE_PREFIX) {
+        return -1;
+    }
+    0
+}
+
+/// Prefix of the ids of this project's own rules.
+pub const OWN_RULE_PREFIX: &str = "GRM_";

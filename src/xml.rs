@@ -108,6 +108,11 @@ impl<'a> Parser<'a> {
                 if c == q {
                     in_quote = None;
                 }
+            } else if self.bytes[i..].starts_with(b"<!--") {
+                // A comment of the internal subset: its quotes and brackets
+                // do not count.
+                i = self.src[i..].find("-->").map_or(self.bytes.len(), |end| i + end + 3);
+                continue;
             } else {
                 match c {
                     b'"' | b'\'' => in_quote = Some(c),
@@ -119,8 +124,15 @@ impl<'a> Parser<'a> {
             }
             i += 1;
         }
-        let subset = &self.src[start..i.min(self.src.len())];
-        self.parse_entities(subset);
+        // Entity declarations are read outside comments.
+        let mut subset = String::new();
+        let mut rest = &self.src[start..i.min(self.src.len())];
+        while let Some(open) = rest.find("<!--") {
+            subset.push_str(&rest[..open]);
+            rest = rest[open..].find("-->").map_or("", |end| &rest[open + end + 3..]);
+        }
+        subset.push_str(rest);
+        self.parse_entities(&subset);
         self.pos = (i + 1).min(self.bytes.len());
     }
 
@@ -550,4 +562,24 @@ pub fn parse_dom(src: &str) -> Node {
         }
     }
     stack.into_iter().next().unwrap()
+}
+
+#[cfg(test)]
+mod doctype_tests {
+    use super::*;
+
+    #[test]
+    fn comments_of_the_internal_subset_are_skipped() {
+        let xml = "<!DOCTYPE rules [ <!-- l'entité [a] --> <!ENTITY a \"x|y\"> <!-- <!ENTITY b \"no\"> --> ]><rules><r v=\"&a;\">&a;</r></rules>";
+        let mut parser = Parser::new(xml);
+        let mut texts = Vec::new();
+        loop {
+            match parser.next_event() {
+                Event::Text(t) => texts.push(t),
+                Event::Eof => break,
+                _ => {}
+            }
+        }
+        assert_eq!(texts, ["x|y"]);
+    }
 }

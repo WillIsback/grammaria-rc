@@ -3,9 +3,13 @@ name = "grammaria"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
-description = "A state-of-the-art, blazingly fast French grammar and spelling checker in Rust (LanguageTool/Grammalecte compatible rules)"
-license = "MPL-2.0"
-repository = "https://example.invalid/grammaria"
+description = "A French grammar and spelling checker in Rust: LanguageTool's French rules reproduced match for match, plus its own"
+# The crate is one work under several licenses: the project's own code and
+# rules (MPL-2.0), the modules ported from LanguageTool and its data
+# (LGPL-2.1-or-later), and the Morfologik port (BSD-3-Clause). See
+# THIRD_PARTY_LICENSES.md for which files each one covers.
+license = "MPL-2.0 AND LGPL-2.1-or-later AND BSD-3-Clause"
+repository = "https://github.com/WillIsback/grammaria-rc"
 readme = "README.md"
 keywords = ["grammar", "french", "spellcheck", "nlp", "languagetool"]
 categories = ["text-processing", "command-line-utilities"]
