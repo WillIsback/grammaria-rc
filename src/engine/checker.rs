@@ -172,10 +172,20 @@ pub fn is_active_by_default(info: &RuleInfo) -> bool {
 
 impl Checker {
     /// `rules` in LanguageTool's order: native rules, then the rule files.
+    /// The rules LanguageTool runs at its default level are active.
     pub fn new(rules: Vec<CheckRule>, ctx: RuleContext) -> Checker {
-        let active: Vec<bool> = rules.iter().map(|r| is_active_by_default(r.info())).collect();
         let priority: Vec<i32> = rules.iter().map(|r| french::rule_priority(r.info())).collect();
         let picky: Vec<bool> = rules.iter().map(|r| r.info().tags.iter().any(|t| t == "picky")).collect();
+        let mut checker =
+            Checker { rules, ctx, active: Vec::new(), priority, picky, text_rules: Vec::new(), sentence_rules: Vec::new(), index: RuleIndex::default() };
+        checker.select(|_, by_default| by_default);
+        checker
+    }
+
+    /// Choose the rules that report: `keep(rule, active by default)`.
+    pub fn select(&mut self, keep: impl Fn(&RuleInfo, bool) -> bool) {
+        let rules = &self.rules;
+        let active: Vec<bool> = rules.iter().map(|r| keep(r.info(), is_active_by_default(r.info()))).collect();
         let mut text_rules: Vec<TextRule> = Vec::new();
         let mut repeated: Vec<(String, Vec<usize>)> = Vec::new();
         let mut group_of: HashMap<String, usize> = HashMap::new();
@@ -209,8 +219,10 @@ impl Checker {
             }
         }
         text_rules.extend(repeated.into_iter().map(|(_, members)| TextRule::Repeated(members)));
-        let index = RuleIndex::build(&rules, &sentence_rules);
-        Checker { rules, ctx, active, priority, picky, text_rules, sentence_rules, index }
+        self.index = RuleIndex::build(rules, &sentence_rules);
+        self.active = active;
+        self.text_rules = text_rules;
+        self.sentence_rules = sentence_rules;
     }
 
     pub fn info(&self, rule: usize) -> &RuleInfo {

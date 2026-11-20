@@ -8,7 +8,10 @@
 //!
 //! `--assets DIR` names the LanguageTool resource directory (default
 //! `assets/fr/lt`); `--rules FILE` (repeatable) checks with these rule files
-//! only; `--time` prints load and run times on stderr.
+//! only; `--all-rules` also runs the rules that are off by default or
+//! reserved to the picky level; `--lt-only` runs LanguageTool's rules alone,
+//! without this project's rule files and profile (for comparisons with the
+//! reference); `--time` prints load and run times on stderr.
 
 use std::path::PathBuf;
 
@@ -38,6 +41,8 @@ fn unescape(line: &str) -> String {
 fn main() {
     let mut assets = PathBuf::from("assets/fr/lt");
     let mut time = false;
+    let mut all_rules = false;
+    let mut lt_only = false;
     let mut rule_files: Vec<PathBuf> = Vec::new();
     let mut positional: Vec<String> = Vec::new();
     let mut args = std::env::args().skip(1);
@@ -45,6 +50,8 @@ fn main() {
         match a.as_str() {
             "--assets" => assets = PathBuf::from(args.next().unwrap_or_default()),
             "--time" => time = true,
+            "--all-rules" => all_rules = true,
+            "--lt-only" => lt_only = true,
             "--rules" => rule_files.push(PathBuf::from(args.next().unwrap_or_default())),
             _ => positional.push(a),
         }
@@ -54,7 +61,9 @@ fn main() {
         std::process::exit(2);
     };
     let started = std::time::Instant::now();
-    let loading = if rule_files.is_empty() {
+    let loading = if lt_only {
+        grammaria::engine::pipeline::load_french_lt(&assets)
+    } else if rule_files.is_empty() {
         grammaria::engine::pipeline::load_french(&assets)
     } else {
         grammaria::engine::pipeline::load_french_with_rules(&assets, &rule_files)
@@ -63,6 +72,10 @@ fn main() {
         eprintln!("grammaria-run: cannot load {}: {e}", assets.display());
         std::process::exit(1);
     });
+    let mut french = french;
+    if all_rules {
+        french.checker.select(|_, _| true);
+    }
     let loaded = started.elapsed();
     let input = std::fs::read_to_string(file).expect("text file");
     let texts: Vec<String> = input.lines().map(unescape).collect();

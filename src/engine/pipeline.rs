@@ -149,6 +149,18 @@ impl French {
         analyze(&self.analyzer, &self.disambiguator, text, &self.checker.ctx)
     }
 
+    /// Switch rules on or off, starting from LanguageTool's defaults.
+    pub fn apply_profile(&mut self, profile: &Profile) {
+        self.checker.select(|info, by_default| {
+            let named = |list: &[String]| list.iter().any(|id| *id == info.id || *id == info.full_id());
+            if named(&profile.off) {
+                false
+            } else {
+                by_default || named(&profile.on)
+            }
+        });
+    }
+
     /// `JLanguageTool.check` at the default level.
     pub fn check(&self, text: &str) -> Vec<Found> {
         self.checker.check(&self.analyze(text))
@@ -164,8 +176,19 @@ impl French {
 
 /// The French checker with everything this crate implements plugged in.
 pub fn load_french(dir: &Path) -> io::Result<French> {
+    load_full(dir, &default_rule_files(dir), true)
+}
+
+/// LanguageTool alone: its rule files, native rules and filters, without
+/// this project's rules and rule profile. This is what is compared with the
+/// reference implementation.
+pub fn load_french_lt(dir: &Path) -> io::Result<French> {
+    load_full(dir, &[dir.join("grammar.xml"), dir.join("style.xml")], false)
+}
+
+fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Result<French> {
     let mut failure: Option<io::Error> = None;
-    let french = French::load_with(dir, |dir, _tagger, _synthesizer| {
+    let french = French::load_rule_files(dir, rule_files, |dir, _tagger, _synthesizer| {
         let mut extensions = Extensions::default();
         let filters = FrenchFilters::new();
         let factory = filters.clone();
@@ -180,9 +203,40 @@ pub fn load_french(dir: &Path) -> io::Result<French> {
         }
         extensions
     })?;
-    match failure {
-        Some(e) => Err(e),
-        None => Ok(french),
+    if let Some(e) = failure {
+        return Err(e);
+    }
+    let mut french = french;
+    if with_profile {
+        if let Some(profile) = dir.parent().map(|p| p.join("grammaria").join("profile.txt")).and_then(|p| std::fs::read_to_string(p).ok()) {
+            french.apply_profile(&Profile::parse(&profile));
+        }
+    }
+    Ok(french)
+}
+
+/// This project's choice of rules, on top of LanguageTool's defaults: the
+/// file `grammaria/profile.txt` holds one `off RULE_ID` or `on RULE_ID` per
+/// line (a rule id or a full id such as `OU[40]`; `#` starts a comment).
+#[derive(Default, Clone, Debug)]
+pub struct Profile {
+    pub off: Vec<String>,
+    pub on: Vec<String>,
+}
+
+impl Profile {
+    pub fn parse(text: &str) -> Profile {
+        let mut profile = Profile::default();
+        for line in text.lines() {
+            let line = line.split('#').next().unwrap_or("").trim();
+            let mut words = line.split_whitespace();
+            match (words.next(), words.next()) {
+                (Some("off"), Some(id)) => profile.off.push(id.to_string()),
+                (Some("on"), Some(id)) => profile.on.push(id.to_string()),
+                _ => {}
+            }
+        }
+        profile
     }
 }
 
