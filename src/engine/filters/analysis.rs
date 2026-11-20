@@ -68,10 +68,7 @@ impl SimpleDictTagger {
             if removed.is_some_and(|r| r.iter().any(|(l, t)| l == lemma && t == tag)) {
                 continue;
             }
-            let reading = Reading::from_strs(original, Some(tag), Some(lemma));
-            if !out.contains(&reading) {
-                out.push(reading);
-            }
+            out.push(Reading::from_strs(original, Some(tag), Some(lemma)));
         }
     }
 }
@@ -87,7 +84,8 @@ impl WordTagger for SimpleDictTagger {
             let lower = candidate.to_lowercase();
             let is_all_upper = strtools::is_all_uppercase(&candidate);
             self.lookup(&candidate, &word, &mut readings);
-            if (is_all_upper || strtools::is_capitalized_word(&candidate)) && lower != candidate {
+            // Also for a word without letters: "." gets its reading twice.
+            if is_all_upper || strtools::is_capitalized_word(&candidate) {
                 self.lookup(&lower, &word, &mut readings);
             }
             if readings.is_empty() && is_all_upper {
@@ -314,6 +312,7 @@ mod tests {
         let Some(t) = tagger() else { return };
         assert_eq!(tags(&t.tag_word("du")), [(Some("de+le"), Some("P+D m s"))]);
         assert_eq!(tags(&t.tag_word("Maison")), [(Some("maison"), Some("N f s"))]);
+        assert_eq!(tags(&t.tag_word(".")), [(Some("."), Some("M fin")), (Some("."), Some("M fin"))]);
         assert!(t.tag_word("l'").is_tagged());
         assert_eq!(t.tag_word("l'").chunk_tags.len(), 1);
         let unknown = t.tag_word("xyzzyx");

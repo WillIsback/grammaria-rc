@@ -286,17 +286,17 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
                     can_be_fp = true;
                 }
             }
-            if i > j + 1 {
-                if is_level_preposition(&t.token)
-                    && prepositions().matches(t) // not "des" when it is only a determiner
+            // A preposition opens a level ("des" only when it is one), and
+            // so does "d'environ".
+            if i > j + 1
+                && ((is_level_preposition(&t.token)
+                    && prepositions().matches(t)
                     && !conjonction().matches(t)
                     && !is_coordination(&tokens[i - j - 1].token)
-                    && !adverbe().matches(next)
-                {
-                    level += 1;
-                } else if strtools::equals_ignore_case(&t.token, "d'") && strtools::equals_ignore_case(&next.token, "environ") {
-                    level += 1;
-                }
+                    && !adverbe().matches(next))
+                    || (strtools::equals_ignore_case(&t.token, "d'") && strtools::equals_ignore_case(&next.token, "environ")))
+            {
+                level += 1;
             }
             j = update_j(&tokens, i, j);
             seen.update(tokens[i - j]);

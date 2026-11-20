@@ -122,15 +122,22 @@ impl RuleFilter for InterrogativeVerbFilter {
                 }
             }
         } else if let (Some(desired), Some(speller), Some(tagger)) = (desired, &ctx.lang.speller, &ctx.lang.tagger) {
-            // The speller is asked about the verb as written when it is
-            // unknown, about a deliberate misspelling of it otherwise.
-            let word = if verb.is_tagged() { make_wrong(&verb.token) } else { verb.token.to_string() };
-            let suggestions = if speller.is_misspelled(&word) { speller.spelling_suggestions(&word) } else { Vec::new() };
+            // `morfologikRule.match` on the verb alone: a known verb is
+            // misspelt on purpose, an unknown one is checked as written
+            // (unless the speller is told to leave it alone).
+            let suggestions = if verb.is_tagged() {
+                speller.spelling_suggestions(&make_wrong(&verb.token))
+            } else if verb.immunized || verb.ignored_by_speller {
+                Vec::new()
+            } else {
+                speller.spelling_suggestions(&verb.token)
+            };
             for suggestion in suggestions {
-                if !desired.matches_tagged(&tagger.tag_word(&suggestion)) {
+                let analyzed = tagger.tag_word(&suggestion);
+                if !desired.matches_tagged(&analyzed) {
                     continue;
                 }
-                let mut complete = format!("{suggestion}{separator}{}", pronoun.token);
+                let mut complete = format!("{}{separator}{}", analyzed.token, pronoun.token);
                 if strtools::equals_ignore_case(&complete, "peux-je") {
                     complete = strtools::preserve_case("puis-je", &complete);
                 }
