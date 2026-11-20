@@ -1,223 +1,209 @@
 # Grammaria
 
-**A state-of-the-art French grammar and spelling checker, written in Rust — a drop-in
-replacement for LanguageTool that is 15–23× faster on the same text.**
+**A French grammar and spelling checker in Rust: LanguageTool's French
+checker, reproduced match for match, then extended with its own rules.**
 
-Grammaria re-implements the LanguageTool French checking pipeline natively in Rust:
-tokenizer → POS tagger (634k-entry French lexicon) → rule-based disambiguator
-(1 007 rules) → grammar rule engine (6 947 rules from `grammar.xml`/`style.xml`) →
-native implementations of the Java rule filters that decide what a real error is.
+Grammaria runs LanguageTool's French rule files and dictionaries unchanged —
+sentence splitting, tokenizing, tagging, disambiguation, 7 017 XML rules,
+the rules and filters LanguageTool writes in Java, the Morfologik speller —
+through a Rust port of the same pipeline, with no dependency. On top of it
+come 1 320 rules of its own for errors LanguageTool misses, and a rule
+profile that removes the alarms a careful writer does not want.
 
 ```
-$ time grammaria check article.txt          $ time java -jar languagetool-commandline.jar -l fr article.txt
-real  0m0.16s                               real  0m4.06s
+$ printf 'Elle semble être totalement ruiné. Les enfants mange des pommes.' | grammaria check -
+29:6: Elle semble être totalement ruiné. Les enfants mange des pommes. [GRM_ATTRIBUT_GENRE_PRONOM]  suggestions: ruinée
+  Accord en genre : « ruiné » se rapporte au sujet « Elle », féminin singulier.
+49:5: Elle semble être totalement ruiné. Les enfants mange des pommes. [ACCORD_SUJET_VERBE]  suggestions: mangent
+  Le verbe devrait être à la 3ᵉ personne du pluriel.
 ```
 
-| | Grammaria | LanguageTool 6.6 | speed-up |
+## Results
+
+Measured against the reference this engine was built to equal: LanguageTool
+6.9-SNAPSHOT as ported to JavaScript by `@valueerror/ltjs` 0.3.0 (the
+checker of the Grammaria application before this engine), on the same
+machine (4 virtual cores).
+
+### Same results as LanguageTool
+
+With LanguageTool's rules alone (`--lt-only`), on 29 047 benchmark texts:
+
+| | |
+|---|---|
+| texts with exactly the same matches as the reference | 29 038 (99.97 %) |
+| reference matches found (same rule, same span) | 22 159 of 22 168 |
+| of which with the same suggestions | 99.65 % |
+| matches the reference does not report | 2 |
+| analysis (tokens, tags, disambiguation) identical | 500 000 tokens of 500 000 |
+
+Seven of the nine missing matches are false alarms of the reference (a
+word-repetition rule firing on `on dit ou on écrit`). The suggestion
+differences are in spelling: checked against LanguageTool in Java, the
+suggestions here are LanguageTool's, the JavaScript port's differ.
+
+### Better than LanguageTool
+
+The default configuration adds Grammaria's rules and profile:
+
+| benchmark | | reference | Grammaria |
 |---|---|---|---|
-| simple French paragraph (3 sentences) | **0.16 s** | 3.69 s | **22.7×** |
-| 10-sentence article (108 words) | **0.27 s** | 4.19 s | 15.3× |
+| LanguageTool's rule examples (8 195 errors) | errors found | 88.3 % | 88.3 % |
+| | correct texts left alone | 65.5 % | 68.6 % |
+| Grammalecte's test sentences (5 847 errors) | errors found | 59.6 % | **83.5 %** |
+| | correct texts left alone | 62.4 % | 65.7 % |
+| hand-corrected texts (92 errors) | errors found | 75 | **83** |
+| all | errors found | 76.4 % | **86.4 %** |
+| | correct texts left alone | 63.8 % | **67.0 %** |
+| held-out half (never looked at while writing rules) | errors found | 76.2 % | **82.7 %** |
+| | correct texts left alone | 63.1 % | **66.5 %** |
+| well-edited prose (234 000 words) | alarms per 1 000 words | 21.6 | **8.8** |
 
-Both numbers are complete CLI invocations (process start, data load, checking, output)
-measured with `tools/bench.py`.
+"Correct texts left alone" counts the texts without a marked error that get
+no match at all; many of them are sentence fragments, on which both checkers
+rightly report a missing capital or full stop. The prose is encyclopaedic and
+literary French, presumed correct: nearly every alarm there is a false one.
 
-## What it finds
+### Faster and lighter
 
-```
-$ echo "Cette événement est très important pour tout les participants. La toit fuit." | grammaria check -
-0,17   D_N              Le déterminant s'accorde avec le nom "événement".
-                        → Ce événement
-43,8   AGREEMENT_TOUT_LE "Tout" et le groupe nominal ne semblent pas bien accordés.
-                        → tous
-71,7   D_N              Le déterminant s'accorde avec le nom "toit".
-                        → Le toit
-```
+| | reference | Grammaria |
+|---|---|---|
+| start (load everything, first check) | 4.3–4.6 s | **0.5 s** |
+| memory | 924–937 MiB | **220–250 MiB** |
+| a 160-word text, first check | 531–608 ms | **124–180 ms** |
+| the same, warmed up | 179–192 ms | **47–58 ms** |
+| 16 texts, 944 words, warmed up, one thread | 0.97–1.02 s | **0.29–0.35 s** |
 
-Errors covered (all from the LanguageTool French rule set):
+No crash on 40 000 randomly mutated texts (emoji, typographic apostrophes,
+no-break spaces, soft hyphens, other scripts, very long lines).
 
-* **agreement** — determiner/noun gender & number (`Cette événement` → *Ce événement*,
-  `La toit` → *Le toit*, `Les voiture` → *Les voitures*, `Un belle femme` → *Une belle*),
-  adjective/noun agreement, subject-verb agreement, `tout/toute/tous/toutes`,
-* **auxiliaries and past participles** — `avoir/être` + participle, infinitive vs participle,
-* **typography** — French spacing (`! ? : ;` non-breaking space), apostrophes, hyphens,
-  non-breaking spaces before units, NBSP rules,
-* **confusions** — homophones and false friends, elision, capitalisation,
-* **style** — 1 673 style rules (wordiness, pleonasms, register) when `--style` is given.
-
-Each match carries the rule id, a human-readable message and corrected suggestions,
-in LanguageTool's JSON shape (`--json`).
-
-## Design
+## What is in it
 
 ```
-assets/fr/*.xml,*.txt                 open-source data (LanguageTool, LGPL)
-        │  grammaria-build (one-off, ~7 min: fr.lex dominates)
-        ▼
-data/fr.lex      double-array trie     475 097 word forms / 616 695 senses   ~37 MB
-data/fr.rules    compiled rule cache   6 947 rules                           ~7 MB
-data/fr.words    multiwords, hyphenated compounds, extra spellings           ~1 MB
-data/fr.disambig.xml  disambiguation rules, copied verbatim              ~0.4 MB
-        │
-        ▼  grammaria (runtime: ~0.14 s load, ~7 ms per sentence)
-tokenizer → tagger → chunker → disambiguator → rule engine → native filters
+text ── sentences (SRX) ── word tokens ── tags (Morfologik dictionary, 666 726 entries)
+     ── disambiguation (multi-word chunks, 1 072 XML rules)
+     ── rules ── overlap and priority filtering ── profile ── matches
 ```
 
-`data/` is **generated, not tracked**: it is rebuilt from `assets/` by
-`grammaria-build`. A fresh clone therefore runs the build once before checking
-text; the binary prints that instruction if the data is missing. The
-disambiguation and rule XML are also read straight from `assets/fr/`, so only
-the three binary files above are strictly required.
+* **LanguageTool's rules** (`assets/fr/lt/`): `grammar.xml` (5 343 rules),
+  `style.xml` (1 674), with their 14 Java filters ported
+  (`src/engine/filters/`, `src/engine/spelling/`); the 13 rules written in
+  Java (`src/engine/native/`: capital at sentence start, French spacing,
+  brackets, compounds, replacements, repeated words...); the Morfologik
+  spelling rule with LanguageTool's suggestion logic.
+* **Grammaria's rules** (`assets/fr/grammaria/*.xml`, same XML format, 1 320
+  rules with 3 081 examples that are tested):
 
-* **Tokenizer** — French-aware: elisions (`l'`, `qu'`), hyphenated forms (`dit-il`),
-  apostrophe compounds (`aujourd'hui`), acronyms, numbers, URLs, sentence splitting
-  with abbreviation and ordinal handling.
-* **Tagging** — every token gets lemma + LanguageTool POS tags (`N m s`, `V ind pres 3 s`,
-  `R pers suj 1 s`, …) from a **double-array trie** over 475 k word forms with interned
-  senses (lookups are allocation-free).
-* **Disambiguation** — the 1 007 `disambiguation.xml` rules run with LanguageTool's
-  semantics (marks, `filter`/`remove`/`add`/`replace`, match groups, antipatterns).
-* **Rule engine** — patterns, `min`/`max`/`skip` (`-1` = unbounded), `<exception>` with
-  scope, `<and>`/`<or>` groups, `<unify>` feature agreement, `<marker>` spans,
-  antipatterns, priorities, `case_sensitive`, `spacebefore`, `default="off"`/`"temp_off"`,
-  `picky` tags, and LanguageTool's `SENT_START`/`SENT_END` structural tokens.
-* **Regex engine** — a Pike-VM NFA over bytes with full Java `Matcher` semantics
-  (`find`, `matches`, `(?i)`, `\p{Ll}`-style classes, lookahead), compiled lazily and
-  memoised per source string.
-* **Native filters** — `WordWithDeterminerFilter` is re-implemented in Rust: it checks
-  determiner/noun gender and number agreement and synthesises the corrected forms
-  (`Les voiture` → *Les voitures*), validating each candidate against the lexicon.
-* **Performance** — compiled rule cache, first-token and POS letter indexes, lazy regex
-  compilation, and a fail-fast membership pre-filter keep a 107-word article check at
-  ~10 ms of CPU after load.
+  | file | rules | what |
+  |---|---|---|
+  | `accords_participe.xml` | 120 | participle and adjective agreement with the subject, through *être*, state verbs and infinitive chains |
+  | `conjugaison.xml` | 131 | mood after conjunctions and verbs, subject–verb agreement, imperative, inversions |
+  | `infinitif.xml` | 56 | participle or conjugated form where an infinitive is required |
+  | `confusions.xml` | 686 | homophones (*a/à*, *on/ont*, *peu/peut*...) and word confusions (*pore/port/porc*, *différent/différend*...) |
+  | `groupe_nominal.xml` | 114 | agreement inside the noun group, numerals, fixed number of complements |
+  | `typographie.xml` | 213 | hyphens, large numbers, units, quotation marks, capitals, pleonasms, set phrases |
+
+  When one of these rules and a LanguageTool rule flag the same words,
+  LanguageTool's is kept.
+* **The profile** (`assets/fr/grammaria/profile.txt`): seven LanguageTool
+  rules are switched off because they mostly disturb on well-edited prose
+  (the figures are in the file), and unknown words that look like proper
+  nouns or acronyms are not reported as misspelt — 3 100 of the reference's
+  3 800 spelling alarms on that prose are names such as *Fogg* or
+  *Allahabad*; on the benchmark this costs one detection.
+
+The engine reads these files as they are: there is no build step for the
+data, and editing a rule file is enough to change the checker.
 
 ## Usage
 
 ```sh
-# build the data once (lexicon + rule cache); ~7 min, dominated by fr.lex
-cargo run --release --bin grammaria-build
+cargo build --release
 
-# rebuild a single stage after changing rule/tagging semantics (0.3 s)
-cargo run --release --bin grammaria-build -- --only rules
-
-# check a file as text
+# check a file (or - for stdin); exit status 1 when problems were found
 grammaria check article.txt
-
-# LanguageTool-compatible JSON (offsets/lengths/messages/suggestions)
-grammaria check --json article.txt
-
-# also run style rules
-grammaria check --style --json article.txt
-
-# re-check a file on an interval, reusing the analysis of unchanged sentences
-grammaria check --watch 1 article.txt
-
-# inspect the POS analysis (LanguageTool --verbose format)
-grammaria check --tagger article.txt
-
-# pipe
-echo "La toit fuit." | grammaria check --json -
+grammaria check --json article.txt        # LanguageTool's JSON shape
+grammaria check --no-style article.txt    # without the style rules
+grammaria check --tagger article.txt      # tokens and tags
+grammaria check --watch 1 article.txt     # re-check when the file changes
 ```
+
+The data directory holds `lt/` and `grammaria/`. From a source checkout it
+is `assets/fr`; elsewhere set `--data DIR` or `GRAMMARIA_DATA`, and make the
+directory with `grammaria-build --out DIR` (a plain copy of the assets).
 
 ### Long-running mode
 
-`grammaria serve` loads the data once and answers requests on stdin, one JSON
-line each, so a host application pays the load time a single time:
+`grammaria serve` loads the data once and answers requests on stdin, one
+JSON line each:
 
 ```sh
-$ printf '1 20\nJe mange un pomme. ' | grammaria serve --data data
+$ printf '1 19\nJe mange un pomme. ' | grammaria serve
 {"ready":true}
 {"id":1,"matches":[{"message":"Le déterminant s'accorde avec le nom \"pomme\".", ...}]}
 ```
 
-A request is `<id> <byte length>\n` followed by that many bytes of UTF-8 text.
-Offsets in the reply are UTF-16 code units, as LanguageTool and JavaScript
-count them (`grammaria check --json` reports bytes).
+A request is `<id> <byte length>\n` followed by that many bytes of UTF-8
+text. Offsets in the reply are UTF-16 code units, as LanguageTool and
+JavaScript count them (`grammaria check --json` reports bytes).
 
-Exit status is `1` when problems were found, `0` when the text is clean.
-Set `GRAMMARIA_DATA=/path/to/data` to relocate the data directory.
-
-## Library
+### Library
 
 ```rust
 use grammaria::api::{Engine, OffsetUnit};
 
-// Loads fr.lex, fr.words, fr.rules and fr.disambig.xml from the data directory.
-let engine = Engine::load(std::path::Path::new("data"))?;
-for m in engine.check("Cette événement est important.", false) {
+let engine = Engine::load(std::path::Path::new("assets/fr"))?;
+for m in engine.check("Cette événement est important.", true) {
     println!("{} {}: {} {:?}", m.offset, m.length, m.message, m.suggestions);
 }
 // LanguageTool-shaped `matches` array, offsets in UTF-16 code units.
-let json = engine.check_json("Cette événement est important.", false, OffsetUnit::Utf16);
+let json = engine.check_json("Cette événement est important.", true, OffsetUnit::Utf16);
 ```
 
-## Evaluation
+`Engine` is `Sync`: one instance serves all threads.
 
-Two harnesses measure the port against the reference implementation:
+## Writing rules
 
-* `tools/eval_pos.py` — POS-tag agreement with LanguageTool on a sentence fixture
-  (`tools/gen_lt_fixtures.py` records LanguageTool's own `--verbose` output and JSON
-  matches). **88 %** of tokens (272/308) carry exactly the same tag set. The work that
-  got it there: `<unify>` groups must keep their feature-agreement test (flattening them
-  to plain tokens silently disabled it), a bare `<disambig postag="X"/>` is the *filter*
-  action, `<pattern case_sensitive="yes">` propagates to every token, and
-  `scope="previous"`/`"next"` exceptions use whole-token rather than `find()` semantics.
-* `tools/eval_rules.py` — detection on the 8 193 `<example>` sentences embedded in
-  LanguageTool's French rules (the ground truth used to validate the rules themselves).
-  On a stratified 800-sentence sample: **49 %** of the marked errors are detected at the
-  marked span, and **72 %** of the sentences LanguageTool considers clean are left clean.
-  The common, user-facing agreement rules score far higher than the average —
-  `AGREEMENT_TOUT_LE` 44/45 on a 1 000-example sample, `D_N` 49/60 with the identical
-  rule id — while the remainder of the gap is concentrated in rules that need
-  LanguageTool's disambiguation refinements (homophone sets such as `D_N_E_OU_E`,
-  `ETRE_VPPA_OU_ADJ`) and Java filters that search the morphological dictionary.
-  Only rules whose semantics are faithfully reproducible are enabled; the rest are
-  skipped rather than left to over-fire.
-* `tools/regress.py` — freezes the exact matches on 16 representative sentences
-  (`eval/regression_fr.json`) so that memory/size work cannot silently change what
-  the checker reports. Run it before and after any change to rule semantics; no
-  LanguageTool installation required.
-* `tools/bench.py` — the speed comparison above.
-* `tools/memprobe.rs` (built as `--bin memprobe`) — prints RSS after each loading
-  stage, so a memory change can be attributed to the lexicon, the rules, the word
-  lists or the disambiguator.
+`tools/rules/README.md` explains the conventions and the tools: `show.py`
+(what a rule sees of a sentence), `test_rules.py` (every example of a rule
+file must pass), `gain.py` (errors of the benchmark a rule file finds that
+the reference misses, and its false alarms), `prose.py` (its matches on
+well-edited prose) and `targets.py` (what the reference still misses).
+
+## Reproducing the measurements
 
 ```sh
-python3 tools/gen_lt_fixtures.py --lt-dir /path/LanguageTool-6.6 --java $(which java) \
-        --input eval/langs_fr.txt --out eval/fixtures_fr.json
-python3 tools/gen_examples.py assets/fr/languagetool-grammar.xml eval/lt_examples_fr.json
-python3 tools/eval_pos.py   eval/fixtures_fr.json      ./target/release/grammaria data
-python3 tools/eval_rules.py eval/lt_examples_fr.json   ./target/release/grammaria data 400
-python3 tools/regress.py
-python3 tools/bench.py      --text article.txt
+# the benchmark sets are in eval/bench, the reference's matches in eval/oracle
+for n in corpus lt gl; do
+  ./target/release/grammaria-run matches eval/bench/$n.txt --lt-only > eval/out/lt.$n.matches.jsonl
+  ./target/release/grammaria-run matches eval/bench/$n.txt           > eval/out/grammaria.$n.matches.jsonl
+done
+python3 tools/bench/score.py reference=eval/oracle/ltjs lt-only=eval/out/lt grammaria=eval/out/grammaria [--split test]
+python3 tools/bench/diff_matches.py eval/oracle/ltjs.lt.matches.jsonl eval/out/lt.lt.matches.jsonl --classes all
+
+python3 tools/bench/fetch_prose.py           # well-edited prose, into eval/prose
+./target/release/grammaria-run matches eval/bench/corpus.txt --time --passes 4   # times and memory
 ```
 
-## Throughput
+`tools/bench/oracle_ltjs.mjs` runs the reference (matches, or tokens at each
+stage of the analysis) on any text file; it needs Bun and the `ltjs`
+packages.
 
-`check_text` splits a document into sentences and runs them on all cores
-(`std::thread::scope`, no rayon). Sentences are independent and both the tagger
-and the rule set are read-only, which makes this safe without shared locks.
-Below 40 sentences it stays single-threaded, since spawning costs more than it
-saves on short inputs.
+## Limits
 
-`grammaria check --watch 1 FILE` re-checks on an interval and reuses the cached
-analysis of unchanged sentences (`rules::Checker`): editing one paragraph of a
-200-sentence document re-analyses one sentence (11 ms instead of 2 s).
+* French only.
+* LanguageTool's statistical rules (n-gram confusion pairs) and its remote
+  rules are not part of this engine, as they were not part of the reference.
+* Rule matching and spelling suggestions follow LanguageTool's algorithms
+  faithfully rather than cleverly; memory (about 240 MiB) is mostly its 7 000
+  rules held in parsed form.
+* Grammaria's own rules were written against a benchmark: on the held-out
+  half they find fewer new errors than on the half they were tuned on
+  (+6.5 points against +13.5), and a few are tied to its word lists.
 
-## Tests
+## Licenses
 
-```sh
-cargo test          # unit tests: XML parser, lexicon, regex engine, tokenizer
-```
-
-## Data and licensing
-
-The rule files and dictionaries are taken from open-source projects and are **not**
-modified; they are converted into compact binary forms at build time. See
-[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for the full list and terms:
-
-* **LanguageTool** French data (grammar.xml, style.xml, disambiguation.xml,
-  multiwords.txt, hyphenated_words.txt, POS dictionary) — LGPL 2.1,
-* **Grammalecte** (`rules.grx`, Hunspell affixes) — GPL 3, included as reference
-  material for future rule ports.
-
-Grammaria's own code is licensed under MPL-2.0.
+Grammaria's own code and rules: MPL-2.0. The engine modules that are ports
+of LanguageTool's Java code, and LanguageTool's data, are under the LGPL 2.1
+or later; the dictionary reader is a port of Morfologik (BSD-3-Clause). See
+`THIRD_PARTY_LICENSES.md`.
