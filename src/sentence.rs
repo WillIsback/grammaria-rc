@@ -64,6 +64,22 @@ impl AnalyzedToken {
         self.lemmas.push(lemma.to_string());
     }
 
+    /// Drop every reading whose tag satisfies `drop`, keeping `tags` and
+    /// `lemmas` aligned (they are parallel vectors: one lemma per tag).
+    pub fn remove_readings(&mut self, drop: impl Fn(&str) -> bool) {
+        let mut i = 0;
+        while i < self.tags.len() {
+            if drop(&self.tags[i]) {
+                self.tags.remove(i);
+                if i < self.lemmas.len() {
+                    self.lemmas.remove(i);
+                }
+            } else {
+                i += 1;
+            }
+        }
+    }
+
     pub fn remove_tag(&mut self, tag: &str) {
         if let Some(i) = self.tags.iter().position(|t| t == tag) {
             self.tags.remove(i);

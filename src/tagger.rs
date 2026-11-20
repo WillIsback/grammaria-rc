@@ -564,7 +564,7 @@ impl Disambiguation {
         let tok = &mut s.tokens[idx];
         match r.action {
             DisambigAction::Remove => {
-                tok.tags.retain(|t| !tag_match(t));
+                tok.remove_readings(|t| tag_match(t));
             }
             DisambigAction::FilterAll => {
                 // `<disambig action="filterall"/>` without a `postag` keeps only
@@ -625,13 +625,17 @@ impl Disambiguation {
                         .position(|t| tag_match(t))
                         .and_then(|i| tok.lemmas.get(i).cloned())
                         .unwrap_or_else(|| text.clone());
-                    tok.tags.retain(|t| !tag_match(t));
-                    tok.lemmas.retain(|_| false);
+                    // Readings that survive keep their own lemma: clearing all
+                    // lemmas here left `tags` longer than `lemmas`, and the
+                    // next `add` of a surviving tag indexed out of bounds.
+                    tok.remove_readings(|t| tag_match(t));
                     let l = if lemma.is_empty() { text } else { lemma };
                     tok.add(&l, &r.postag);
                 } else {
-                    tok.tags.retain(|t| !tag_match(t));
-                    tok.lemmas.retain(|_| false);
+                    // Readings that survive keep their own lemma: clearing all
+                    // lemmas here left `tags` longer than `lemmas`, and the
+                    // next `add` of a surviving tag indexed out of bounds.
+                    tok.remove_readings(|t| tag_match(t));
                     for (lemma, tag) in add {
                         let l = if lemma.is_empty() { text.clone() } else { lemma };
                         tok.add(&l, &tag);

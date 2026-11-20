@@ -149,3 +149,24 @@ fn engine_serve_stops_on_a_malformed_header() {
     let err = engine.serve(&b"not a header\n"[..], &mut output, false).unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
 }
+
+#[test]
+fn disambiguation_keeps_tags_and_lemmas_aligned() {
+    // These sentences used to abort the process: a `replace` disambiguation
+    // cleared every lemma but kept the readings it did not replace, and the
+    // next `add` of a surviving tag indexed `lemmas` out of bounds.
+    for text in [
+        "Les enfants était content de leur vacances.",
+        "Leur parents, eux, sont rester à l'ombre.",
+    ] {
+        let _ = check(text);
+        let dir = data_dir().expect("data directory");
+        let engine = grammaria::api::Engine::load(&dir).expect("engine");
+        for (a, b) in grammaria::tokenizer::sentence_boundaries(text) {
+            let s = engine.tagger().tag(&text[a..b], a);
+            for tok in &s.tokens {
+                assert_eq!(tok.tags.len(), tok.lemmas.len(), "token {:?} in {text:?}", tok.text);
+            }
+        }
+    }
+}
