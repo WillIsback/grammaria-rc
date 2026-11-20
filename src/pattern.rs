@@ -16,13 +16,18 @@
 //! in sentence length, and supports min/max/skip/exception uniformly.
 
 use crate::sentence::{AnalyzedToken, Sentence};
+use crate::sym::Sym;
 use crate::tagregex::ValueMatcher;
 
 /// A compiled `<token>` element.
 #[derive(Clone, Debug, Default)]
 pub struct TokenPattern {
     /// Literal text (lowercased for case-insensitive comparison).
-    pub text: Option<String>,
+    ///
+    /// Interned: the rule table repeats the same postags and literals tens of
+    /// thousands of times, so a 4-byte handle replaces a `String` header plus
+    /// a separate heap allocation. Use [`TokenPattern::text`] for the string.
+    pub text_sym: Sym,
     /// True when `text` is a regex (already compiled matcher kept in `regex`).
     pub regex: Option<ValueMatcher>,
     /// POS tag matcher.
@@ -69,6 +74,22 @@ pub enum Scope {
 }
 
 impl TokenPattern {
+    /// The literal text, or `""` when this element has no literal constraint.
+    #[inline]
+    pub fn text(&self) -> &'static str {
+        self.text_sym.as_str()
+    }
+
+    #[inline]
+    pub fn has_text(&self) -> bool {
+        !self.text_sym.is_empty()
+    }
+
+    /// Set the literal text (interned).
+    pub fn set_text(&mut self, s: &str) {
+        self.text_sym = if s.is_empty() { Sym::EMPTY } else { crate::sym::intern(s) };
+    }
+
     pub fn new() -> TokenPattern {
         TokenPattern {
             min: 1,
@@ -102,7 +123,8 @@ impl TokenPattern {
             return false;
         }
         // surface form
-        if let Some(lit) = &self.text {
+        if self.has_text() {
+            let lit = self.text();
             if self.case_sensitive {
                 if !crate::strutil::eq_ignore_case_cs(lit, &tok.text) {
                     return false;
@@ -153,7 +175,7 @@ impl TokenPattern {
     pub fn accepts_tag(&self, tag: &str) -> bool {
         match &self.postag {
             Some(pm) => pm.is_full_match(tag) != self.negate_pos,
-            None => self.text.is_none() && self.regex.is_none() && self.lemma.is_none(),
+            None => !self.has_text() && self.regex.is_none() && self.lemma.is_none(),
         }
     }
 
@@ -167,7 +189,7 @@ impl TokenPattern {
         // children: in grammar rules it means "any token that its exceptions do
         // not exclude"; inside disambiguation (where it flags
         // `exception_only_matches_any = false`) it is a pure negative filter.
-        if self.text.is_none()
+        if !self.has_text()
             && self.regex.is_none()
             && self.postag.is_none()
             && self.lemma.is_none()
@@ -216,8 +238,8 @@ impl TokenPattern {
         find_form: bool,
     ) -> bool {
         let tok = &toks[idx];
-        if let Some(lit) = &self.text {
-            if !crate::strutil::eq_ignore_case(lit, &tok.text) {
+        if self.has_text() {
+            if !crate::strutil::eq_ignore_case(self.text(), &tok.text) {
                 return false;
             }
         }

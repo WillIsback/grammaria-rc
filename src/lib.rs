@@ -11,6 +11,7 @@ pub mod rulecache;
 pub mod rules;
 pub mod sentence;
 pub mod strutil;
+pub mod sym;
 pub mod tagger;
 pub mod tagregex;
 pub mod tokenizer;

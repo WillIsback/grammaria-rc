@@ -834,7 +834,7 @@ pub fn convert_children_marked(node: &XmlNode, out: &mut Vec<PatternElem>, marke
 /// elements act as negative filters (they never assert a match).
 pub fn convert_token_disambig(n: &XmlNode) -> TokenPattern {
     let mut t = convert_token(n);
-    if t.text.is_none()
+    if !t.has_text()
         && t.regex.is_none()
         && t.postag.is_none()
         && t.lemma.is_none()
@@ -1011,7 +1011,7 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
         if is_regexp {
             t.regex = Some(ValueMatcher::new(content, true));
         } else {
-            t.text = Some(content.to_string());
+            t.set_text(content);
         }
     }
     // `regexp="yes"` with empty content is a constraint-free token (matches any
@@ -1035,7 +1035,7 @@ pub fn convert_token(n: &XmlNode) -> TokenPattern {
             if is_regexp {
                 e.regex = Some(ValueMatcher::new(c, true));
             } else {
-                e.text = Some(c.to_string());
+                e.set_text(c);
             }
         }
         let scope = match ex.attr("scope").unwrap_or("current") {

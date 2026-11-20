@@ -143,7 +143,7 @@ impl RuleSet {
         self.by_postag.clear();
         for (i, r) in self.rules.iter().enumerate() {
             match r.pattern.elems.first() {
-                Some(PatternElem::Token(t)) => match (&t.text, &t.regex) {
+                Some(PatternElem::Token(t)) => match (if t.has_text() { Some(t.text()) } else { None }, &t.regex) {
                     (Some(lit), _) => {
                         if is_plain_literal(lit) {
                             self.by_literal.entry(crate::strutil::lower(lit)).or_default().push(i);
@@ -292,7 +292,7 @@ impl RuleSet {
                 if let Some(tok) = eq.first_child("token") {
                     pat = crate::tagger::convert_token(tok);
                 }
-                pat.text = None;
+                pat.text_sym = crate::sym::Sym::EMPTY;
                 eqs.push((ty, pat));
             }
             set.unification.insert(feature, eqs);

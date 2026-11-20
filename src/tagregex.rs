@@ -818,44 +818,47 @@ impl RegexCache {
 /// cached regex.
 #[derive(Clone, Debug)]
 pub enum ValueMatcher {
-    /// An exact string to compare against.
-    Exact(String),
-    /// A regular expression plus its original source text.
-    Regex(Regex, String),
+    /// An exact string to compare against (interned).
+    Exact(crate::sym::Sym),
+    /// A regular expression plus its original source text. Boxed because the
+    /// compiled form is large (three `Vec`s) and almost never present: the
+    /// rule-set loader always uses `LazyRegex`, so keeping `Regex` inline
+    /// would inflate every matcher slot.
+    Regex(Box<Regex>, crate::sym::Sym),
     /// A regular expression that is compiled on first use (fast to load).
-    LazyRegex(String),
+    LazyRegex(crate::sym::Sym),
 }
 
 impl ValueMatcher {
     pub fn new(src: &str, is_regex: bool) -> ValueMatcher {
         if is_regex {
-            ValueMatcher::Regex(RegexCache::global().get(src), src.to_string())
+            ValueMatcher::Regex(Box::new(RegexCache::global().get(src)), crate::sym::intern(src))
         } else {
-            ValueMatcher::Exact(src.to_string())
+            ValueMatcher::Exact(crate::sym::intern(src))
         }
     }
 
     /// Like `new`, but defers regex compilation to first use.
     pub fn new_lazy(src: &str, is_regex: bool) -> ValueMatcher {
         if is_regex {
-            ValueMatcher::LazyRegex(src.to_string())
+            ValueMatcher::LazyRegex(crate::sym::intern(src))
         } else {
-            ValueMatcher::Exact(src.to_string())
+            ValueMatcher::Exact(crate::sym::intern(src))
         }
     }
 
     #[inline]
     fn compiled(&self) -> Option<Regex> {
         match self {
-            ValueMatcher::Regex(r, _) => Some(r.clone()),
-            ValueMatcher::LazyRegex(src) => Some(RegexCache::global().get(src)),
+            ValueMatcher::Regex(r, _) => Some((**r).clone()),
+            ValueMatcher::LazyRegex(src) => Some(RegexCache::global().get(src.as_str())),
             ValueMatcher::Exact(_) => None,
         }
     }
 
     pub fn is_match(&self, text: &str) -> bool {
         match self {
-            ValueMatcher::Exact(s) => s == text,
+            ValueMatcher::Exact(s) => s.as_str() == text,
             _ => self.compiled().map(|r| r.is_match(text)).unwrap_or(false),
         }
     }
@@ -864,7 +867,7 @@ impl ValueMatcher {
     /// wherever LanguageTool uses `matches()` (disambiguation rules).
     pub fn is_full_match(&self, text: &str) -> bool {
         match self {
-            ValueMatcher::Exact(s) => s == text,
+            ValueMatcher::Exact(s) => s.as_str() == text,
             _ => self.compiled().map(|r| r.is_full_match(text)).unwrap_or(false),
         }
     }
@@ -872,7 +875,7 @@ impl ValueMatcher {
     /// Like `is_match` but ignores letter case.
     pub fn is_match_ignore_case(&self, text: &str) -> bool {
         match self {
-            ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s, text),
+            ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s.as_str(), text),
             _ => self
                 .compiled()
                 .map(|r| r.is_match(text) || r.is_match(&crate::strutil::lower(text)))
@@ -885,7 +888,7 @@ impl ValueMatcher {
     /// `<token regexp="yes">tout|toute|toutes</token>` must match "Toutes".
     pub fn is_full_match_ignore_case(&self, text: &str) -> bool {
         match self {
-            ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s, text),
+            ValueMatcher::Exact(s) => crate::strutil::eq_ignore_case(s.as_str(), text),
             _ => self
                 .compiled()
                 .map(|r| {
@@ -900,9 +903,9 @@ impl ValueMatcher {
     /// The original source text of the matcher.
     pub fn as_source(&self) -> &str {
         match self {
-            ValueMatcher::Exact(s) => s,
-            ValueMatcher::Regex(_, src) => src,
-            ValueMatcher::LazyRegex(src) => src,
+            ValueMatcher::Exact(s) => s.as_str(),
+            ValueMatcher::Regex(_, src) => src.as_str(),
+            ValueMatcher::LazyRegex(src) => src.as_str(),
         }
     }
 

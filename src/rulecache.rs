@@ -50,7 +50,7 @@ impl W {
         match m {
             ValueMatcher::Exact(s) => {
                 self.u8(1);
-                self.str(s);
+                self.str(s.as_str());
             }
             ValueMatcher::Regex(..) | ValueMatcher::LazyRegex(_) => {
                 self.u8(2);
@@ -126,7 +126,12 @@ impl<'a> R<'a> {
 }
 
 fn write_token(w: &mut W, t: &TokenPattern) {
-    w.opt_str(&t.text);
+    if t.has_text() {
+        w.u8(1);
+        w.str(t.text());
+    } else {
+        w.u8(0);
+    }
     w.opt_matcher(&t.regex);
     w.opt_matcher(&t.postag);
     w.bool(t.postag_regexp);
@@ -155,7 +160,7 @@ fn write_token(w: &mut W, t: &TokenPattern) {
 
 fn read_token(r: &mut R) -> io::Result<TokenPattern> {
     let mut t = TokenPattern::new();
-    t.text = r.opt_str()?;
+    if let Some(v) = r.opt_str()? { t.set_text(&v); }
     t.regex = r.opt_matcher()?;
     t.postag = r.opt_matcher()?;
     t.postag_regexp = r.bool()?;
