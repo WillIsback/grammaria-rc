@@ -11,6 +11,7 @@
 //! Each stage is checked against a reference implementation by the benchmark
 //! in `tools/bench/`.
 
+pub mod analysis;
 pub mod checker;
 pub mod chunker;
 pub mod disambig;
@@ -22,8 +23,11 @@ pub mod json;
 pub mod pattern;
 pub mod performer;
 pub mod rule;
+pub mod sentences;
 pub mod strtools;
 pub mod synth;
+pub mod tagger;
 pub mod token;
+pub mod tokenize;
 pub mod unifier;
 pub mod xmlrules;
