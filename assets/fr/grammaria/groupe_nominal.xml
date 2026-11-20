@@ -364,7 +364,8 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                     <token regexp="yes">de|d'</token>
                     <marker>
                         <token postag="[JN] . s" postag_regexp="yes">
-                            <exception postag="[JN] . s?p|V .*|A|D .*" postag_regexp="yes"/></token>
+                            <exception postag="[JN] . s?p|V .*|A|D .*" postag_regexp="yes"/>
+                            <exception regexp="yes">autre|même|tel|telle|quelque</exception></token>
                         <token postag="N . s" postag_regexp="yes">
                             <exception postag="N . s?p|V .*|A" postag_regexp="yes"/>
                             <exception regexp="yes">augure|foi|goût|humeur|qualité|taille|naissance|aloi|guerre</exception></token>
@@ -374,6 +375,7 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                 <suggestion><match no="4" postag="([JN]) (.) s" postag_regexp="yes" postag_replace="$1 $2 p"/> <match no="5" postag="N (.) s" postag_regexp="yes" postag_replace="N $1 p"/></suggestion>
                 <example correction="grands jouets">Ce sont de <marker>grand jouet</marker>.</example>
                 <example>Ce sont de grands jouets.</example>
+                <example>Ce sont d'autre part des gens honnêtes.</example>
             </rule>
         </rulegroup>
 
@@ -1592,11 +1594,27 @@ Chaque règle porte ses exemples, vérifiés par tools/rules/test_rules.py.
                         <token>vites
                             <exception scope="previous" regexp="yes">plus|moins|aussi|si|les|des|très</exception></token>
                     </marker>
+                    <token postag="V ppa.*|J .*" postag_regexp="yes"/>
                 </pattern>
-                <message>« Vite » est un adverbe : il est invariable.</message>
+                <message>« Vite » est ici adverbe : il est invariable.</message>
                 <suggestion>vite</suggestion>
                 <example correction="vite">Elles sont <marker>vites</marker> parties.</example>
                 <example>Elles sont vite parties.</example>
+                <example>Ces coureuses sont vites.</example>
+            </rule>
+            <rule>
+                <!-- courir vites -->
+                <pattern>
+                    <token postag="V .*" postag_regexp="yes" inflected="yes" regexp="yes">aller|courir|marcher|rouler|partir|venir|faire|conduire|parler|manger|travailler|passer|avancer|grandir|comprendre|apprendre|réagir|agir|répondre|arriver|finir|changer|évoluer</token>
+                    <token postag="A" min="0" max="1"/>
+                    <marker>
+                        <token>vites</token>
+                    </marker>
+                </pattern>
+                <message>« Vite » est ici adverbe : il est invariable.</message>
+                <suggestion>vite</suggestion>
+                <example correction="vite">Ils roulent trop <marker>vites</marker>.</example>
+                <example>Ils roulent trop vite.</example>
             </rule>
             <rule>
                 <!-- très biens -->
