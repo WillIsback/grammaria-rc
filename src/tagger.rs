@@ -614,12 +614,28 @@ impl Disambiguation {
             }
             DisambigAction::Replace => {
                 let add: Vec<(String, String)> = r.add_tags.clone();
-                tok.tags.retain(|t| !tag_match(t));
-                tok.lemmas.retain(|_| false);
                 let text = tok.text.clone();
-                for (lemma, tag) in add {
-                    let l = if lemma.is_empty() { text.clone() } else { lemma };
-                    tok.add(&l, &tag);
+                if add.is_empty() && !r.postag.is_empty() {
+                    // Bare `<disambig postag="X"/>`: keep the lemma of the
+                    // reading this postag replaces (falling back to the
+                    // surface form) and set the tag to X.
+                    let lemma = tok
+                        .tags
+                        .iter()
+                        .position(|t| tag_match(t))
+                        .and_then(|i| tok.lemmas.get(i).cloned())
+                        .unwrap_or_else(|| text.clone());
+                    tok.tags.retain(|t| !tag_match(t));
+                    tok.lemmas.retain(|_| false);
+                    let l = if lemma.is_empty() { text } else { lemma };
+                    tok.add(&l, &r.postag);
+                } else {
+                    tok.tags.retain(|t| !tag_match(t));
+                    tok.lemmas.retain(|_| false);
+                    for (lemma, tag) in add {
+                        let l = if lemma.is_empty() { text.clone() } else { lemma };
+                        tok.add(&l, &tag);
+                    }
                 }
             }
             DisambigAction::Add => {
@@ -703,6 +719,8 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
             //   QUE[1]:           que[C sub,R inte,R rel e sp] -> que[C sub]
             //   POUVOIRINITIF[2]: le[D m s,le/R pers obj 3 m s] -> le[R pers obj 3 m s]
             //   RB-ADVERBES[1]:   alors[A] -> alors[A]      (unchanged)
+            // Treating it as REPLACE instead measurably regressed POS agreement
+            // (88.3% -> 74.7%), so FILTER is what the corpus supports.
             _ => DisambigAction::Filter,
         };
         r.postag = dis.attr("postag").unwrap_or("").to_string();
