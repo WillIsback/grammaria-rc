@@ -45,6 +45,10 @@ pub struct RuleInfo {
     pub default_off: bool,
     pub default_temp_off: bool,
     pub tags: Vec<String>,
+    /// Tone tags (`tone_tags`); a goal-specific rule that has some only runs
+    /// when its tone is asked for.
+    pub tone_tags: Vec<String>,
+    pub goal_specific: bool,
     pub url: Option<String>,
     /// `prio` attribute of the rule, group or category (0 when absent).
     pub priority: i32,

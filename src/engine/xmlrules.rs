@@ -545,6 +545,12 @@ pub fn load_grammar(xml: &str, source_file: &str, is_style_file: bool, factory: 
         category_tags: Vec::new(),
         rule_group_tags: Vec::new(),
         rule_tags: Vec::new(),
+        category_tone_tags: Vec::new(),
+        rule_group_tone_tags: Vec::new(),
+        rule_tone_tags: Vec::new(),
+        goal_specific_category: None,
+        goal_specific_group: None,
+        goal_specific: false,
         prio_category: 0,
         prio_rule_group: 0,
         prio_rule: 0,
@@ -620,6 +626,12 @@ struct GrammarHandler {
     category_tags: Vec<String>,
     rule_group_tags: Vec<String>,
     rule_tags: Vec<String>,
+    category_tone_tags: Vec<String>,
+    rule_group_tone_tags: Vec<String>,
+    rule_tone_tags: Vec<String>,
+    goal_specific_category: Option<bool>,
+    goal_specific_group: Option<bool>,
+    goal_specific: bool,
     prio_category: i32,
     prio_rule_group: i32,
     prio_rule: i32,
@@ -637,6 +649,10 @@ struct GrammarHandler {
     url: String,
     url_for_rule_group: String,
     in_example: bool,
+}
+
+fn tone_tags_of(attrs: &Attrs) -> Vec<String> {
+    attr(attrs, "tone_tags").map(|t| t.split(' ').filter(|x| !x.is_empty()).map(str::to_string).collect()).unwrap_or_default()
 }
 
 fn tags_of(attrs: &Attrs) -> Vec<String> {
@@ -674,6 +690,8 @@ impl GrammarHandler {
                     self.category_issue_type = Some(t.to_string());
                 }
                 self.category_tags.extend(tags_of(attrs));
+                self.category_tone_tags.extend(tone_tags_of(attrs));
+                self.goal_specific_category = attr(attrs, "is_goal_specific").map(|v| v == "true");
                 if let Some(p) = attr(attrs, "prio") {
                     self.prio_category = p.parse().unwrap_or(0);
                 }
@@ -725,6 +743,12 @@ impl GrammarHandler {
                 }
                 self.is_rule_suppress_misspelled = false;
                 self.rule_tags.extend(tags_of(attrs));
+                self.rule_tone_tags.extend(tone_tags_of(attrs));
+                self.goal_specific = attr(attrs, "is_goal_specific")
+                    .map(|v| v == "true")
+                    .or(self.goal_specific_group)
+                    .or(self.goal_specific_category)
+                    .unwrap_or(false);
                 if let Some(p) = attr(attrs, "prio") {
                     self.prio_rule = p.parse().unwrap_or(0);
                 }
@@ -830,6 +854,8 @@ impl GrammarHandler {
                     self.rule_group_issue_type = Some(t.to_string());
                 }
                 self.rule_group_tags.extend(tags_of(attrs));
+                self.rule_group_tone_tags.extend(tone_tags_of(attrs));
+                self.goal_specific_group = attr(attrs, "is_goal_specific").map(|v| v == "true");
                 if let Some(v) = attr(attrs, "min_prev_matches").and_then(|v| v.parse().ok()) {
                     self.rule_group_min_prev_matches = v;
                 }
@@ -879,6 +905,8 @@ impl GrammarHandler {
             "category" => {
                 self.category_issue_type = None;
                 self.category_tags.clear();
+                self.category_tone_tags.clear();
+                self.goal_specific_category = None;
                 self.prio_category = 0;
             }
             "regexp" => self.in_regex = false,
@@ -909,6 +937,8 @@ impl GrammarHandler {
                 self.min_prev_matches = 0;
                 self.distance_tokens = 0;
                 self.rule_tags.clear();
+                self.rule_tone_tags.clear();
+                self.goal_specific = false;
                 self.prio_rule = 0;
             }
             "exception" => self.c.finalize_exceptions(),
@@ -1027,6 +1057,8 @@ impl GrammarHandler {
                 self.rule_group_min_prev_matches = 0;
                 self.rule_group_distance_tokens = 0;
                 self.rule_group_tags.clear();
+                self.rule_group_tone_tags.clear();
+                self.goal_specific_group = None;
                 self.prio_rule_group = 0;
             }
             "marker" => {
@@ -1111,6 +1143,9 @@ impl GrammarHandler {
         let mut tags = self.rule_tags.clone();
         tags.extend(self.rule_group_tags.iter().cloned());
         tags.extend(self.category_tags.iter().cloned());
+        let mut tone_tags = self.rule_tone_tags.clone();
+        tone_tags.extend(self.rule_group_tone_tags.iter().cloned());
+        tone_tags.extend(self.category_tone_tags.iter().cloned());
         let url = if !self.url.is_empty() {
             Some(self.url.clone())
         } else if !self.url_for_rule_group.is_empty() {
@@ -1129,6 +1164,8 @@ impl GrammarHandler {
             default_off: self.default_off,
             default_temp_off: self.default_temp_off,
             tags,
+            tone_tags,
+            goal_specific: self.goal_specific,
             url,
             priority: prio,
             source_file: self.source_file.clone(),

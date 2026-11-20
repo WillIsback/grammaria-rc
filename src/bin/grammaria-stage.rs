@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use grammaria::api::json_escape;
+use grammaria::engine::checker::{CheckRule, Checker};
 use grammaria::engine::disambiguator::Disambiguator;
 use grammaria::engine::dump::{dump_sentences, sentences_from_dump};
 use grammaria::engine::pattern::Lang;
@@ -52,8 +53,15 @@ fn main() {
             rules.extend(load_grammar(&xml, name, style, &no_filters, &mut unifier));
         }
     }
-    let ctx = RuleContext { lang: Lang::default(), unifier, disambig_unifier: dis_unifier };
-    let (ctx, disambiguator, rules) = (&ctx, &disambiguator, &rules);
+    let rules: Vec<CheckRule> = rules
+        .into_iter()
+        .map(|r| match r {
+            GrammarRule::Pattern(p) => CheckRule::Pattern(p),
+            GrammarRule::Regex(r) => CheckRule::Regex(r),
+        })
+        .collect();
+    let checker = Checker::new(rules, RuleContext { lang: Lang::default(), unifier, disambig_unifier: dis_unifier });
+    let (ctx, disambiguator, checker) = (&checker.ctx, &disambiguator, &checker);
 
     let out: Vec<String> = std::thread::scope(|scope| {
         let handles: Vec<_> = lines
@@ -77,34 +85,22 @@ fn main() {
                             }
                             _ => {
                                 let sentences = sentences_from_dump(line);
-                                let mut offset_chars = 0usize;
                                 let mut parts: Vec<String> = Vec::new();
-                                for s in &sentences {
-                                    for (ri, rule) in rules.iter().enumerate() {
-                                        let info = rule.info();
-                                        if info.default_off || info.default_temp_off || info.category_default_off {
-                                            continue;
-                                        }
-                                        let matches = match rule {
-                                            GrammarRule::Pattern(p) => p.match_sentence(ri, s, ctx),
-                                            GrammarRule::Regex(r) => r.match_sentence(ri, s),
-                                        };
-                                        for m in matches {
-                                            let from = offset_chars + s.text[..m.from_pos].chars().count();
-                                            let len = s.text[m.from_pos..m.to_pos].chars().count();
-                                            parts.push(format!(
-                                                "[\"{}\",{},{},[{}],\"{}\",\"{}\",\"{}\"]",
-                                                json_escape(&info.id),
-                                                from,
-                                                len,
-                                                m.suggestions.iter().take(5).map(|x| format!("\"{}\"", json_escape(x))).collect::<Vec<_>>().join(","),
-                                                json_escape(&info.category_id),
-                                                json_escape(&info.full_id()),
-                                                json_escape(&info.issue_type),
-                                            ));
-                                        }
-                                    }
-                                    offset_chars += s.text.chars().count();
+                                for m in checker.check(&sentences) {
+                                    let info = checker.info(m.rule);
+                                    let text: String = sentences.iter().map(|s| &*s.text).collect();
+                                    let from = text[..m.from_byte].chars().count();
+                                    let len = text[m.from_byte..m.to_byte].chars().count();
+                                    parts.push(format!(
+                                        "[\"{}\",{},{},[{}],\"{}\",\"{}\",\"{}\"]",
+                                        json_escape(&info.id),
+                                        from,
+                                        len,
+                                        m.suggestions.iter().take(5).map(|x| format!("\"{}\"", json_escape(x))).collect::<Vec<_>>().join(","),
+                                        json_escape(&info.category_id),
+                                        json_escape(&info.full_id()),
+                                        json_escape(&info.issue_type),
+                                    ));
                                 }
                                 format!("[{}]", parts.join(","))
                             }

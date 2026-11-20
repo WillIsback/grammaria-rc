@@ -11,10 +11,12 @@
 //! Each stage is checked against a reference implementation by the benchmark
 //! in `tools/bench/`.
 
+pub mod checker;
 pub mod chunker;
 pub mod disambig;
 pub mod disambiguator;
 pub mod dump;
+pub mod french;
 pub mod json;
 pub mod pattern;
 pub mod performer;
