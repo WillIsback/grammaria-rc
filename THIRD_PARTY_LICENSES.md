@@ -47,7 +47,7 @@ filtering of matches (`src/engine/checker.rs`, `src/engine/french.rs`). Each
 file names the Java classes it follows.
 
 These files are translations of LGPL-2.1-or-later code: the LGPL's terms
-apply to them. The message strings of the native rules come from
+apply to them. The full text of the license is in `LICENSE-LGPL-2.1`. The message strings of the native rules come from
 LanguageTool's `MessagesBundle_fr.properties`.
 
 No code comes from `@valueerror/ltjs` (a GPL-3 JavaScript port of

@@ -205,5 +205,7 @@ packages.
 
 Grammaria's own code and rules: MPL-2.0. The engine modules that are ports
 of LanguageTool's Java code, and LanguageTool's data, are under the LGPL 2.1
-or later; the dictionary reader is a port of Morfologik (BSD-3-Clause). See
+or later; the dictionary reader is a port of Morfologik (BSD-3-Clause). The crate as a
+whole is therefore `MPL-2.0 AND LGPL-2.1-or-later AND BSD-3-Clause`; the
+license texts are in `LICENSE` and `LICENSE-LGPL-2.1`. See
 `THIRD_PARTY_LICENSES.md`.
