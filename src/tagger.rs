@@ -405,6 +405,12 @@ pub struct DisambigRule {
     pub action: DisambigAction,
     /// Tag the action applies to (postag attribute).
     pub postag: String,
+    /// True when `<disambig>` carried an explicit `postag=""` attribute.
+    /// An empty value means "every tag" (LanguageTool's `XMLRuleHandler`
+    /// treats a present-but-empty attribute as "all"), while a *missing*
+    /// attribute means "no tag filter" (the action applies to no reading and
+    /// only the `<wd>` additions matter).
+    pub postag_explicit: bool,
     pub is_regexp: bool,
     /// `(lemma, tag)` pairs added by `add`/`replace`.
     pub add_tags: Vec<(String, String)>,
@@ -485,6 +491,12 @@ impl Disambiguation {
                     if idx >= s.tokens.len() {
                         continue;
                     }
+                    if std::env::var("GR_DEBUG_DIS").is_ok() {
+                        let before = s.tokens[idx].tags.len();
+                        eprintln!("DBG {:?} action={:?} postag={:?} expl={} tok={:?} tags={:?}",
+                            r.id, r.action, r.postag, r.postag_explicit, s.tokens[idx].text, s.tokens[idx].tags);
+                        let _ = before;
+                    }
                     if let Some(group) = r.match_group {
                         // `<match no="N" postag="P"/>`: the action applies to
                         // the token of group N (the marked span) and keeps
@@ -528,7 +540,11 @@ impl Disambiguation {
         // tag (LanguageTool semantics); `filterall` without postag is a no-op.
         let tag_match = |tag: &str| -> bool {
             if r.postag.is_empty() {
-                true
+                // `<disambig postag=""/>`: an explicit empty attribute means
+                // "every tag" (LanguageTool's XMLRuleHandler). A *missing*
+                // attribute is "no tag filter": the action touches no
+                // reading at all, so nothing is removed or kept.
+                r.postag_explicit
             } else if r.is_regexp {
                 // LanguageTool compiles the disambiguation `postag` and applies
                 // `Matcher.matches()` (a *whole-string* match -- see
@@ -550,7 +566,40 @@ impl Disambiguation {
             DisambigAction::Remove => {
                 tok.tags.retain(|t| !tag_match(t));
             }
-            DisambigAction::Filter | DisambigAction::FilterAll => {
+            DisambigAction::FilterAll => {
+                // `<disambig action="filterall"/>` without a `postag` keeps only
+                // the readings that satisfy the *pattern token's own*
+                // constraints (`RP-D_N_AMBIG` keeps just the determiner reading
+                // of "le"). LanguageTool's `filterAll` calls
+                // `getReadings(firstMatchToken)` on the element's own postag.
+                if r.postag.is_empty() {
+                    let elem = pattern_elem_at(r, idx - base);
+                    let keep: Vec<usize> = tok
+                        .tags
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, t)| elem.map(|e| e.accepts_tag(t)).unwrap_or(true))
+                        .map(|(i, _)| i)
+                        .collect();
+                    let tags: Vec<String> = keep.iter().map(|&i| tok.tags[i].clone()).collect();
+                    let lemmas: Vec<String> = keep.iter().map(|&i| tok.lemmas[i].clone()).collect();
+                    tok.tags = tags;
+                    tok.lemmas = lemmas;
+                } else {
+                    let keep: Vec<usize> = tok
+                        .tags
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, t)| tag_match(t))
+                        .map(|(i, _)| i)
+                        .collect();
+                    let tags: Vec<String> = keep.iter().map(|&i| tok.tags[i].clone()).collect();
+                    let lemmas: Vec<String> = keep.iter().map(|&i| tok.lemmas[i].clone()).collect();
+                    tok.tags = tags;
+                    tok.lemmas = lemmas;
+                }
+            }
+            DisambigAction::Filter => {
                 let keep: Vec<usize> = tok
                     .tags
                     .iter()
@@ -588,12 +637,32 @@ impl Disambiguation {
                     let l = if lemma.is_empty() { text.clone() } else { lemma.clone() };
                     tok.add(&l, tag);
                 }
+                // A bare `<disambig postag="X"/>` (no `<wd>` children) adds
+                // the `postag` itself to the marked reading -- LanguageTool's
+                // `ADD` action with a `postag` attribute. `RB-ADVERBES`
+                // (`<disambig postag="A"/>`) and `QUE` (`<disambig
+                // postag="C sub"/>`) rely on this to keep the adverb and
+                // conjunction readings.
+                if r.add_tags.is_empty() && !r.postag.is_empty() && r.postag_explicit {
+                    let l = tok.lemmas.first().cloned().unwrap_or_else(|| text.clone());
+                    tok.add(&l, &r.postag);
+                }
             }
             DisambigAction::Immunize => {}
         }
     }
 }
 
+
+/// The pattern element an action applies to, given its *relative* element
+/// index inside the match. `<unify>`/`<and>` groups flatten to their inner
+/// tokens, so the relative index addresses the flattened element list.
+fn pattern_elem_at(r: &DisambigRule, rel: usize) -> Option<&TokenPattern> {
+    match r.pattern.elems.get(rel) {
+        Some(PatternElem::Token(t)) => Some(t),
+        _ => None,
+    }
+}
 
 fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
     let mut r = DisambigRule {
@@ -602,6 +671,7 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
         antipatterns: Vec::new(),
         action: DisambigAction::Remove,
         postag: String::new(),
+        postag_explicit: false,
         is_regexp: false,
         add_tags: Vec::new(),
         wd_index: Vec::new(),
@@ -636,10 +706,16 @@ fn convert_disambig_rule(node: &XmlNode) -> DisambigRule {
             // spelling-only actions do not touch the tags
             "ignore_spelling" => DisambigAction::Immunize,
             "remove" => DisambigAction::Remove,
-            // legacy form: <disambig postag="X"/> = remove
-            _ => DisambigAction::Remove,
+            // A bare `<disambig postag="X"/>` (no `action` attribute) is
+            // LanguageTool's "ADD" action: it *adds* tag X to the marked
+            // readings. Verified against LanguageTool 6.6: `RB-ADVERBES` ends
+            // in `<disambig postag="A"/>` and LT keeps `alors[alors/A]`, and
+            // `QUE` ends in `<disambig postag="C sub"/>` and LT keeps
+            // `qu'[que/C sub]`. Defaulting to REMOVE wiped those readings.
+            _ => DisambigAction::Add,
         };
         r.postag = dis.attr("postag").unwrap_or("").to_string();
+        r.postag_explicit = dis.attr("postag").is_some();
         // `postag` is a regex when declared or when it contains regex syntax
         // (`.*`, `[...]`, `|` outside a simple alternation of full tags).
         r.is_regexp = dis.attr("postag_regexp") == Some("yes")
@@ -696,8 +772,49 @@ pub fn convert_children_marked(node: &XmlNode, out: &mut Vec<PatternElem>, marke
                 }
                 out.push(PatternElem::Token(convert_token_disambig(n)));
             }
-            "and" | "or" | "unify" | "unify-ignore" | "match" => {
+            "and" => {
+                let mut seq = Vec::new();
+                convert_children_marked(n, &mut seq, marked, in_marker);
+                out.push(PatternElem::Seq(seq));
+            }
+            "unify" => {
+                // Preserve the `<unify>` group: its inner tokens must agree on
+                // the listed features (number/gender/person/tense). Flattening
+                // it to plain tokens would silently drop the agreement test --
+                // e.g. `RP-D_N_AMBIG` would then fire on "Sacha le rencontre"
+                // (le=D m s vs rencontre=N f s, a gender mismatch that
+                // LanguageTool rejects).
+                let negate = n.attr("negate") == Some("yes");
+                let features: Vec<String> = n
+                    .children_named("feature")
+                    .filter_map(|f| f.attr("id").map(|s| s.to_string()))
+                    .collect();
+                let mut inner = Vec::new();
+                for c2 in &n.children {
+                    let DomItem::Node(cn) = c2 else { continue };
+                    if cn.name == "feature" {
+                        continue;
+                    }
+                    convert_children_marked(cn, &mut inner, marked, in_marker);
+                }
+                out.push(PatternElem::Unify {
+                    inner,
+                    negate,
+                    features,
+                });
+            }
+            "unify-ignore" | "match" => {
                 convert_children_marked(n, out, marked, in_marker);
+            }
+            "or" => {
+                // Each `<token>` child is one alternative.
+                let mut alts = Vec::new();
+                for t in n.children_named("token") {
+                    alts.push(vec![PatternElem::Token(convert_token_disambig(t))]);
+                }
+                if !alts.is_empty() {
+                    out.push(PatternElem::Or(alts));
+                }
             }
             _ => {}
         }

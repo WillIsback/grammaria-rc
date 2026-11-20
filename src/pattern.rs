@@ -147,6 +147,16 @@ impl TokenPattern {
         true
     }
 
+    /// Does this element's *positive* constraint accept `tag` on its own?
+    /// Used by `filterall`, which keeps only the readings a pattern element's
+    /// own postag matches (LanguageTool's `PatternToken.getReadings`).
+    pub fn accepts_tag(&self, tag: &str) -> bool {
+        match &self.postag {
+            Some(pm) => pm.is_full_match(tag) != self.negate_pos,
+            None => self.text.is_none() && self.regex.is_none() && self.lemma.is_none(),
+        }
+    }
+
     /// Does this token pattern (with its exceptions) accept `toks[idx]`?
     pub fn matches(&self, toks: &[AnalyzedToken], idx: usize) -> bool {
         self.matches_inner(toks, idx) && self.exceptions_ok(toks, idx)
