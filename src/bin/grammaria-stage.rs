@@ -95,7 +95,13 @@ fn main() {
                                 dump_sentences(&done, false)
                             }
                             _ => {
-                                let sentences = sentences_from_dump(line);
+                                let mut sentences = sentences_from_dump(line);
+                                // markAsParagraphEnd: the dump reader drops
+                                // the `PARA_END` reading, which rules see
+                                // (`postag="P.*"` matches it).
+                                if let Some(t) = sentences.last_mut().and_then(|s| s.tokens.last_mut()) {
+                                    t.set_paragraph_end();
+                                }
                                 let mut parts: Vec<String> = Vec::new();
                                 for m in checker.check(&sentences) {
                                     let info = checker.info(m.rule);
