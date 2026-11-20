@@ -1,0 +1,17 @@
+# Grammaria's choice of rules, on top of LanguageTool's defaults.
+#
+#   off RULE_ID     a rule LanguageTool runs by default and Grammaria does not
+#   on  RULE_ID     a rule LanguageTool keeps off and Grammaria runs
+#
+# A rule is switched off when it mostly disturbs: measured with the reference
+# checker on 234 000 words of well-edited prose (eval/prose, encyclopaedic and
+# literary) against the errors of the benchmark that this rule alone finds.
+# Figures: matches on that prose / errors found by this rule only.
+
+off VIRG_NON_TROUVEE        # 80 / 5   "De même on a longtemps cru" -> comma demanded
+off FR_REPEATEDWORDS        # 66 / 0   synonyms proposed for a word used twice
+off OU_LEQUEL               # 44 / 0   "l'Ouest où les villes…" -> "avec lequel"
+off QUELQUE_TRUC            # 28 / 2   "dans quelque port" -> "quelques ports"
+off NOMBRES_EN_LETTRES_2    #  8 / 0   "à 7 reprises" -> "sept"
+off REP_PENDANT             #  7 / 0   "pendant" -> "durant"
+off REP_CAR                 #  5 / 0   "car il" -> "parce qu'il"
