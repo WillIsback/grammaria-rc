@@ -58,6 +58,10 @@ impl Engine {
         self.tagger
     }
 
+    pub fn rules(&self) -> &RuleSet {
+        &self.rules
+    }
+
     /// Check a document. Offsets of the returned matches are UTF-8 bytes.
     pub fn check(&self, text: &str, style: bool) -> Vec<RuleMatch> {
         crate::rules::check_text(self.tagger, &self.rules, text, style)

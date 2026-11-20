@@ -113,7 +113,7 @@ fn main() {
     // of sentences that did not change. Only one file is supported.
     if let Some(secs) = watch {
         let path = files.first().cloned().unwrap_or_else(|| "-".to_string());
-        let mut checker = grammaria::rules::Checker::new(tg, &rules);
+        let mut checker = grammaria::rules::Checker::new(tg, engine.rules());
         let mut last: Option<String> = None;
         loop {
             let text = if path == "-" {
