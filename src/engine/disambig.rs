@@ -118,7 +118,6 @@ impl DisambigRule {
                 self.execute_action(sentence, work, &pm, matching_tokens, ctx);
             }
         }
-        let changed = work.is_some();
         if let Some(work) = work {
             // As in LanguageTool, the new sentence's "pre-disambiguation"
             // tokens are the tokens this rule started from (with the edits

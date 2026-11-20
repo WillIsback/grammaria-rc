@@ -34,6 +34,12 @@ pub trait NativeRule: Send + Sync {
     fn match_text(&self, _rule: usize, _sentences: &[Sentence], _ctx: &RuleContext) -> Vec<RuleMatch> {
         Vec::new()
     }
+
+    /// A rule that only lends its id to the matches of another rule
+    /// (`SpecificIdRule`): it is never run.
+    fn never_matches(&self) -> bool {
+        false
+    }
 }
 
 pub enum CheckRule {
@@ -177,7 +183,7 @@ impl Checker {
         for (i, rule) in rules.iter().enumerate() {
             match rule {
                 CheckRule::Native(r) => {
-                    if !active[i] {
+                    if !active[i] || r.never_matches() {
                         continue;
                     }
                     if r.is_text_level() {

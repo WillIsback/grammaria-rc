@@ -160,6 +160,10 @@ pub struct Readings {
     pub token: Arc<str>,
     /// Byte offset of the token in the sentence text.
     pub start_pos: usize,
+    /// Byte length of the token in the sentence text when it differs from
+    /// the token's own (the text has `’` or a non-breaking hyphen where the
+    /// token has `'` or `-`).
+    pub text_len: Option<u32>,
     pub is_whitespace: bool,
     pub is_linebreak: bool,
     pub is_sent_start: bool,
@@ -195,6 +199,7 @@ impl Readings {
             readings,
             token,
             start_pos,
+            text_len: None,
             is_whitespace,
             is_linebreak,
             is_sent_end: false,
@@ -233,12 +238,13 @@ impl Readings {
         r.immunized = old.immunized;
         r.ignored_by_speller = old.ignored_by_speller;
         r.typographic_apostrophe = old.typographic_apostrophe;
+        r.text_len = old.text_len;
         r
     }
 
     #[inline]
     pub fn end_pos(&self) -> usize {
-        self.start_pos + self.token.len()
+        self.start_pos + self.text_len.map_or(self.token.len(), |n| n as usize)
     }
 
     pub fn has_pos_tag(&self, tag: &str) -> bool {

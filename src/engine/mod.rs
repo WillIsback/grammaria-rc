@@ -20,6 +20,7 @@ pub mod dump;
 pub mod french;
 pub mod fx;
 pub mod json;
+pub mod native;
 pub mod pattern;
 pub mod performer;
 pub mod pipeline;

@@ -131,7 +131,19 @@ impl French {
 
 /// The French checker with everything this crate implements plugged in.
 pub fn load_french(dir: &Path) -> io::Result<French> {
-    French::load(dir)
+    let mut failure: Option<io::Error> = None;
+    let french = French::load_with(dir, |dir, _tagger, _synthesizer| {
+        let mut extensions = Extensions::default();
+        match super::native::french_native_rules(dir, None) {
+            Ok(rules) => extensions.native_rules = rules,
+            Err(e) => failure = Some(e),
+        }
+        extensions
+    })?;
+    match failure {
+        Some(e) => Err(e),
+        None => Ok(french),
+    }
 }
 
 /// The same checker with the given rule files only.

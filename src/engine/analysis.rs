@@ -114,6 +114,10 @@ impl Analyzer {
         for (i, token) in tokens.iter().enumerate() {
             let mut readings = self.tagger.tag_token(token);
             readings.start_pos = starts[i];
+            let text_len = starts.get(i + 1).copied().unwrap_or(byte) - starts[i];
+            if text_len != readings.token.len() {
+                readings.text_len = Some(text_len as u32);
+            }
             if i > 0 {
                 let previous = token_array[i].token.clone();
                 readings.set_whitespace_before(&previous);
