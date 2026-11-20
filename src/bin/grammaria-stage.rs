@@ -17,6 +17,7 @@ use grammaria::engine::disambiguator::Disambiguator;
 use grammaria::engine::dump::{dump_sentences, sentences_from_dump};
 use grammaria::engine::pattern::Lang;
 use grammaria::engine::rule::{RuleContext, RuleFilter};
+use grammaria::engine::synth::FrenchSynthesizer;
 use grammaria::engine::unifier::UnifierConfiguration;
 use grammaria::engine::xmlrules::{load_grammar, GrammarRule};
 
@@ -53,6 +54,10 @@ fn main() {
             rules.extend(load_grammar(&xml, name, style, &no_filters, &mut unifier));
         }
     }
+    let mut lang = Lang::default();
+    if let Ok(synth) = FrenchSynthesizer::load(&assets) {
+        lang.synthesizer = Some(Arc::new(synth));
+    }
     let rules: Vec<CheckRule> = rules
         .into_iter()
         .map(|r| match r {
@@ -60,7 +65,7 @@ fn main() {
             GrammarRule::Regex(r) => CheckRule::Regex(r),
         })
         .collect();
-    let checker = Checker::new(rules, RuleContext { lang: Lang::default(), unifier, disambig_unifier: dis_unifier });
+    let checker = Checker::new(rules, RuleContext { lang, unifier, disambig_unifier: dis_unifier });
     let (ctx, disambiguator, checker) = (&checker.ctx, &disambiguator, &checker);
 
     let out: Vec<String> = std::thread::scope(|scope| {

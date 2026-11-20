@@ -672,11 +672,22 @@ pub trait WordTagger: Send + Sync {
     fn tag_word(&self, word: &str) -> Readings;
 }
 
-/// What rules need from the language: inflection and tagging.
+/// Spelling, as rule filters need it (the language's default
+/// `SpellingCheckRule`).
+pub trait SpellChecker: Send + Sync {
+    /// `isMisspelled(word)`.
+    fn is_misspelled(&self, word: &str) -> bool;
+
+    /// `getSpellingSuggestions(word)`, best first.
+    fn spelling_suggestions(&self, word: &str) -> Vec<String>;
+}
+
+/// What rules need from the language: inflection, tagging and spelling.
 #[derive(Clone, Default)]
 pub struct Lang {
     pub synthesizer: Option<Arc<dyn Synthesizer>>,
     pub tagger: Option<Arc<dyn WordTagger>>,
+    pub speller: Option<Arc<dyn SpellChecker>>,
 }
 
 /// `MatchState`: a `Match` bound to the token(s) it refers to.

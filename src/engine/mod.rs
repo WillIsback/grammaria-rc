@@ -22,6 +22,7 @@ pub mod pattern;
 pub mod performer;
 pub mod rule;
 pub mod strtools;
+pub mod synth;
 pub mod token;
 pub mod unifier;
 pub mod xmlrules;
