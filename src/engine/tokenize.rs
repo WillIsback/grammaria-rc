@@ -25,8 +25,8 @@ fn regex(src: &str, flags: Flags) -> Regex {
 // ---------------------------------------------------------------------------
 
 const PROTOCOLS: [&str; 19] = [
-    "http", "https", "ws", "wss", "ftp", "ftps", "sftp", "file", "mailto", "tel", "sms", "git", "ssh", "data", "magnet",
-    "smb", "slack", "spotify", "magnet",
+    "http", "https", "ws", "wss", "ftp", "ftps", "sftp", "file", "mailto", "tel", "sms", "git",
+    "ssh", "data", "magnet", "smb", "slack", "spotify", "magnet",
 ];
 
 /// `WordTokenizer.TOKENIZING_CHARACTERS`.
@@ -80,7 +80,10 @@ pub fn is_url(token: &str) -> bool {
         return true;
     }
     for protocol in PROTOCOLS {
-        if token.strip_prefix(protocol).is_some_and(|rest| rest.starts_with("://")) {
+        if token
+            .strip_prefix(protocol)
+            .is_some_and(|rest| rest.starts_with("://"))
+        {
             return true;
         }
     }
@@ -203,7 +206,12 @@ fn join_urls(l: Vec<String>) -> Vec<String> {
 
 fn url_starts_at(i: usize, l: &[String]) -> bool {
     let token = l[i].as_str();
-    if l.len() > i + 3 && PROTOCOLS.contains(&token) && l[i + 1] == ":" && l[i + 2] == "/" && l[i + 3] == "/" {
+    if l.len() > i + 3
+        && PROTOCOLS.contains(&token)
+        && l[i + 1] == ":"
+        && l[i + 2] == "/"
+        && l[i + 3] == "/"
+    {
         return true;
     }
     if l.len() > i + 1 && token == "www" && l[i + 1] == "." {
@@ -239,7 +247,11 @@ fn url_ends_at(i: usize, l: &[String], url_quote: Option<&str>) -> bool {
     let url_chars = &patterns().url_chars;
     if l.len() > i + 1 {
         let next_token = l[i + 1].as_str();
-        (strtools::is_whitespace(next_token) || matches!(next_token, "\"" | "»" | "«" | "‘" | "’" | "“" | "”" | "'" | "."))
+        (strtools::is_whitespace(next_token)
+            || matches!(
+                next_token,
+                "\"" | "»" | "«" | "‘" | "’" | "“" | "”" | "'" | "."
+            ))
             && (matches!(token, "." | "," | ";" | ":" | "!" | "?") || Some(token) == url_quote)
             || !url_chars.is_full_match(token)
     } else {
@@ -300,14 +312,18 @@ fn french_patterns() -> &'static [Regex; 7] {
 /// The clitics the patterns split off (`-ce|-elle|...|-y`), without their
 /// hyphen; `-t-elle|-t-elles|-t-il|-t-ils|-t-on` are the other five.
 const CLITICS: [&str; 20] = [
-    "ce", "elle", "elles", "en", "il", "ils", "je", "la", "le", "les", "leur", "lui", "moi", "nous", "on", "toi", "tu", "vous", "vs", "y",
+    "ce", "elle", "elles", "en", "il", "ils", "je", "la", "le", "les", "leur", "lui", "moi",
+    "nous", "on", "toi", "tu", "vous", "vs", "y",
 ];
 const T_CLITICS: [&str; 5] = ["-t-elle", "-t-elles", "-t-il", "-t-ils", "-t-on"];
 
 /// `CASE_INSENSITIVE | UNICODE_CASE` equality with a lower-case literal.
 fn eq_fold(chars: &[char], literal: &str) -> bool {
     let mut it = chars.iter();
-    literal.chars().all(|l| it.next().is_some_and(|&c| c == l || crate::re::fold(c) == l)) && it.next().is_none()
+    literal.chars().all(|l| {
+        it.next()
+            .is_some_and(|&c| c == l || crate::re::fold(c) == l)
+    }) && it.next().is_none()
 }
 
 /// The first group of patterns 1 and 2,
@@ -317,7 +333,9 @@ fn elision_len(s: &[char]) -> Option<usize> {
     let k = s.iter().take(7).position(|&c| c == '\'' || c == '’')?;
     let word = &s[..k];
     let known = match k {
-        1 => ["c", "ç", "j", "n", "m", "t", "s", "l", "d"].iter().any(|w| eq_fold(word, w)),
+        1 => ["c", "ç", "j", "n", "m", "t", "s", "l", "d"]
+            .iter()
+            .any(|w| eq_fold(word, w)),
         2 => eq_fold(word, "qu"),
         5 => eq_fold(word, "jusqu"),
         6 => eq_fold(word, "lorsqu") || eq_fold(word, "puisqu") || eq_fold(word, "quoiqu"),
@@ -369,7 +387,10 @@ fn split_groups<'a>(s: &'a [char], groups: &mut Vec<&'a [char]>) -> bool {
         return (0..patterns.len()).any(|i| by_regex(i, groups));
     }
     // 0: words not to be split; they start with c, m, a, r, g and are short
-    if s.len() <= 13 && matches!(crate::re::fold(s[0]), 'c' | 'm' | 'a' | 'r' | 'g') && by_regex(0, groups) {
+    if s.len() <= 13
+        && matches!(crate::re::fold(s[0]), 'c' | 'm' | 'a' | 'r' | 'g')
+        && by_regex(0, groups)
+    {
         return true;
     }
     let elision = if apostrophe { elision_len(s) } else { None };
@@ -403,7 +424,10 @@ fn split_groups<'a>(s: &'a [char], groups: &mut Vec<&'a [char]>) -> bool {
     }
     // 6: ^(.*)(-ce|-elle|...|-y)$: the greedy ".*" leaves the shortest clitic,
     // which starts at the last hyphen
-    if CLITICS.iter().any(|clitic| eq_fold(&s[last_hyphen + 1..], clitic)) {
+    if CLITICS
+        .iter()
+        .any(|clitic| eq_fold(&s[last_hyphen + 1..], clitic))
+    {
         groups.push(&s[..last_hyphen]);
         groups.push(&s[last_hyphen..]);
         return true;
@@ -489,7 +513,12 @@ impl Aux {
         let n = self.chars.len();
         let mut i = 0;
         while i + 4 < n {
-            if self.plain(i + 1, '-') && self.plain(i + 3, '-') && self.letter(i) && self.letter(i + 2) && self.letter(i + 4) {
+            if self.plain(i + 1, '-')
+                && self.plain(i + 3, '-')
+                && self.letter(i)
+                && self.letter(i + 2)
+                && self.letter(i + 4)
+            {
                 self.glue[i + 1] = GLUED;
                 self.glue[i + 3] = GLUED;
                 i += 5;
@@ -499,7 +528,8 @@ impl Aux {
         }
         let mut i = 0;
         while i + 2 < n {
-            if self.plain(i + 1, '-') && self.letter(i) && (self.letter(i + 2) || self.digit(i + 2)) {
+            if self.plain(i + 1, '-') && self.letter(i) && (self.letter(i + 2) || self.digit(i + 2))
+            {
                 self.glue[i + 1] = GLUED;
                 i += 3;
             } else {
@@ -554,7 +584,11 @@ impl Aux {
         }
         let mut i = 0;
         while i + 4 < n {
-            if self.plain(i + 1, ' ') && self.digit(i) && (i + 2..i + 5).all(|k| self.digit(k)) && self.boundary_after_digit(i + 5) {
+            if self.plain(i + 1, ' ')
+                && self.digit(i)
+                && (i + 2..i + 5).all(|k| self.digit(k))
+                && self.boundary_after_digit(i + 5)
+            {
                 self.glue[i + 1] = GLUED;
                 i += 5;
             } else {
@@ -580,7 +614,9 @@ pub struct FrenchWordTokenizer {
 
 impl FrenchWordTokenizer {
     pub fn new(is_tagged: impl Fn(&str) -> bool + Send + Sync + 'static) -> FrenchWordTokenizer {
-        FrenchWordTokenizer { is_tagged: Box::new(is_tagged) }
+        FrenchWordTokenizer {
+            is_tagged: Box::new(is_tagged),
+        }
     }
 
     /// `tokenize(text)`.
@@ -593,7 +629,11 @@ impl FrenchWordTokenizer {
         let chars: Vec<char> = text
             .chars()
             .map(|c| {
-                let c = if c == '\u{2010}' || c == '\u{2011}' { '-' } else { c };
+                let c = if c == '\u{2010}' || c == '\u{2011}' {
+                    '-'
+                } else {
+                    c
+                };
                 match c {
                     '\'' => has_typewriter = true,
                     '’' => has_typographic = true,
@@ -604,7 +644,10 @@ impl FrenchWordTokenizer {
                 c
             })
             .collect();
-        let mut aux = Aux { glue: vec![0; chars.len()], chars };
+        let mut aux = Aux {
+            glue: vec![0; chars.len()],
+            chars,
+        };
         if has_typewriter {
             aux.apostrophes('\'');
         }
@@ -683,7 +726,11 @@ impl FrenchWordTokenizer {
             return;
         }
         // words containing hyphen (-) are looked up in the dictionary
-        let normalized: String = s.iter().filter(|&&c| c != '\u{ad}').map(|&c| if c == '’' { '\'' } else { c }).collect();
+        let normalized: String = s
+            .iter()
+            .filter(|&&c| c != '\u{ad}')
+            .map(|&c| if c == '’' { '\'' } else { c })
+            .collect();
         if (self.is_tagged)(&normalized) || DO_NOT_SPLIT.contains(&word.to_lowercase().as_str()) {
             l.push(word);
         } else {
@@ -698,11 +745,26 @@ mod tests {
     use super::*;
 
     fn fr(text: &str) -> Vec<String> {
-        let known = ["peut-être", "rendez-vous", "celui-ci", "c'est-à-dire", "grand-mère", "-il", "-t-il", "-le", "-moi", "-t"];
+        let known = [
+            "peut-être",
+            "rendez-vous",
+            "celui-ci",
+            "c'est-à-dire",
+            "grand-mère",
+            "-il",
+            "-t-il",
+            "-le",
+            "-moi",
+            "-t",
+        ];
         let t = FrenchWordTokenizer::new(move |w| known.contains(&w.to_lowercase().as_str()));
         let tokens = t.tokenize(text);
         let joined: String = tokens.concat();
-        assert_eq!(joined.chars().count(), text.chars().count(), "tokens cover the text");
+        assert_eq!(
+            joined.chars().count(),
+            text.chars().count(),
+            "tokens cover the text"
+        );
         tokens
     }
 
@@ -756,24 +818,106 @@ mod tests {
         french_patterns()
             .iter()
             .find_map(|p| p.match_at_chars(s, 0))
-            .map(|m| m.spans.iter().skip(1).flatten().map(|&(a, b)| s[a..b].iter().collect()).collect())
+            .map(|m| {
+                m.spans
+                    .iter()
+                    .skip(1)
+                    .flatten()
+                    .map(|&(a, b)| s[a..b].iter().collect())
+                    .collect()
+            })
     }
 
     #[test]
     fn hand_written_splits_agree_with_the_patterns() {
         let starts = [
-            "", "c'", "C’", "ç'", "j'", "n'", "m'", "t'", "s'", "l'", "L’", "d'", "qu'", "QU'", "Qu’", "jusqu'", "lorsqu'", "puisqu'",
-            "quoiqu'", "presqu'", "quelqu'", "x'", "ſ'", "jusq'", "'", "’", "qu", "c", "aujourd'", "l''", "l'-",
+            "", "c'", "C’", "ç'", "j'", "n'", "m'", "t'", "s'", "l'", "L’", "d'", "qu'", "QU'",
+            "Qu’", "jusqu'", "lorsqu'", "puisqu'", "quoiqu'", "presqu'", "quelqu'", "x'", "ſ'",
+            "jusq'", "'", "’", "qu", "c", "aujourd'", "l''", "l'-",
         ];
         let middles = [
-            "", "a", "est", "homme", "a-t", "est-à", "va", "donne", "peut-être", "1", "as-tu", "É", "x'y", "-", "a-", "te", "t", "ete", "en",
-            "y", "il", "on", "add", "rendez", "chez", "garde-à", "d'un", "12", "a1",
+            "",
+            "a",
+            "est",
+            "homme",
+            "a-t",
+            "est-à",
+            "va",
+            "donne",
+            "peut-être",
+            "1",
+            "as-tu",
+            "É",
+            "x'y",
+            "-",
+            "a-",
+            "te",
+            "t",
+            "ete",
+            "en",
+            "y",
+            "il",
+            "on",
+            "add",
+            "rendez",
+            "chez",
+            "garde-à",
+            "d'un",
+            "12",
+            "a1",
         ];
         let ends = [
-            "", "-ce", "-CE", "-elle", "-t-elle", "-elles", "-t-elles", "-en", "-il", "-t-il", "-T-IL", "-ils", "-t-ils", "-je", "-la", "-le",
-            "-les", "-leur", "-lui", "-moi", "-nous", "-on", "-t-on", "-toi", "-tu", "-vous", "-vs", "-y", "-le-moi", "-t-il-le", "-la-lui",
-            "-vous-en", "-t'en", "-m'y", "-t’y", "-m'en", "-t", "-m", "-ci", "-là", "-vu", "-dire", "-t-", "-on-dit", "-t-elle-même", "'en",
-            "-t-ille", "-Il", "-İl", "-ſ", "-vſ",
+            "",
+            "-ce",
+            "-CE",
+            "-elle",
+            "-t-elle",
+            "-elles",
+            "-t-elles",
+            "-en",
+            "-il",
+            "-t-il",
+            "-T-IL",
+            "-ils",
+            "-t-ils",
+            "-je",
+            "-la",
+            "-le",
+            "-les",
+            "-leur",
+            "-lui",
+            "-moi",
+            "-nous",
+            "-on",
+            "-t-on",
+            "-toi",
+            "-tu",
+            "-vous",
+            "-vs",
+            "-y",
+            "-le-moi",
+            "-t-il-le",
+            "-la-lui",
+            "-vous-en",
+            "-t'en",
+            "-m'y",
+            "-t’y",
+            "-m'en",
+            "-t",
+            "-m",
+            "-ci",
+            "-là",
+            "-vu",
+            "-dire",
+            "-t-",
+            "-on-dit",
+            "-t-elle-même",
+            "'en",
+            "-t-ille",
+            "-Il",
+            "-İl",
+            "-ſ",
+            "-vſ",
         ];
         let mut checked = 0;
         for a in starts {
@@ -784,7 +928,12 @@ mod tests {
                         continue;
                     }
                     let mut groups = Vec::new();
-                    let fast = split_groups(&word, &mut groups).then(|| groups.iter().map(|g| g.iter().collect::<String>()).collect::<Vec<_>>());
+                    let fast = split_groups(&word, &mut groups).then(|| {
+                        groups
+                            .iter()
+                            .map(|g| g.iter().collect::<String>())
+                            .collect::<Vec<_>>()
+                    });
                     assert_eq!(fast, split_groups_by_patterns(&word), "{a}{b}{c}");
                     checked += 1;
                 }
@@ -812,12 +961,18 @@ mod tests {
 
     #[test]
     fn urls_and_emails() {
-        assert_eq!(show("Voir http://foo.org/a?b=1. Fin"), "Voir| |http://foo.org/a?b=1|.| |Fin");
+        assert_eq!(
+            show("Voir http://foo.org/a?b=1. Fin"),
+            "Voir| |http://foo.org/a?b=1|.| |Fin"
+        );
         assert_eq!(show("sur www.exemple.fr ici"), "sur| |www.exemple.fr| |ici");
         assert_eq!(show("(https://a.b/c)"), "(|https://a.b/c|)");
         assert_eq!(show("exemple.org/page"), "exemple.org/page");
         assert_eq!(show("exemple.org page"), "exemple|.|org| |page");
-        assert_eq!(show("écrire à jean.dupont@exemple.fr vite"), "écrire| |à| |jean.dupont@exemple.fr| |vite");
+        assert_eq!(
+            show("écrire à jean.dupont@exemple.fr vite"),
+            "écrire| |à| |jean.dupont@exemple.fr| |vite"
+        );
         assert!(is_url("http://foo.org"));
         assert!(is_url("www.foo.org"));
         assert!(is_url("foo.org/x"));
@@ -829,7 +984,10 @@ mod tests {
     #[test]
     fn base_tokenizer() {
         let t = WordTokenizer;
-        assert_eq!(t.tokenize("Un test, vraiment.").join("|"), "Un| |test|,| |vraiment|.");
+        assert_eq!(
+            t.tokenize("Un test, vraiment.").join("|"),
+            "Un| |test|,| |vraiment|."
+        );
         assert_eq!(t.tokenize("l'ami").join("|"), "l|'|ami");
     }
 }

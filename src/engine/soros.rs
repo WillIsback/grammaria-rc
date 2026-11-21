@@ -48,7 +48,8 @@ fn chars(s: &str) -> Vec<char> {
 }
 
 fn text(c: &[char], span: Option<(usize, usize)>) -> String {
-    span.map(|(a, b)| c[a..b].iter().collect()).unwrap_or_default()
+    span.map(|(a, b)| c[a..b].iter().collect())
+        .unwrap_or_default()
 }
 
 impl Soros {
@@ -56,12 +57,28 @@ impl Soros {
     pub fn new(source: &str, lang: &str) -> Soros {
         let c_len = C.chars().count();
         let m2_head: String = M2.chars().take(c_len).collect();
-        let func = re(&translate(r"(?:\|?(?:\$\()+)?(\|?\$\(([^\(\)]*)\)\|?)(?:\)+\|?)?", &m2_head, C, "\\"));
+        let func = re(&translate(
+            r"(?:\|?(?:\$\()+)?(\|?\$\(([^\(\)]*)\)\|?)(?:\)+\|?)?",
+            &m2_head,
+            C,
+            "\\",
+        ));
 
         let mut source = translate(source, M, C, "\\");
         // Switch off all country-dependent lines, and on the requested ones.
-        source = replace_all(&source, "(^|[\n;])([^\n;#]*#[^\n]*\\[:[^\n:\\]]*:][^\n]*)", "$1#$2");
-        source = replace_all(&source, &format!("(^|[\n;])#([^\n;#]*#[^\n]*\\[:{}:][^\n]*)", lang.replace('_', "-")), "$1$2");
+        source = replace_all(
+            &source,
+            "(^|[\n;])([^\n;#]*#[^\n]*\\[:[^\n:\\]]*:][^\n]*)",
+            "$1#$2",
+        );
+        source = replace_all(
+            &source,
+            &format!(
+                "(^|[\n;])#([^\n;#]*#[^\n]*\\[:{}:][^\n]*)",
+                lang.replace('_', "-")
+            ),
+            "$1$2",
+        );
         source = replace_all(&source, "(#[^\n]*)?(\n|$)", ";");
         if !source.contains("__numbertext__") {
             source = format!("__numbertext__;{source}");
@@ -76,7 +93,13 @@ impl Soros {
         let line = re("^\\s*(\"[^\"]*\"|[^\\s]*)\\s*(.*[^\\s])?\\s*$");
         let macro_line = re("== *(.*[^ ]?) ==");
         let unquote = |s: &str| replace_first(&replace_first(s, "^\"", ""), "\"$", "");
-        let mut soros = Soros { patterns: Vec::new(), values: Vec::new(), begins: Vec::new(), ends: Vec::new(), func };
+        let mut soros = Soros {
+            patterns: Vec::new(),
+            values: Vec::new(),
+            begins: Vec::new(),
+            ends: Vec::new(),
+            func,
+        };
         let mut prefix = String::new();
         for part in source.split(';') {
             let mut s = part.to_string();
@@ -89,7 +112,9 @@ impl Soros {
             if !prefix.is_empty() && !s.is_empty() {
                 if let Some(m) = &sp {
                     let first = unquote(&text(&c, m.spans[1]));
-                    let second = m.spans[2].map(|_| text(&c, m.spans[2])).unwrap_or_else(|| "null".to_string());
+                    let second = m.spans[2]
+                        .map(|_| text(&c, m.spans[2]))
+                        .unwrap_or_else(|| "null".to_string());
                     s = format!(
                         "\"{}{}{}{}\" {}",
                         if first.starts_with('^') { "^" } else { "" },
@@ -110,11 +135,23 @@ impl Soros {
             let m_tail: String = M.chars().skip(1).collect();
             let mut pattern = translate(&unquote(&text(&c, m.spans[1])), &c_tail, &m_tail, "");
             pattern = pattern.replace('\u{E000}', "\\\\");
-            let mut value = if m.spans[2].is_some() { unquote(&text(&c, m.spans[2])) } else { String::new() };
+            let mut value = if m.spans[2].is_some() {
+                unquote(&text(&c, m.spans[2]))
+            } else {
+                String::new()
+            };
             value = translate(&value, M2, C2, "\\");
             // Inner separator calls: [ ... $1 ... ] -> $(sep ... sep $1 sep ... )
-            value = replace_all(&value, "^\\[[$](\\d\\d?|\\([^\\)]+\\))", "\\$(\u{E00A}\u{E00A}|\\$$1\u{E00A}");
-            value = replace_all(&value, "\\[([^$\\[\\\\]*)[$](\\d\\d?|\\([^\\)]+\\))", "\\$(\u{E00A}$1\u{E00A}\\$$2\u{E00A}");
+            value = replace_all(
+                &value,
+                "^\\[[$](\\d\\d?|\\([^\\)]+\\))",
+                "\\$(\u{E00A}\u{E00A}|\\$$1\u{E00A}",
+            );
+            value = replace_all(
+                &value,
+                "\\[([^$\\[\\\\]*)[$](\\d\\d?|\\([^\\)]+\\))",
+                "\\$(\u{E00A}$1\u{E00A}\\$$2\u{E00A}",
+            );
             value = replace_all(&value, "\u{E00A}\\]$", "|\u{E00A})");
             value = value.replace(']', ")");
             value = replace_all(&value, "(\\$\\d|\\))\\|\\$", "$1||\\$");
@@ -126,7 +163,9 @@ impl Soros {
             value = replace_all(&value, "\\\\(\\d)", "\\$$1");
             value = value.replace("\\n", "\n");
             let body = replace_first(&replace_first(&pattern, "^\\^", ""), "\\$$", "");
-            let Ok(compiled) = Regex::new(&format!("^{body}$"), Flags::default()) else { continue };
+            let Ok(compiled) = Regex::new(&format!("^{body}$"), Flags::default()) else {
+                continue;
+            };
             soros.patterns.push(compiled);
             soros.begins.push(pattern.starts_with('^'));
             soros.ends.push(pattern.ends_with('$'));
@@ -155,15 +194,34 @@ impl Soros {
             let mut s = self.patterns[i].replace_all(input, &self.values[i]);
             loop {
                 let c = chars(&s);
-                let Some(n) = self.func.find_chars(&c, 0) else { break };
+                let Some(n) = self.func.find_chars(&c, 0) else {
+                    break;
+                };
                 let (start, stop) = n.spans[0].unwrap();
                 let (g1_start, g1_stop) = n.spans[1].unwrap();
                 let whole = &c[start..stop];
                 let group1 = &c[g1_start..g1_stop];
-                let b = if group1.first() == Some(&PIPE) || whole.first() == Some(&PIPE) { true } else if start == 0 { begin } else { false };
-                let e = if group1.last() == Some(&PIPE) || whole.last() == Some(&PIPE) { true } else if stop == c.len() { end } else { false };
+                let b = if group1.first() == Some(&PIPE) || whole.first() == Some(&PIPE) {
+                    true
+                } else if start == 0 {
+                    begin
+                } else {
+                    false
+                };
+                let e = if group1.last() == Some(&PIPE) || whole.last() == Some(&PIPE) {
+                    true
+                } else if stop == c.len() {
+                    end
+                } else {
+                    false
+                };
                 let inner = self.run_with(&text(&c, n.spans[2]), b, e, depth + 1);
-                s = format!("{}{}{}", c[..g1_start].iter().collect::<String>(), inner, c[g1_stop..].iter().collect::<String>());
+                s = format!(
+                    "{}{}{}",
+                    c[..g1_start].iter().collect::<String>(),
+                    inner,
+                    c[g1_stop..].iter().collect::<String>()
+                );
             }
             return s;
         }
@@ -177,7 +235,9 @@ mod tests {
 
     #[test]
     fn french_numbers() {
-        let Ok(source) = std::fs::read_to_string("assets/fr/lt/fr.sor") else { return };
+        let Ok(source) = std::fs::read_to_string("assets/fr/lt/fr.sor") else {
+            return;
+        };
         let soros = Soros::new(&source, "fr");
         for (number, words) in [
             ("0", "zéro"),

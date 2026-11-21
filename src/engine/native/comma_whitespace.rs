@@ -22,9 +22,18 @@ pub struct CommaWhitespaceRule {
 impl CommaWhitespaceRule {
     pub fn new(quotes_whitespace_check: bool) -> CommaWhitespaceRule {
         CommaWhitespaceRule {
-            info: rule_info("COMMA_PARENTHESIS_WHITESPACE", messages::DESC_COMMA_WHITESPACE, &TYPOGRAPHY, "whitespace"),
+            info: rule_info(
+                "COMMA_PARENTHESIS_WHITESPACE",
+                messages::DESC_COMMA_WHITESPACE,
+                &TYPOGRAPHY,
+                "whitespace",
+            ),
             quotes_whitespace_check,
-            file_extension: re::compile("([a-z]{3,4}|[A-Z]{3,4}|ai|mp[34]|MP[34])(-.+)?", Flags::default()).expect("valid pattern"),
+            file_extension: re::compile(
+                "([a-z]{3,4}|[A-Z]{3,4}|ai|mp[34]|MP[34])(-.+)?",
+                Flags::default(),
+            )
+            .expect("valid pattern"),
         }
     }
 
@@ -34,7 +43,8 @@ impl CommaWhitespaceRule {
 }
 
 fn is_whitespace_token(token: &Readings) -> bool {
-    (token.is_whitespace || &*token.token == "\u{a0}" || token.is_field_code()) && &*token.token != "\u{200b}"
+    (token.is_whitespace || &*token.token == "\u{a0}" || token.is_field_code())
+        && &*token.token != "\u{200b}"
 }
 
 fn is_quote(s: &str) -> bool {
@@ -46,7 +56,9 @@ fn is_hyphen_or_comma(s: &str) -> bool {
 }
 
 fn is_digit_or_dot(s: &str) -> bool {
-    s.chars().next().is_some_and(|c| c == '.' || is_java_digit(c))
+    s.chars()
+        .next()
+        .is_some_and(|c| c == '.' || is_java_digit(c))
 }
 
 fn contains_digit(s: &str) -> bool {
@@ -59,13 +71,17 @@ fn is_proper_noun(token: &Readings) -> bool {
 
 /// `(?i)(com|org|net|int|edu|gov|mil|[a-z]{2})`.
 fn is_domain(tokens: &[Readings], i: usize) -> bool {
-    let Some(token) = tokens.get(i) else { return false };
+    let Some(token) = tokens.get(i) else {
+        return false;
+    };
     let token: &str = &token.token;
     if !token.is_ascii() {
         return false;
     }
     (token.len() == 2 && token.bytes().all(|b| b.is_ascii_alphabetic()))
-        || ["com", "org", "net", "int", "edu", "gov", "mil"].iter().any(|d| token.eq_ignore_ascii_case(d))
+        || ["com", "org", "net", "int", "edu", "gov", "mil"]
+            .iter()
+            .any(|d| token.eq_ignore_ascii_case(d))
 }
 
 impl NativeRule for CommaWhitespaceRule {
@@ -73,7 +89,12 @@ impl NativeRule for CommaWhitespaceRule {
         &self.info
     }
 
-    fn match_sentence(&self, rule: usize, sentence: &Sentence, _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        rule: usize,
+        sentence: &Sentence,
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut matches = Vec::new();
         let tokens = &sentence.tokens;
         let text: &str = &sentence.text;
@@ -88,12 +109,19 @@ impl NativeRule for CommaWhitespaceRule {
             let mut suggestion = String::new();
             if is_whitespace && prev_token.starts_with('(') {
                 // "- [ ]" as on GitHub
-                let is_exception = i + 1 < tokens.len() && prev_token == "[" && token == " " && &*tokens[i + 1].token == "]";
+                let is_exception = i + 1 < tokens.len()
+                    && prev_token == "["
+                    && token == " "
+                    && &*tokens[i + 1].token == "]";
                 if !is_exception {
                     msg = Some(messages::NO_SPACE_AFTER);
                     suggestion = prev_token.to_string();
                 }
-            } else if is_whitespace && is_quote(prev_token) && self.quotes_whitespace_check && prev_prev_token == " " {
+            } else if is_whitespace
+                && is_quote(prev_token)
+                && self.quotes_whitespace_check
+                && prev_prev_token == " "
+            {
                 msg = Some(messages::NO_SPACE_AROUND_QUOTES);
                 suggestion = prev_token.to_string();
                 two_suggestions = true;
@@ -123,11 +151,16 @@ impl NativeRule for CommaWhitespaceRule {
                     if i + 1 < tokens.len() && !tokens[i + 1].is_whitespace {
                         suggestion = format!("{COMMA} ");
                     }
-                } else if token == "." && !is_domain(tokens, i + 1) && !self.is_file_extension(tokens, i + 1) && !is_proper_noun(&tokens[i]) {
+                } else if token == "."
+                    && !is_domain(tokens, i + 1)
+                    && !self.is_file_extension(tokens, i + 1)
+                    && !is_proper_noun(&tokens[i])
+                {
                     msg = Some(messages::NO_SPACE_BEFORE_DOT);
                     suggestion = ".".to_string();
                     // " .5", " ..", " ./path"
-                    let before_number_or_dot = i + 1 < tokens.len() && is_digit_or_dot(&tokens[i + 1].token);
+                    let before_number_or_dot =
+                        i + 1 < tokens.len() && is_digit_or_dot(&tokens[i + 1].token);
                     let before_path = i + 2 < tokens.len()
                         && &*tokens[i + 1].token == "/"
                         && !tokens[i + 2].token.is_empty()
@@ -139,12 +172,21 @@ impl NativeRule for CommaWhitespaceRule {
             }
             if let Some(msg) = msg {
                 if !tokens[i].immunized {
-                    let from = if two_suggestions { tokens[i - 2].start_pos } else { tokens[i - 1].start_pos };
+                    let from = if two_suggestions {
+                        tokens[i - 2].start_pos
+                    } else {
+                        tokens[i - 1].start_pos
+                    };
                     let to = tokens[i].end_pos();
                     // The marked text may already be what would be suggested.
-                    let unchanged = to < text.len() && !two_suggestions && text[from..to] == suggestion;
+                    let unchanged =
+                        to < text.len() && !two_suggestions && text[from..to] == suggestion;
                     if !unchanged {
-                        let suggestions = if two_suggestions { vec![format!("{suggestion} "), format!(" {suggestion}")] } else { vec![suggestion] };
+                        let suggestions = if two_suggestions {
+                            vec![format!("{suggestion} "), format!(" {suggestion}")]
+                        } else {
+                            vec![suggestion]
+                        };
                         matches.extend(rule_match(rule, from, to, msg, "", suggestions));
                     }
                 }
@@ -164,7 +206,11 @@ mod tests {
     use super::*;
 
     fn check(s: &Sentence) -> Vec<(usize, usize, Vec<String>)> {
-        CommaWhitespaceRule::new(false).match_sentence(0, s, &context()).into_iter().map(|m| (m.from_pos, m.to_pos, m.suggestions)).collect()
+        CommaWhitespaceRule::new(false)
+            .match_sentence(0, s, &context())
+            .into_iter()
+            .map(|m| (m.from_pos, m.to_pos, m.suggestions))
+            .collect()
     }
 
     #[test]
@@ -181,7 +227,10 @@ mod tests {
                 (30, 32, vec![")".to_string()]),
             ]
         );
-        assert_eq!(check(&plain("Oui,non")), vec![(3, 7, vec![", non".to_string()])]);
+        assert_eq!(
+            check(&plain("Oui,non")),
+            vec![(3, 7, vec![", non".to_string()])]
+        );
         assert!(check(&plain("Oui, non (peut-être).")).is_empty());
     }
 
@@ -190,7 +239,10 @@ mod tests {
         assert!(check(&plain("Il vaut 3,5 euros")).is_empty());
         assert!(check(&plain("voir le fichier .txt")).is_empty());
         assert!(check(&plain("le site example .com")).is_empty());
-        assert_eq!(check(&plain("La fin .")), vec![(6, 8, vec![".".to_string()])]);
+        assert_eq!(
+            check(&plain("La fin .")),
+            vec![(6, 8, vec![".".to_string()])]
+        );
         assert!(check(&sentence(&["La", " ", "fin", " ", "*."])).is_empty());
         // A space before two commas is left to the double punctuation rule.
         assert!(check(&plain("Oui ,, non")).is_empty());

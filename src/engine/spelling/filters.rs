@@ -49,7 +49,9 @@ impl EditDistance {
     /// `compare` (`DamerauLevenshteinDistance`).
     pub fn compare(&self, string2: &str, max_distance: i32) -> i32 {
         let other: Vec<u16> = string2.encode_utf16().collect();
-        let Some(base) = &self.base else { return other.len() as i32 };
+        let Some(base) = &self.base else {
+            return other.len() as i32;
+        };
         if other.is_empty() {
             return base.len() as i32;
         }
@@ -57,7 +59,11 @@ impl EditDistance {
             return if *base == other { 0 } else { -1 };
         }
         // string1 is the shorter of the two.
-        let (string1, mut string2): (&[u16], &[u16]) = if base.len() > other.len() { (&other, base) } else { (base, &other) };
+        let (string1, mut string2): (&[u16], &[u16]) = if base.len() > other.len() {
+            (&other, base)
+        } else {
+            (base, &other)
+        };
         let mut s_len = string1.len();
         let mut t_len = string2.len();
         // suffix common to both strings can be ignored
@@ -91,7 +97,11 @@ impl EditDistance {
         let mut v0: Vec<i32> = vec![0; t_len];
         let mut v2: Vec<i32> = vec![0; t_len];
         for (j, slot) in v0.iter_mut().enumerate() {
-            *slot = if j < max { j as i32 + 1 } else { max_distance + 1 };
+            *slot = if j < max {
+                j as i32 + 1
+            } else {
+                max_distance + 1
+            };
         }
         let j_start_offset = max as i64 - (t_len - s_len) as i64;
         let have_max = max < t_len;
@@ -165,7 +175,13 @@ fn comparator_distance(distance: &EditDistance, s: &str) -> i32 {
 
 fn clean_suggestion_pattern() -> &'static Arc<Regex> {
     static PATTERN: OnceLock<Arc<Regex>> = OnceLock::new();
-    PATTERN.get_or_init(|| re::compile("^[smntl]'|^(nous|vous|le|la|les|me|te|se|leur|en|y) ", Flags::default()).expect("valid pattern"))
+    PATTERN.get_or_init(|| {
+        re::compile(
+            "^[smntl]'|^(nous|vous|le|la|les|me|te|se|leur|en|y) ",
+            Flags::default(),
+        )
+        .expect("valid pattern")
+    })
 }
 
 /// `FindSuggestionsFilter` (French).
@@ -179,7 +195,10 @@ pub struct FindSuggestionsFilter {
 }
 
 impl FindSuggestionsFilter {
-    pub fn new(morfologik_rule: Arc<FrenchSpellerRule>, tagger: Arc<dyn WordTagger>) -> FindSuggestionsFilter {
+    pub fn new(
+        morfologik_rule: Arc<FrenchSpellerRule>,
+        tagger: Arc<dyn WordTagger>,
+    ) -> FindSuggestionsFilter {
         FindSuggestionsFilter {
             morfologik_rule,
             tagger,
@@ -191,7 +210,11 @@ impl FindSuggestionsFilter {
     /// wrong first when it is a known word), for the word without its final
     /// `s`, and for the word with an added `s`.
     fn spelling_suggestions(&self, token: &str, is_tagged: bool) -> Vec<String> {
-        let w = if is_tagged { make_wrong(token) } else { token.to_string() };
+        let w = if is_tagged {
+            make_wrong(token)
+        } else {
+            token.to_string()
+        };
         let mut words_to_check: Vec<String> = vec![w.clone()];
         if let Some(without_s) = w.strip_suffix('s') {
             words_to_check.push(without_s.to_string());
@@ -211,7 +234,12 @@ impl FindSuggestionsFilter {
     /// `getSpellingSuggestionsCached`.
     fn spelling_suggestions_cached(&self, token: &str, is_tagged: bool) -> Arc<Vec<String>> {
         let key = (token.to_string(), is_tagged);
-        if let Some(found) = self.cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        if let Some(found) = self
+            .cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&key)
+        {
             return found.clone();
         }
         let computed = Arc::new(self.spelling_suggestions(token, is_tagged));
@@ -228,7 +256,11 @@ impl FindSuggestionsFilter {
 /// the first word.
 fn clean_suggestion(s: &str) -> String {
     let output = clean_suggestion_pattern().replace_all(s, "");
-    java_split(&output, ' ').first().copied().unwrap_or("").to_string()
+    java_split(&output, ' ')
+        .first()
+        .copied()
+        .unwrap_or("")
+        .to_string()
 }
 
 /// `RuleFilter.getPosition`: the index of a pattern token given as a number
@@ -236,7 +268,9 @@ fn clean_suggestion(s: &str) -> String {
 fn get_position(from_str: &str, pattern_tokens: &[&Readings], m: &RuleMatch) -> Option<usize> {
     let i: i64 = if let Some(rest) = from_str.strip_prefix("marker") {
         let mut i = 0usize;
-        while i < pattern_tokens.len() && (pattern_tokens[i].start_pos < m.from_pos || pattern_tokens[i].is_sent_start) {
+        while i < pattern_tokens.len()
+            && (pattern_tokens[i].start_pos < m.from_pos || pattern_tokens[i].is_sent_start)
+        {
             i += 1;
         }
         let mut i = i as i64 + 1;
@@ -270,7 +304,9 @@ impl RuleFilter for FindSuggestionsFilter {
         let desired_postag = args.get("desiredPostag")?;
         let priority_postag = args.get("priorityPostag");
         let remove_suggestions_regexp = args.get("removeSuggestionsRegexp");
-        let suppress_match = args.get("suppressMatch").is_some_and(|v| v.eq_ignore_ascii_case("true"));
+        let suppress_match = args
+            .get("suppressMatch")
+            .is_some_and(|v| v.eq_ignore_ascii_case("true"));
         let diacritics_mode = args.get("Mode").is_some_and(|mode| mode == "diacritics");
         let synth = ctx.lang.synthesizer.as_deref();
         let mut used_lemmas: Vec<Option<Arc<str>>> = Vec::new();
@@ -309,8 +345,14 @@ impl RuleFilter for FindSuggestionsFilter {
             if *suggestion != word && analyzed_suggestion.matches_pos_tag_regex(&desired) {
                 if !replacements.contains(suggestion)
                     && !replacements.contains(&suggestion.to_lowercase())
-                    && (!diacritics_mode || strtools::equals_ignore_case(&remove_diacritics(suggestion), &remove_diacritics(&word)))
-                    && !regexp_pattern.as_ref().is_some_and(|p| p.is_full_match(suggestion))
+                    && (!diacritics_mode
+                        || strtools::equals_ignore_case(
+                            &remove_diacritics(suggestion),
+                            &remove_diacritics(&word),
+                        ))
+                    && !regexp_pattern
+                        .as_ref()
+                        .is_some_and(|p| p.is_full_match(suggestion))
                 {
                     let mut replacement = suggestion.clone();
                     if is_word_allupper {
@@ -319,7 +361,10 @@ impl RuleFilter for FindSuggestionsFilter {
                     if is_word_capitalized {
                         replacement = strtools::uppercase_first_char(&replacement);
                     }
-                    if priority.as_ref().is_some_and(|p| analyzed_suggestion.matches_pos_tag_regex(p)) {
+                    if priority
+                        .as_ref()
+                        .is_some_and(|p| analyzed_suggestion.matches_pos_tag_regex(p))
+                    {
                         replacements.insert(used_priority_postag_pos, replacement);
                         used_priority_postag_pos += 1;
                     } else {
@@ -360,11 +405,17 @@ impl RuleFilter for FindSuggestionsFilter {
             }
         }
 
-        let match_contains_some_finished_suggestion = m.suggestions.iter().any(|k| !k.to_lowercase().contains("{suggestion}"));
+        let match_contains_some_finished_suggestion = m
+            .suggestions
+            .iter()
+            .any(|k| !k.to_lowercase().contains("{suggestion}"));
         if diacritics_mode && replacements.is_empty() && !match_contains_some_finished_suggestion {
             return None;
         }
-        if replacements.len() + replacements2.len() == 0 && suppress_match && !match_contains_some_finished_suggestion {
+        if replacements.len() + replacements2.len() == 0
+            && suppress_match
+            && !match_contains_some_finished_suggestion
+        {
             return None;
         }
         // The new match reads its suggestions from the message again, without
@@ -385,7 +436,10 @@ impl RuleFilter for FindSuggestionsFilter {
         let mut definitive_replacements: Vec<String> = Vec::new();
         let mut replacements_used = false;
         for s in &m.suggestions {
-            if s.contains("{suggestion}") || s.contains("{Suggestion}") || s.contains("{SUGGESTION}") {
+            if s.contains("{suggestion}")
+                || s.contains("{Suggestion}")
+                || s.contains("{SUGGESTION}")
+            {
                 replacements_used = true;
                 for s2 in &replacements {
                     if definitive_replacements.len() >= MAX_SUGGESTIONS {
@@ -414,10 +468,15 @@ impl RuleFilter for FindSuggestionsFilter {
         if !replacements_used {
             if replacements.is_empty() {
                 // `Collections.sort(replacements2, stringComparator)`: stable.
-                let mut keyed: Vec<(i32, String)> = replacements2.into_iter().map(|r| (comparator_distance(&string_comparator, &r), r)).collect();
+                let mut keyed: Vec<(i32, String)> = replacements2
+                    .into_iter()
+                    .map(|r| (comparator_distance(&string_comparator, &r), r))
+                    .collect();
                 keyed.sort_by_key(|(d, _)| *d);
                 for (_, replacement) in keyed {
-                    if !replacements.contains(&replacement) && !definitive_replacements.contains(&replacement) {
+                    if !replacements.contains(&replacement)
+                        && !definitive_replacements.contains(&replacement)
+                    {
                         replacements.push(replacement);
                     }
                 }
@@ -431,7 +490,10 @@ impl RuleFilter for FindSuggestionsFilter {
                 }
             }
         }
-        if let Some(at) = definitive_replacements.iter().position(|r| *r == m.original_error_str) {
+        if let Some(at) = definitive_replacements
+            .iter()
+            .position(|r| *r == m.original_error_str)
+        {
             definitive_replacements.remove(at);
         }
         if !definitive_replacements.is_empty() {
@@ -449,7 +511,11 @@ impl RuleFilter for FindSuggestionsFilter {
 }
 
 /// `synth.synthesize(token, desiredPostag, true)`.
-fn synthesize(synth: &dyn super::super::pattern::Synthesizer, reading: &Reading, desired_postag: &str) -> Vec<String> {
+fn synthesize(
+    synth: &dyn super::super::pattern::Synthesizer,
+    reading: &Reading,
+    desired_postag: &str,
+) -> Vec<String> {
     synth.synthesize_regexp(reading, desired_postag, true)
 }
 
@@ -464,7 +530,11 @@ pub struct SuppressMisspelledSuggestionsFilter {
 }
 
 impl SuppressMisspelledSuggestionsFilter {
-    pub fn new(spelling_rule: Arc<FrenchSpellerRule>, tagger: Arc<dyn WordTagger>, tokenize: Tokenize) -> SuppressMisspelledSuggestionsFilter {
+    pub fn new(
+        spelling_rule: Arc<FrenchSpellerRule>,
+        tagger: Arc<dyn WordTagger>,
+        tokenize: Tokenize,
+    ) -> SuppressMisspelledSuggestionsFilter {
         SuppressMisspelledSuggestionsFilter {
             spelling_rule,
             tagger,
@@ -474,7 +544,9 @@ impl SuppressMisspelledSuggestionsFilter {
 
     /// `isMisspelled(s, language)`: one of the tokens of `s` is misspelled.
     pub fn is_misspelled(&self, s: &str) -> bool {
-        (self.tokenize)(s).iter().any(|token| self.spelling_rule.is_misspelled(token))
+        (self.tokenize)(s)
+            .iter()
+            .any(|token| self.spelling_rule.is_misspelled(token))
     }
 }
 
@@ -507,10 +579,16 @@ impl RuleFilter for SuppressMisspelledSuggestionsFilter {
             let mut add_replacement = true;
             if check_postag {
                 let readings = self.tagger.tag_word(&replacement);
-                if suppress_postag.as_ref().is_some_and(|p| readings.matches_pos_tag_regex(p)) {
+                if suppress_postag
+                    .as_ref()
+                    .is_some_and(|p| readings.matches_pos_tag_regex(p))
+                {
                     add_replacement = false;
                 }
-                if filter_postag.as_ref().is_some_and(|p| !readings.matches_pos_tag_regex(p)) {
+                if filter_postag
+                    .as_ref()
+                    .is_some_and(|p| !readings.matches_pos_tag_regex(p))
+                {
                     add_replacement = false;
                 }
             }
@@ -559,9 +637,11 @@ mod tests {
 
     fn context(tools: &super::super::testing::Tools) -> RuleContext {
         let mut lang = super::super::super::pattern::Lang::default();
-        lang.synthesizer = super::super::super::synth::FrenchSynthesizer::load(std::path::Path::new("assets/fr/lt"))
-            .ok()
-            .map(|s| Arc::new(s) as _);
+        lang.synthesizer = super::super::super::synth::FrenchSynthesizer::load(
+            std::path::Path::new("assets/fr/lt"),
+        )
+        .ok()
+        .map(|s| Arc::new(s) as _);
         lang.tagger = Some(tools.spelling.tagger.clone());
         lang.speller = Some(tools.spelling.spell_checker());
         RuleContext {
@@ -581,23 +661,56 @@ mod tests {
     /// A match over the `marked` tokens of the sentence (indexes among its
     /// non-whitespace tokens) with the given suggestions in its message.
     fn rule_match(sentence: &Sentence, marked: (usize, usize), suggestions: &[&str]) -> RuleMatch {
-        let (from, to) = (sentence.tok(marked.0).start_pos, sentence.tok(marked.1).end_pos());
-        let message: String = suggestions.iter().map(|s| format!("<suggestion>{s}</suggestion>")).collect();
-        RuleMatch::new(0, &sentence.text, from, to, from, to, message, String::new(), false, false, "")
+        let (from, to) = (
+            sentence.tok(marked.0).start_pos,
+            sentence.tok(marked.1).end_pos(),
+        );
+        let message: String = suggestions
+            .iter()
+            .map(|s| format!("<suggestion>{s}</suggestion>"))
+            .collect();
+        RuleMatch::new(
+            0,
+            &sentence.text,
+            from,
+            to,
+            from,
+            to,
+            message,
+            String::new(),
+            false,
+            false,
+            "",
+        )
     }
 
     #[test]
     fn find_suggestions_filter() {
-        let Some(tools) = super::super::testing::tools() else { return };
+        let Some(tools) = super::super::testing::tools() else {
+            return;
+        };
         let ctx = context(tools);
         let filter = tools.spelling.filter("FindSuggestionsFilter").unwrap();
-        let run = |text: &str, pattern: (usize, usize), marked: (usize, usize), suggestions: &[&str], args: &str| -> Option<Vec<String>> {
+        let run = |text: &str,
+                   pattern: (usize, usize),
+                   marked: (usize, usize),
+                   suggestions: &[&str],
+                   args: &str|
+         -> Option<Vec<String>> {
             let sentence = tools.analyse(text);
             let tokens = sentence.non_ws_tokens();
             let m = rule_match(&sentence, marked, suggestions);
             let positions = vec![1; pattern.1 - pattern.0 + 1];
             filter
-                .accept(m, &arguments(args), pattern.0, &tokens[pattern.0..=pattern.1], &positions, &sentence, &ctx)
+                .accept(
+                    m,
+                    &arguments(args),
+                    pattern.0,
+                    &tokens[pattern.0..=pattern.1],
+                    &positions,
+                    &sentence,
+                    &ctx,
+                )
                 .map(|m| m.suggestions.into_iter().take(5).collect())
         };
         // JE_VERBE[1]: a verb in the first person for the unknown word.
@@ -636,38 +749,87 @@ mod tests {
         );
         // Nothing to propose: the match goes away when the rule asks for it.
         assert_eq!(
-            run("Je xyzzyqw", (1, 2), (2, 2), &[], "wordFrom:2 desiredPostag:V.*1.s suppressMatch:true"),
+            run(
+                "Je xyzzyqw",
+                (1, 2),
+                (2, 2),
+                &[],
+                "wordFrom:2 desiredPostag:V.*1.s suppressMatch:true"
+            ),
             None
         );
-        assert_eq!(run("Je xyzzyqw", (1, 2), (2, 2), &[], "wordFrom:2 desiredPostag:V.*1.s"), Some(Vec::new()));
+        assert_eq!(
+            run(
+                "Je xyzzyqw",
+                (1, 2),
+                (2, 2),
+                &[],
+                "wordFrom:2 desiredPostag:V.*1.s"
+            ),
+            Some(Vec::new())
+        );
     }
 
     #[test]
     fn suppress_misspelled_suggestions_filter() {
-        let Some(tools) = super::super::testing::tools() else { return };
+        let Some(tools) = super::super::testing::tools() else {
+            return;
+        };
         let ctx = context(tools);
-        let filter = tools.spelling.filter("FrenchSuppressMisspelledSuggestionsFilter").unwrap();
+        let filter = tools
+            .spelling
+            .filter("FrenchSuppressMisspelledSuggestionsFilter")
+            .unwrap();
         let run = |suggestions: &[&str], args: &str| -> Option<Vec<String>> {
             let sentence = tools.analyse("auto défense");
             let tokens = sentence.non_ws_tokens();
             let mut m = rule_match(&sentence, (1, 2), &[]);
             m.suggestions = s(suggestions);
             filter
-                .accept(m, &arguments(args), 1, &tokens[1..=2], &[1, 1], &sentence, &ctx)
+                .accept(
+                    m,
+                    &arguments(args),
+                    1,
+                    &tokens[1..=2],
+                    &[1, 1],
+                    &sentence,
+                    &ctx,
+                )
                 .map(|m| m.suggestions)
         };
         // "auto-défense" is one token (the tagger knows the prefix) that the
         // dictionary does not have.
-        assert_eq!(run(&["autodéfense", "auto-défense"], "suppressMatch:true"), Some(s(&["autodéfense"])));
-        assert_eq!(run(&["auto-défense", "autodéfence"], "suppressMatch:true"), None);
-        assert_eq!(run(&["auto-défense"], "suppressMatch:false"), Some(Vec::new()));
+        assert_eq!(
+            run(&["autodéfense", "auto-défense"], "suppressMatch:true"),
+            Some(s(&["autodéfense"]))
+        );
+        assert_eq!(
+            run(&["auto-défense", "autodéfence"], "suppressMatch:true"),
+            None
+        );
+        assert_eq!(
+            run(&["auto-défense"], "suppressMatch:false"),
+            Some(Vec::new())
+        );
         // Every token of a suggestion is checked.
         assert_eq!(
-            run(&["l'autodéfense", "l'autodéfence", "dit-il"], "suppressMatch:true"),
+            run(
+                &["l'autodéfense", "l'autodéfence", "dit-il"],
+                "suppressMatch:true"
+            ),
             Some(s(&["l'autodéfense", "dit-il"]))
         );
-        assert_eq!(run(&["maison", "chat"], "suppressMatch:true FilterPostag:N.f.*"), Some(s(&["maison"])));
-        assert_eq!(run(&["maison", "chat"], "suppressMatch:true SuppressPostag:N.f.*"), Some(s(&["chat"])));
+        assert_eq!(
+            run(&["maison", "chat"], "suppressMatch:true FilterPostag:N.f.*"),
+            Some(s(&["maison"]))
+        );
+        assert_eq!(
+            run(
+                &["maison", "chat"],
+                "suppressMatch:true SuppressPostag:N.f.*"
+            ),
+            Some(s(&["chat"]))
+        );
     }
 
     fn s(list: &[&str]) -> Vec<String> {
@@ -680,7 +842,19 @@ mod tests {
         let b = Readings::untagged("chat", 3);
         let c = Readings::untagged("dort", 8);
         let tokens = vec![&a, &b, &c];
-        let m = RuleMatch::new(0, "le chat dort", 3, 7, 0, 12, String::new(), String::new(), false, false, "");
+        let m = RuleMatch::new(
+            0,
+            "le chat dort",
+            3,
+            7,
+            0,
+            12,
+            String::new(),
+            String::new(),
+            false,
+            false,
+            "",
+        );
         assert_eq!(get_position("2", &tokens, &m), Some(1));
         assert_eq!(get_position("marker", &tokens, &m), Some(1));
         assert_eq!(get_position("marker+1", &tokens, &m), Some(2));

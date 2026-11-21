@@ -12,7 +12,8 @@ use crate::re::{self, Flags, Regex};
 
 /// `NUMERALS_EN`: what may stand before a closing parenthesis in a list
 /// item (`1)`, `a)`, `iv)`).
-const NUMERALS_EN: &str = "(?i)\\d{1,2}?[a-z']*|M*(D?C{0,3}|C[DM])(L?X{0,3}|X[LC])(V?I{0,3}|I[VX])$";
+const NUMERALS_EN: &str =
+    "(?i)\\d{1,2}?[a-z']*|M*(D?C{0,3}|C[DM])(L?X{0,3}|X[LC])(V?I{0,3}|I[VX])$";
 const PUNCTUATION_RE: &str = "[\\p{Punct}…–—]";
 const PUNCTUATION_NO_DOT: &str = "[ldmnstLDMNST]'|[–—\\p{Punct}&&[^.]]";
 
@@ -47,13 +48,25 @@ struct Locator<'a> {
 
 impl GenericUnpairedBracketsRule {
     pub fn new(start_symbols: &[&str], end_symbols: &[&str]) -> GenericUnpairedBracketsRule {
-        assert_eq!(start_symbols.len(), end_symbols.len(), "different number of start and end symbols");
+        assert_eq!(
+            start_symbols.len(),
+            end_symbols.len(),
+            "different number of start and end symbols"
+        );
         let pattern = |src: &str| re::compile(src, Flags::default()).expect("valid pattern");
         GenericUnpairedBracketsRule {
-            info: rule_info("UNPAIRED_BRACKETS", messages::DESC_UNPAIRED_BRACKETS, &PUNCTUATION, "typographical"),
+            info: rule_info(
+                "UNPAIRED_BRACKETS",
+                messages::DESC_UNPAIRED_BRACKETS,
+                &PUNCTUATION,
+                "typographical",
+            ),
             start_symbols: start_symbols.iter().map(|s| s.to_string()).collect(),
             end_symbols: end_symbols.iter().map(|s| s.to_string()).collect(),
-            unique: end_symbols.iter().map(|s| end_symbols.iter().filter(|t| t == &s).count() == 1).collect(),
+            unique: end_symbols
+                .iter()
+                .map(|s| end_symbols.iter().filter(|t| t == &s).count() == 1)
+                .collect(),
             numerals: pattern(NUMERALS_EN),
             punctuation: pattern(PUNCTUATION_RE),
             punctuation_no_dot: pattern(PUNCTUATION_NO_DOT),
@@ -122,7 +135,15 @@ impl GenericUnpairedBracketsRule {
 
     /// `fillSymbolStack`: is the token `i` of `sentence` the j-th symbol, to
     /// push or to pair with the top of the stack?
-    fn fill_symbol_stack<'a>(&'a self, base: usize, sentence: &Sentence, sentence_index: usize, i: usize, j: usize, stack: &mut Vec<Locator<'a>>) -> bool {
+    fn fill_symbol_stack<'a>(
+        &'a self,
+        base: usize,
+        sentence: &Sentence,
+        sentence_index: usize,
+        i: usize,
+        j: usize,
+        stack: &mut Vec<Locator<'a>>,
+    ) -> bool {
         let readings = sentence.tok(i);
         let token: &str = &readings.token;
         let start: &'a str = &self.start_symbols[j];
@@ -134,9 +155,21 @@ impl GenericUnpairedBracketsRule {
         let preceded_by_whitespace = self.preceded_by_whitespace(sentence, i, j);
         let special_case = self.special_case(sentence, i, j);
         let no_exception = self.is_no_exception(sentence, i);
-        let closing = |symbol| Locator { symbol, symbol_type: SymbolType::Closing, index: i, start_pos, sentence: sentence_index };
+        let closing = |symbol| Locator {
+            symbol,
+            symbol_type: SymbolType::Closing,
+            index: i,
+            start_pos,
+            sentence: sentence_index,
+        };
         if no_exception && preceded_by_whitespace && token == start {
-            stack.push(Locator { symbol: start, symbol_type: SymbolType::Opening, index: i, start_pos, sentence: sentence_index });
+            stack.push(Locator {
+                symbol: start,
+                symbol_type: SymbolType::Opening,
+                index: i,
+                start_pos,
+                sentence: sentence_index,
+            });
             return true;
         }
         if no_exception && (special_case || readings.is_sent_end) && token == end {
@@ -144,11 +177,15 @@ impl GenericUnpairedBracketsRule {
             // "1.)" or "a)" in an enumeration is not a closing parenthesis.
             let numbered_with_dot = i > 2
                 && end == ")"
-                && (sentence.tok(i - 3).has_pos_tag("SENT_START") || sentence.tok(i - 2).whitespace_before)
+                && (sentence.tok(i - 3).has_pos_tag("SENT_START")
+                    || sentence.tok(i - 2).whitespace_before)
                 && &*sentence.tok(i - 1).token == "."
                 && self.numerals.is_full_match(&sentence.tok(i - 2).token)
                 && !after_open_parenthesis;
-            let numbered = i > 1 && end == ")" && self.numerals.is_full_match(&sentence.tok(i - 1).token) && !after_open_parenthesis;
+            let numbered = i > 1
+                && end == ")"
+                && self.numerals.is_full_match(&sentence.tok(i - 1).token)
+                && !after_open_parenthesis;
             if numbered_with_dot || numbered {
                 return false;
             }
@@ -175,7 +212,14 @@ impl GenericUnpairedBracketsRule {
     /// `createMatch`: the match for an unpaired symbol, unless it pairs with
     /// the previous unpaired one (which is then withdrawn) or looks like the
     /// label of a list item.
-    fn create_match<'a>(&self, rule: usize, matches: &mut Vec<RuleMatch>, match_stack: &mut Vec<Locator<'a>>, loc: &Locator<'a>, text: &str) -> Option<RuleMatch> {
+    fn create_match<'a>(
+        &self,
+        rule: usize,
+        matches: &mut Vec<RuleMatch>,
+        match_stack: &mut Vec<Locator<'a>>,
+        loc: &Locator<'a>,
+        text: &str,
+    ) -> Option<RuleMatch> {
         if let (Some(top), Some(index)) = (match_stack.last(), self.end_index(loc.symbol)) {
             if top.symbol == self.start_symbols[index] && matches.len() > top.index {
                 matches.remove(top.index);
@@ -183,7 +227,13 @@ impl GenericUnpairedBracketsRule {
                 return None;
             }
         }
-        match_stack.push(Locator { symbol: loc.symbol, symbol_type: loc.symbol_type, index: matches.len(), start_pos: loc.start_pos, sentence: loc.sentence });
+        match_stack.push(Locator {
+            symbol: loc.symbol,
+            symbol_type: loc.symbol_type,
+            index: matches.len(),
+            start_pos: loc.start_pos,
+            sentence: loc.sentence,
+        });
         let other = match self.start_index(loc.symbol) {
             Some(index) => &self.end_symbols[index],
             None => &self.start_symbols[self.end_index(loc.symbol)?],
@@ -225,7 +275,12 @@ impl NativeRule for GenericUnpairedBracketsRule {
         true
     }
 
-    fn match_text(&self, rule: usize, sentences: &[Sentence], _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_text(
+        &self,
+        rule: usize,
+        sentences: &[Sentence],
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut stack: Vec<Locator> = Vec::new();
         let mut base = 0;
         for (sentence_index, sentence) in sentences.iter().enumerate() {
@@ -248,7 +303,9 @@ impl NativeRule for GenericUnpairedBracketsRule {
         let size = stack.len();
         let symmetric = size > 2
             && size % 2 == 1
-            && (0..size / 2).all(|i| self.start_index(stack[i].symbol) == self.end_index(stack[size - 1].symbol));
+            && (0..size / 2).all(|i| {
+                self.start_index(stack[i].symbol) == self.end_index(stack[size - 1].symbol)
+            });
         let text = full_text(sentences);
         let mut match_stack: Vec<Locator> = Vec::new();
         if symmetric {
@@ -286,7 +343,11 @@ mod tests {
 
     fn check(sentences: &[&str]) -> Vec<(usize, usize)> {
         let sentences: Vec<Sentence> = sentences.iter().map(|s| plain(s)).collect();
-        rule().match_text(0, &sentences, &context()).into_iter().map(|m| (m.from_pos, m.to_pos)).collect()
+        rule()
+            .match_text(0, &sentences, &context())
+            .into_iter()
+            .map(|m| (m.from_pos, m.to_pos))
+            .collect()
     }
 
     #[test]
@@ -316,6 +377,9 @@ mod tests {
     #[test]
     fn message_names_the_missing_symbol() {
         let m = rule().match_text(0, &[plain("Il (dort.")], &context());
-        assert_eq!(m[0].message, "Pas de correspondance fermante ou ouvrante pour le caractère « ) »");
+        assert_eq!(
+            m[0].message,
+            "Pas de correspondance fermante ou ouvrante pour le caractère « ) »"
+        );
     }
 }

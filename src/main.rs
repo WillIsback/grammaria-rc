@@ -115,7 +115,11 @@ fn main() {
 
     let mut exit_code = 0;
     for f in &files {
-        let text = if f == "-" { read_all(std::io::stdin()) } else { std::fs::read_to_string(f).unwrap_or_default() };
+        let text = if f == "-" {
+            read_all(std::io::stdin())
+        } else {
+            std::fs::read_to_string(f).unwrap_or_default()
+        };
         if tagger_only {
             print_analysis(&engine, &text);
             continue;
@@ -143,8 +147,17 @@ fn print_analysis(engine: &Engine, text: &str) {
             if token.is_whitespace && !token.is_sent_start {
                 continue;
             }
-            let readings: Vec<String> =
-                token.readings.iter().map(|r| format!("{}/{}", r.lemma.as_deref().unwrap_or("-"), r.pos().unwrap_or("-"))).collect();
+            let readings: Vec<String> = token
+                .readings
+                .iter()
+                .map(|r| {
+                    format!(
+                        "{}/{}",
+                        r.lemma.as_deref().unwrap_or("-"),
+                        r.pos().unwrap_or("-")
+                    )
+                })
+                .collect();
             println!("{}\t{}", token.token, readings.join(" "));
         }
         println!();
@@ -155,7 +168,10 @@ fn print_text(text: &str, matches: &[Match]) {
     for m in matches {
         let offset = m.offset.min(text.len());
         let ctx_start = text[..offset].rfind('\n').map(|i| i + 1).unwrap_or(0);
-        let ctx_end = text[offset..].find('\n').map(|i| i + offset).unwrap_or(text.len());
+        let ctx_end = text[offset..]
+            .find('\n')
+            .map(|i| i + offset)
+            .unwrap_or(text.len());
         let context = &text[ctx_start..ctx_end];
         println!(
             "{}:{}: {} [{}]{}",
@@ -163,15 +179,14 @@ fn print_text(text: &str, matches: &[Match]) {
             m.length,
             context.trim(),
             m.rule_id,
-            if m.suggestions.is_empty() { String::new() } else { format!("  suggestions: {}", m.suggestions.join(", ")) }
+            if m.suggestions.is_empty() {
+                String::new()
+            } else {
+                format!("  suggestions: {}", m.suggestions.join(", "))
+            }
         );
-        println!("  {}", strip_markup(&m.message));
+        println!("  {}", grammaria::api::plain_message(&m.message));
     }
-}
-
-/// A message without its `<suggestion>` tags.
-fn strip_markup(message: &str) -> String {
-    message.replace("<suggestion>", "« ").replace("</suggestion>", " »")
 }
 
 fn print_json(engine: &Engine, text: &str, matches: &[Match], file: &str) {
@@ -187,7 +202,13 @@ fn print_json(engine: &Engine, text: &str, matches: &[Match], file: &str) {
     out.push_str(",\"matches\":");
     out.push_str(&matches_json(text, matches, OffsetUnit::Bytes));
     // `sentenceRanges` lets clients map offsets back to sentences.
-    let ranges: Vec<String> = engine.french().analyzer.sentence_ranges(text).iter().map(|(a, b)| format!("[{a},{b}]")).collect();
+    let ranges: Vec<String> = engine
+        .french()
+        .analyzer
+        .sentence_ranges(text)
+        .iter()
+        .map(|(a, b)| format!("[{a},{b}]"))
+        .collect();
     out.push_str(&format!(",\"sentenceRanges\":[{}]", ranges.join(",")));
     out.push('}');
     println!("{out}");

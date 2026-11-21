@@ -35,11 +35,16 @@ fn manual_entries(dir: &Path, names: &[&str]) -> HashMap<String, Vec<(String, St
     let mut map: HashMap<String, Vec<(String, String)>> = HashMap::new();
     let mut separators: Vec<char> = vec!['\t'];
     for name in names {
-        let Some(content) = read_resource(&dir.join(name)) else { continue };
+        let Some(content) = read_resource(&dir.join(name)) else {
+            continue;
+        };
         for line in java_lines(&content) {
             let line = java_trim(line);
             if let Some(regexp) = line.strip_prefix("#separatorRegExp=") {
-                let class = regexp.strip_prefix('[').and_then(|r| r.strip_suffix(']')).unwrap_or(regexp);
+                let class = regexp
+                    .strip_prefix('[')
+                    .and_then(|r| r.strip_suffix(']'))
+                    .unwrap_or(regexp);
                 separators = class.replace("\\t", "\t").chars().collect();
             }
             if line.is_empty() || line.starts_with('#') {
@@ -88,25 +93,35 @@ impl StopgapTagger {
         self.dictionary.lookup(word, &mut found);
         out.extend(found.into_iter().map(|w| (w.stem, w.tag)));
         if let Some(removed) = self.removal.get(word) {
-            let mut kept: Vec<(String, String)> = out.drain(start..).filter(|r| !removed.contains(r)).collect();
+            let mut kept: Vec<(String, String)> = out
+                .drain(start..)
+                .filter(|r| !removed.contains(r))
+                .collect();
             out.append(&mut kept);
         }
     }
 
     /// `FrenchTagger.tagWord`.
     fn tag_word_readings(&self, word: &str) -> Vec<(String, String)> {
-        const AMBIGUOUS: [&str; 11] = ["-Le", "-Les", "-La", "-Elle", "-Elles", "-On", "-Tu", "-Vous", "-Il", "-Ils", "-Ce"];
+        const AMBIGUOUS: [&str; 11] = [
+            "-Le", "-Les", "-La", "-Elle", "-Elles", "-On", "-Tu", "-Vous", "-Il", "-Ils", "-Ce",
+        ];
         let mut l = Vec::new();
         let lower = word.to_lowercase();
         let is_start_upper = strtools::is_capitalized_word(word);
         let is_all_upper = strtools::is_all_uppercase(word);
-        let is_hyphenated_title_case = !AMBIGUOUS.contains(&word) && word.contains('-') && word == strtools::convert_to_title_case_iterating_chars(&lower);
+        let is_hyphenated_title_case = !AMBIGUOUS.contains(&word)
+            && word.contains('-')
+            && word == strtools::convert_to_title_case_iterating_chars(&lower);
         self.word_tagger(word, &mut l);
         if is_all_upper || is_start_upper || is_hyphenated_title_case {
             self.word_tagger(&lower, &mut l);
         }
         if l.is_empty() && is_all_upper {
-            self.word_tagger(&strtools::convert_to_title_case_iterating_chars(&lower), &mut l);
+            self.word_tagger(
+                &strtools::convert_to_title_case_iterating_chars(&lower),
+                &mut l,
+            );
         }
         if l.is_empty() {
             l = self.additional_tags(word);
@@ -119,11 +134,16 @@ impl StopgapTagger {
     /// past participle.
     fn additional_tags(&self, word: &str) -> Vec<(String, String)> {
         const HYPHENATED: [&str; 26] = [
-            "post-", "sur-", "mini-", "méga-", "demi-", "péri-", "anti-", "géo-", "nord-", "sud-", "néo-", "ultra-", "pro-", "inter-", "micro-", "macro-",
-            "sous-", "haut-", "auto-", "ré-", "pré-", "super-", "vice-", "hyper-", "proto-", "grand-",
+            "post-", "sur-", "mini-", "méga-", "demi-", "péri-", "anti-", "géo-", "nord-", "sud-",
+            "néo-", "ultra-", "pro-", "inter-", "micro-", "macro-", "sous-", "haut-", "auto-",
+            "ré-", "pré-", "super-", "vice-", "hyper-", "proto-", "grand-",
         ];
         let lower = word.to_lowercase();
-        let is_noun_adj = |tag: &str| tag.starts_with("N ") && tag.len() > 2 || tag.starts_with("J ") && tag.len() > 2 || tag.starts_with("V ppa");
+        let is_noun_adj = |tag: &str| {
+            tag.starts_with("N ") && tag.len() > 2
+                || tag.starts_with("J ") && tag.len() > 2
+                || tag.starts_with("V ppa")
+        };
         let is_verb = |tag: &str| tag.starts_with("V ") && tag.len() > 2;
         // The readings of `rest` (lowercased) that `keep` accepts, with the
         // prefix added to their lemma.
@@ -202,7 +222,10 @@ impl WordTagger for StopgapTagger {
         if l.is_empty() {
             return Readings::untagged(&word, 0);
         }
-        let readings: Vec<Reading> = l.iter().map(|(lemma, tag)| Reading::from_strs(&word, Some(tag), Some(lemma))).collect();
+        let readings: Vec<Reading> = l
+            .iter()
+            .map(|(lemma, tag)| Reading::from_strs(&word, Some(tag), Some(lemma)))
+            .collect();
         Readings::new(readings, 0)
     }
 }
@@ -211,7 +234,22 @@ impl WordTagger for StopgapTagger {
 fn is_word_character(c: char) -> bool {
     matches!(
         c,
-        '§' | '©' | '@' | '€' | '£' | '$' | '_' | '-' | '\u{a8}' | '°' | '%' | '‰' | '‱' | '&' | '\u{fffd}' | '\u{ad}' | '\u{ac}'
+        '§' | '©'
+            | '@'
+            | '€'
+            | '£'
+            | '$'
+            | '_'
+            | '-'
+            | '\u{a8}'
+            | '°'
+            | '%'
+            | '‰'
+            | '‱'
+            | '&'
+            | '\u{fffd}'
+            | '\u{ad}'
+            | '\u{ac}'
     ) || c.is_ascii_digit()
         || matches!(c as u32, 0x300..=0x36F | 0x2070..=0x209F)
         || java_is_letter(c)
@@ -271,7 +309,11 @@ impl StopgapTokenizer {
     /// `FrenchWordTokenizer.tokenize`.
     pub fn tokenize(&self, text: &str) -> Vec<String> {
         // A run of letters and digits is one token whatever the rules below.
-        if !text.is_empty() && text.chars().all(|c| c.is_ascii_digit() || java_is_letter(c)) {
+        if !text.is_empty()
+            && text
+                .chars()
+                .all(|c| c.is_ascii_digit() || java_is_letter(c))
+        {
             return vec![text.to_string()];
         }
         const DO_NOT_SPLIT: [&str; 22] = [
@@ -304,10 +346,14 @@ impl StopgapTokenizer {
         // Each rewriting needs the character it is about: skip the others.
         let has_digit = aux.chars().any(|c| c.is_ascii_digit());
         if aux.contains('\'') {
-            aux = p.typewriter_apostrophe.replace_all(&aux, "$1xxFR_APOS_TYPEWxx$2");
+            aux = p
+                .typewriter_apostrophe
+                .replace_all(&aux, "$1xxFR_APOS_TYPEWxx$2");
         }
         if aux.contains('’') {
-            aux = p.typographic_apostrophe.replace_all(&aux, "$1xxFR_APOS_TYPOGxx$2");
+            aux = p
+                .typographic_apostrophe
+                .replace_all(&aux, "$1xxFR_APOS_TYPOGxx$2");
         }
         // `NEARBY_HYPHENS` and `HYPHENS` protect hyphens between letters with
         // a placeholder made of word characters, and the hyphen is a word
@@ -320,7 +366,9 @@ impl StopgapTokenizer {
                 aux = p.decimal_comma.replace_all(&aux, "$1xxFR_DECIMALCOMMAxx$2");
             }
             if aux.contains(' ') {
-                aux = p.space_digits2.replace_all(&aux, "$1xxFR_SPACExx$2xxFR_SPACExx$3");
+                aux = p
+                    .space_digits2
+                    .replace_all(&aux, "$1xxFR_SPACExx$2xxFR_SPACExx$3");
                 aux = p.space_digits0.replace_all(&aux, "$1xxFR_SPACE0xx");
                 aux = p.space_digits.replace_all(&aux, "$1xxFR_SPACExx$2");
                 aux = aux.replace("xxFR_SPACE0xx", " ");
@@ -374,7 +422,11 @@ impl StopgapTokenizer {
                 for pattern in &p.splits {
                     // The patterns are anchored at both ends.
                     if let Some(caps) = pattern.full_match_chars(&s_chars) {
-                        groups = Some((1..=pattern.group_count()).map(|g| caps.get(&s_chars, g).unwrap_or_default()).collect());
+                        groups = Some(
+                            (1..=pattern.group_count())
+                                .map(|g| caps.get(&s_chars, g).unwrap_or_default())
+                                .collect(),
+                        );
                         break;
                     }
                 }
@@ -433,7 +485,8 @@ mod tests {
 
     fn tools() -> Option<(Arc<StopgapTagger>, StopgapTokenizer)> {
         let dir = Path::new("assets/fr/lt");
-        let dictionary = Arc::new(Dictionary::load(dir.join("french.dict"), dir.join("french.info")).ok()?);
+        let dictionary =
+            Arc::new(Dictionary::load(dir.join("french.dict"), dir.join("french.info")).ok()?);
         let tagger = Arc::new(StopgapTagger::new(dictionary, dir));
         Some((tagger.clone(), StopgapTokenizer::new(tagger)))
     }
@@ -447,9 +500,15 @@ mod tests {
         assert!(tagger.tag_word("oeuvre").is_tagged(), "oe stands for œ");
         assert!(!tagger.tag_word("connaisance").is_tagged());
         assert!(!tagger.tag_word("maiSon").is_tagged());
-        assert!(tagger.tag_word("auto-défense").has_pos_tag("N f s"), "a prefix before a noun");
+        assert!(
+            tagger.tag_word("auto-défense").has_pos_tag("N f s"),
+            "a prefix before a noun"
+        );
         assert_eq!(
-            tagger.tag_word("sous-couvert").readings[0].lemma.as_deref().map(|l| l.starts_with("sous-")),
+            tagger.tag_word("sous-couvert").readings[0]
+                .lemma
+                .as_deref()
+                .map(|l| l.starts_with("sous-")),
             Some(true)
         );
         assert!(!tagger.tag_word("sous-xyzzy").is_tagged());
@@ -458,7 +517,9 @@ mod tests {
 
     #[test]
     fn tokenizes_elisions_clitics_and_hyphens() {
-        let Some((_, tokenizer)) = tools() else { return };
+        let Some((_, tokenizer)) = tools() else {
+            return;
+        };
         assert_eq!(tokenizer.tokenize("maison"), ["maison"]);
         assert_eq!(tokenizer.tokenize("l'homme"), ["l'", "homme"]);
         assert_eq!(tokenizer.tokenize("qu’il"), ["qu’", "il"]);
@@ -466,7 +527,10 @@ mod tests {
         assert_eq!(tokenizer.tokenize("a-t-il"), ["a", "-t-il"]);
         assert_eq!(tokenizer.tokenize("peut-être"), ["peut-être"]);
         assert_eq!(tokenizer.tokenize("Joe Biden"), ["Joe", " ", "Biden"]);
-        assert_eq!(tokenizer.tokenize("Guillain-Barrx"), ["Guillain", "-", "Barrx"]);
+        assert_eq!(
+            tokenizer.tokenize("Guillain-Barrx"),
+            ["Guillain", "-", "Barrx"]
+        );
         assert_eq!(tokenizer.tokenize("P. Sherman"), ["P", ".", " ", "Sherman"]);
         assert_eq!(tokenizer.tokenize("3,5 %"), ["3,5", " ", "%"]);
         assert_eq!(tokenizer.tokenize("B&B"), ["B&B"]);

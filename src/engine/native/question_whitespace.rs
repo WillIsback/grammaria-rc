@@ -26,8 +26,17 @@ impl QuestionWhitespaceRule {
     /// The strict rule (`FRENCH_WHITESPACE_STRICT`) or the base one
     /// (`FRENCH_WHITESPACE`).
     pub fn new(strict: bool) -> QuestionWhitespaceRule {
-        let id = if strict { "FRENCH_WHITESPACE_STRICT" } else { "FRENCH_WHITESPACE" };
-        let mut info = rule_info(id, "Insertion des espaces fines insécables", &MISC, "uncategorized");
+        let id = if strict {
+            "FRENCH_WHITESPACE_STRICT"
+        } else {
+            "FRENCH_WHITESPACE"
+        };
+        let mut info = rule_info(
+            id,
+            "Insertion des espaces fines insécables",
+            &MISC,
+            "uncategorized",
+        );
         if strict {
             info.tags = vec!["picky".to_string()];
             info.default_temp_off = true;
@@ -40,11 +49,21 @@ impl QuestionWhitespaceRule {
                 not_after_space(TokenTest::cs_token("-")),
                 not_after_space(TokenTest::token_regex("[\\(\\)D]")),
             ]),
-            AntiPattern::new(vec![TokenTest::token_regex("[:;]"), not_after_space(TokenTest::token_regex("[\\(\\)D]"))]),
+            AntiPattern::new(vec![
+                TokenTest::token_regex("[:;]"),
+                not_after_space(TokenTest::token_regex("[\\(\\)D]")),
+            ]),
             // times like 23:20
-            AntiPattern::new(vec![TokenTest::token_regex(".*\\d{1,2}"), TokenTest::token(":"), TokenTest::token_regex("\\d{1,2}")]),
+            AntiPattern::new(vec![
+                TokenTest::token_regex(".*\\d{1,2}"),
+                TokenTest::token(":"),
+                TokenTest::token_regex("\\d{1,2}"),
+            ]),
             // "??"
-            AntiPattern::new(vec![TokenTest::token_regex("[?!]"), TokenTest::token_regex("[?!]")]),
+            AntiPattern::new(vec![
+                TokenTest::token_regex("[?!]"),
+                TokenTest::token_regex("[?!]"),
+            ]),
             // MAC addresses
             AntiPattern::new(vec![
                 TokenTest::token_regex("[a-z0-9]{2}"),
@@ -65,7 +84,11 @@ impl QuestionWhitespaceRule {
                 not_after_space(TokenTest::token_regex(".+")),
             ]),
         ];
-        QuestionWhitespaceRule { info, strict, anti_patterns }
+        QuestionWhitespaceRule {
+            info,
+            strict,
+            anti_patterns,
+        }
     }
 
     /// `isAllowedWhitespaceChar`: may this token stand before the mark? Any
@@ -84,9 +107,35 @@ impl QuestionWhitespaceRule {
 fn is_url_scheme(token: &str) -> bool {
     matches!(
         token,
-        "file" | "ftp" | "sftp" | "finger" | "git" | "gopher" | "hdl" | "http" | "https" | "shttp" | "imap" | "mailto" | "mms" | "nntp"
-            | "news" | "snews" | "newspost" | "snewspost" | "newsreply" | "snewsreply" | "prospero" | "rsync" | "rtspu" | "sip" | "sips"
-            | "svn" | "svn+ssh" | "telnet" | "wais"
+        "file"
+            | "ftp"
+            | "sftp"
+            | "finger"
+            | "git"
+            | "gopher"
+            | "hdl"
+            | "http"
+            | "https"
+            | "shttp"
+            | "imap"
+            | "mailto"
+            | "mms"
+            | "nntp"
+            | "news"
+            | "snews"
+            | "newspost"
+            | "snewspost"
+            | "newsreply"
+            | "snewsreply"
+            | "prospero"
+            | "rsync"
+            | "rtspu"
+            | "sip"
+            | "sips"
+            | "svn"
+            | "svn+ssh"
+            | "telnet"
+            | "wais"
     )
 }
 
@@ -95,11 +144,19 @@ impl NativeRule for QuestionWhitespaceRule {
         &self.info
     }
 
-    fn match_sentence(&self, rule: usize, sentence: &Sentence, _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        rule: usize,
+        sentence: &Sentence,
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut matches = Vec::new();
         let tokens = &sentence.tokens;
         // Every match is on one of these marks, or right after «.
-        if !tokens.iter().any(|t| matches!(&*t.token, "?" | "!" | ";" | ":" | "»" | "«")) {
+        if !tokens
+            .iter()
+            .any(|t| matches!(&*t.token, "?" | "!" | ";" | ":" | "»" | "«"))
+        {
             return matches;
         }
         let immunized = immunized_tokens(sentence, &self.anti_patterns);
@@ -116,7 +173,11 @@ impl NativeRule for QuestionWhitespaceRule {
             let mut suggestion = String::new();
             let mut i_from = i - 1;
             let mut i_to = i;
-            let prev_token_to_change = if tokens[i - 1].is_whitespace { "" } else { prev_token };
+            let prev_token_to_change = if tokens[i - 1].is_whitespace {
+                ""
+            } else {
+                prev_token
+            };
             if !self.is_allowed_whitespace(&tokens[i - 1]) {
                 if token == "?" && prev_token != "!" {
                     msg = Some("Le point d'interrogation est précédé d'une espace fine insécable.");
@@ -134,7 +195,9 @@ impl NativeRule for QuestionWhitespaceRule {
                     }
                 } else if token == "»" {
                     if prev_prev_token == "«" {
-                        msg = Some("Les guillemets sont toujours accompagnés d'une espace insécable.");
+                        msg = Some(
+                            "Les guillemets sont toujours accompagnés d'une espace insécable.",
+                        );
                         suggestion = format!("«{NBSP}{prev_token_to_change}{NBSP}»");
                         i_from = i - 2;
                     } else {
@@ -152,12 +215,23 @@ impl NativeRule for QuestionWhitespaceRule {
                     let next_token: &str = tokens.get(i + 1).map_or("", |t| &t.token);
                     if next_token != "»" {
                         msg = Some("Le guillemet ouvrant est suivi d'une espace insécable.");
-                        suggestion = if tokens[i].is_whitespace { format!("«{NBSP}") } else { format!("«{NBSP}{token}") };
+                        suggestion = if tokens[i].is_whitespace {
+                            format!("«{NBSP}")
+                        } else {
+                            format!("«{NBSP}{token}")
+                        };
                     }
                 }
             }
             if let Some(msg) = msg {
-                matches.extend(rule_match(rule, tokens[i_from].start_pos, tokens[i_to].end_pos(), msg, SHORT_MESSAGE, vec![suggestion]));
+                matches.extend(rule_match(
+                    rule,
+                    tokens[i_from].start_pos,
+                    tokens[i_to].end_pos(),
+                    msg,
+                    SHORT_MESSAGE,
+                    vec![suggestion],
+                ));
             }
             prev_prev_token = prev_token;
             prev_token = token;
@@ -185,8 +259,17 @@ mod tests {
 
     #[test]
     fn marks_without_a_space_before() {
-        assert_eq!(check("Comment ça va?"), vec![(12, 15, "va\u{202f}?".to_string())]);
-        assert_eq!(check("Super! Voici: un"), vec![(0, 6, "Super\u{202f}!".to_string()), (7, 13, "Voici\u{a0}:".to_string())]);
+        assert_eq!(
+            check("Comment ça va?"),
+            vec![(12, 15, "va\u{202f}?".to_string())]
+        );
+        assert_eq!(
+            check("Super! Voici: un"),
+            vec![
+                (0, 6, "Super\u{202f}!".to_string()),
+                (7, 13, "Voici\u{a0}:".to_string())
+            ]
+        );
         assert!(check("Comment ça va ?").is_empty());
         assert!(check("Comment ça va\u{202f}? Bien\u{a0}!").is_empty());
         assert!(check("Quoi ?!").is_empty());
@@ -194,9 +277,18 @@ mod tests {
 
     #[test]
     fn quotation_marks() {
-        assert_eq!(check("Il dit «oui» ici"), vec![(7, 14, "«\u{a0}oui\u{a0}»".to_string())]);
-        assert_eq!(check("Il dit «oui ici"), vec![(7, 12, "«\u{a0}oui".to_string())]);
-        assert_eq!(check("Il dit « oui» ici"), vec![(10, 15, "oui\u{a0}»".to_string())]);
+        assert_eq!(
+            check("Il dit «oui» ici"),
+            vec![(7, 14, "«\u{a0}oui\u{a0}»".to_string())]
+        );
+        assert_eq!(
+            check("Il dit «oui ici"),
+            vec![(7, 12, "«\u{a0}oui".to_string())]
+        );
+        assert_eq!(
+            check("Il dit « oui» ici"),
+            vec![(10, 15, "oui\u{a0}»".to_string())]
+        );
         assert!(check("Il dit « oui » ici").is_empty());
     }
 
@@ -213,11 +305,17 @@ mod tests {
 
     #[test]
     fn strict_rule_wants_non_breaking_spaces() {
-        assert_eq!(check_with(true, "Comment ça va ?"), vec![(14, 16, "\u{202f}?".to_string())]);
+        assert_eq!(
+            check_with(true, "Comment ça va ?"),
+            vec![(14, 16, "\u{202f}?".to_string())]
+        );
         assert!(check_with(true, "Comment ça va\u{202f}?").is_empty());
         // No space at all is the base rule's business.
         assert!(check_with(true, "Comment ça va?").is_empty());
-        assert_eq!(check_with(true, "Il dit « oui"), vec![(7, 10, "«\u{a0}".to_string())]);
+        assert_eq!(
+            check_with(true, "Il dit « oui"),
+            vec![(7, 10, "«\u{a0}".to_string())]
+        );
         let rule = QuestionWhitespaceRule::new(true);
         assert!(rule.info().default_temp_off && rule.info().tags == vec!["picky".to_string()]);
     }

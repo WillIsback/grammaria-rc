@@ -29,7 +29,10 @@ struct TagTable {
 fn tag_table() -> &'static std::sync::RwLock<TagTable> {
     static TABLE: std::sync::OnceLock<std::sync::RwLock<TagTable>> = std::sync::OnceLock::new();
     TABLE.get_or_init(|| {
-        std::sync::RwLock::new(TagTable { by_name: std::collections::HashMap::new(), names: Vec::new() })
+        std::sync::RwLock::new(TagTable {
+            by_name: std::collections::HashMap::new(),
+            names: Vec::new(),
+        })
     })
 }
 
@@ -108,11 +111,22 @@ impl Reading {
     pub fn new(token: Arc<str>, pos_tag: Option<Tag>, lemma: Option<Arc<str>>) -> Reading {
         let pos_str = pos_tag.map(Tag::as_str);
         let has_no_tag = matches!(pos_str, None | Some(SENTENCE_END) | Some(PARAGRAPH_END));
-        Reading { token, pos_tag, pos_str, lemma, whitespace_before: false, has_no_tag }
+        Reading {
+            token,
+            pos_tag,
+            pos_str,
+            lemma,
+            whitespace_before: false,
+            has_no_tag,
+        }
     }
 
     pub fn from_strs(token: &str, pos_tag: Option<&str>, lemma: Option<&str>) -> Reading {
-        Reading::new(Arc::from(token), pos_tag.map(|t| Tag::new(t.trim())), lemma.map(Arc::from))
+        Reading::new(
+            Arc::from(token),
+            pos_tag.map(|t| Tag::new(t.trim())),
+            lemma.map(Arc::from),
+        )
     }
 
     #[inline]
@@ -252,11 +266,15 @@ impl Readings {
     }
 
     pub fn has_pos_tag_and_lemma(&self, tag: &str, lemma: &str) -> bool {
-        self.readings.iter().any(|r| r.pos() == Some(tag) && r.lemma.as_deref() == Some(lemma))
+        self.readings
+            .iter()
+            .any(|r| r.pos() == Some(tag) && r.lemma.as_deref() == Some(lemma))
     }
 
     pub fn has_lemma(&self, lemma: &str) -> bool {
-        self.readings.iter().any(|r| r.lemma.as_deref() == Some(lemma))
+        self.readings
+            .iter()
+            .any(|r| r.lemma.as_deref() == Some(lemma))
     }
 
     pub fn has_any_lemma(&self, lemmas: &[&str]) -> bool {
@@ -264,24 +282,34 @@ impl Readings {
     }
 
     pub fn has_partial_pos_tag(&self, part: &str) -> bool {
-        self.readings.iter().any(|r| r.pos().is_some_and(|p| p.contains(part)))
+        self.readings
+            .iter()
+            .any(|r| r.pos().is_some_and(|p| p.contains(part)))
     }
 
     pub fn has_pos_tag_starting_with(&self, prefix: &str) -> bool {
-        self.readings.iter().any(|r| r.pos().is_some_and(|p| p.starts_with(prefix)))
+        self.readings
+            .iter()
+            .any(|r| r.pos().is_some_and(|p| p.starts_with(prefix)))
     }
 
     /// `matchesPosTagRegex`: some reading's tag fully matches `re`.
     pub fn matches_pos_tag_regex(&self, re: &crate::re::Regex) -> bool {
-        self.readings.iter().any(|r| r.pos().is_some_and(|p| re.is_full_match(p)))
+        self.readings
+            .iter()
+            .any(|r| r.pos().is_some_and(|p| re.is_full_match(p)))
     }
 
     pub fn reading_with_tag_regex(&self, re: &crate::re::Regex) -> Option<&Reading> {
-        self.readings.iter().find(|r| r.pos().is_some_and(|p| re.is_full_match(p)))
+        self.readings
+            .iter()
+            .find(|r| r.pos().is_some_and(|p| re.is_full_match(p)))
     }
 
     pub fn reading_with_lemma(&self, lemma: &str) -> Option<&Reading> {
-        self.readings.iter().find(|r| r.lemma.as_deref() == Some(lemma))
+        self.readings
+            .iter()
+            .find(|r| r.lemma.as_deref() == Some(lemma))
     }
 
     pub fn matches_chunk_regex(&self, re: &crate::re::Regex) -> bool {
@@ -343,7 +371,11 @@ impl Readings {
     pub fn leave_reading(&mut self, token: &Reading) {
         let mut tmp = Reading::new(token.token.clone(), token.pos_tag, token.lemma.clone());
         tmp.whitespace_before = self.whitespace_before;
-        let mut kept: Vec<Reading> = self.readings.drain(..).filter(|r| r.matches(&tmp)).collect();
+        let mut kept: Vec<Reading> = self
+            .readings
+            .drain(..)
+            .filter(|r| r.matches(&tmp))
+            .collect();
         if kept.is_empty() {
             let mut r = Reading::new(self.token.clone(), None, None);
             r.whitespace_before = self.whitespace_before;
@@ -357,20 +389,29 @@ impl Readings {
     pub fn set_paragraph_end(&mut self) {
         if !self.is_para_end {
             let lemma = self.readings[0].lemma.clone();
-            self.add_reading(Reading::new(self.token.clone(), Some(Tag::new(PARAGRAPH_END)), lemma));
+            self.add_reading(Reading::new(
+                self.token.clone(),
+                Some(Tag::new(PARAGRAPH_END)),
+                lemma,
+            ));
         }
     }
 
     pub fn set_sent_end(&mut self) {
         if !self.is_sent_end {
             let lemma = self.readings[0].lemma.clone();
-            self.add_reading(Reading::new(self.token.clone(), Some(Tag::new(SENTENCE_END)), lemma));
+            self.add_reading(Reading::new(
+                self.token.clone(),
+                Some(Tag::new(SENTENCE_END)),
+                lemma,
+            ));
         }
     }
 
     /// `setWhitespaceBefore(prevToken)`.
     pub fn set_whitespace_before(&mut self, prev_token: &Arc<str>) {
-        self.whitespace_before = !prev_token.is_empty() && super::strtools::is_whitespace(prev_token);
+        self.whitespace_before =
+            !prev_token.is_empty() && super::strtools::is_whitespace(prev_token);
         for r in &mut self.readings {
             r.whitespace_before = self.whitespace_before;
         }
@@ -471,11 +512,21 @@ impl Sentence {
     /// LanguageTool, the word index is shared when the token strings are the
     /// same, and the lemma index too when the caller guarantees that no
     /// reading changed (`readings_unchanged`).
-    pub fn derived(text: Arc<str>, tokens: Vec<Readings>, pre_disambig: Vec<Readings>, previous: Option<&Sentence>, readings_unchanged: bool) -> Sentence {
+    pub fn derived(
+        text: Arc<str>,
+        tokens: Vec<Readings>,
+        pre_disambig: Vec<Readings>,
+        previous: Option<&Sentence>,
+        readings_unchanged: bool,
+    ) -> Sentence {
         let non_ws = non_blank(&tokens);
         let pre_non_ws = non_blank(&pre_disambig);
         let previous = previous.filter(|p| {
-            p.non_ws.len() == non_ws.len() && p.non_ws.iter().zip(&non_ws).all(|(&a, &b)| Arc::ptr_eq(&p.tokens[a].token, &tokens[b].token) || p.tokens[a].token == tokens[b].token)
+            p.non_ws.len() == non_ws.len()
+                && p.non_ws.iter().zip(&non_ws).all(|(&a, &b)| {
+                    Arc::ptr_eq(&p.tokens[a].token, &tokens[b].token)
+                        || p.tokens[a].token == tokens[b].token
+                })
         });
         let token_offsets = match previous {
             Some(p) => p.token_offsets.clone(),
@@ -495,7 +546,10 @@ impl Sentence {
                     for r in &tokens[ti].readings {
                         let lemma = r.lemma_or_token();
                         // Most lemmas are already lower case: look up first.
-                        let list = if lemma.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
+                        let list = if lemma
+                            .bytes()
+                            .all(|b| b.is_ascii() && !b.is_ascii_uppercase())
+                        {
                             match map.get_mut(lemma) {
                                 Some(list) => list,
                                 None => map.entry(lemma.to_string()).or_default(),
@@ -511,7 +565,15 @@ impl Sentence {
                 Arc::new(map)
             }
         };
-        Sentence { text, tokens, non_ws, pre_disambig, pre_non_ws, token_offsets, lemma_offsets }
+        Sentence {
+            text,
+            tokens,
+            non_ws,
+            pre_disambig,
+            pre_non_ws,
+            token_offsets,
+            lemma_offsets,
+        }
     }
 
     /// `AnalyzedSentence.copy`: fresh token objects (so that immunization of
@@ -527,7 +589,10 @@ impl Sentence {
 
     /// The non-whitespace tokens as the tagger produced them.
     pub fn pre_disambig_non_ws_tokens(&self) -> Vec<&Readings> {
-        self.pre_non_ws.iter().map(|&i| &self.pre_disambig[i]).collect()
+        self.pre_non_ws
+            .iter()
+            .map(|&i| &self.pre_disambig[i])
+            .collect()
     }
 
     /// The i-th non-whitespace token.
@@ -575,7 +640,10 @@ mod tests {
     #[test]
     fn remove_and_leave_readings() {
         let mut t = Readings::new(
-            vec![rd("a", Some("N m sp"), Some("a")), rd("a", Some("V avoir ind pres 3 s"), Some("avoir"))],
+            vec![
+                rd("a", Some("N m sp"), Some("a")),
+                rd("a", Some("V avoir ind pres 3 s"), Some("avoir")),
+            ],
             0,
         );
         assert!(!t.has_same_lemmas);
@@ -585,9 +653,18 @@ mod tests {
         assert!(t.has_same_lemmas);
         t.remove_reading(&rd("a", Some("V avoir ind pres 3 s"), None));
         assert_eq!(t.readings.len(), 1);
-        assert!(t.readings[0].pos_tag.is_none(), "an emptied token keeps one untagged reading");
+        assert!(
+            t.readings[0].pos_tag.is_none(),
+            "an emptied token keeps one untagged reading"
+        );
 
-        let mut t = Readings::new(vec![rd("la", Some("D f s"), Some("le")), rd("la", Some("N m s"), Some("la"))], 0);
+        let mut t = Readings::new(
+            vec![
+                rd("la", Some("D f s"), Some("le")),
+                rd("la", Some("N m s"), Some("la")),
+            ],
+            0,
+        );
         t.leave_reading(&rd("la", Some("D f s"), None));
         assert_eq!(t.readings.len(), 1);
         assert_eq!(t.readings[0].pos(), Some("D f s"));

@@ -16,17 +16,30 @@ pub(crate) struct AdvancedSynthesizerFilter;
 /// `getAnalyzedToken`: the first reading whose tag matches, else the first
 /// reading.
 fn analyzed_token<'a>(token: &'a Readings, pattern: &Regex) -> &'a Reading {
-    token.readings.iter().find(|r| pattern.is_full_match(r.pos().unwrap_or(UNKNOWN))).unwrap_or(&token.readings[0])
+    token
+        .readings
+        .iter()
+        .find(|r| pattern.is_full_match(r.pos().unwrap_or(UNKNOWN)))
+        .unwrap_or(&token.readings[0])
 }
 
 /// `getCompositePostag`: `postag_replace` with `\aN` and `\bN` replaced by
 /// the groups of `lemma_select` in the lemma token's tag and of
 /// `postag_select` in the tag token's tag.
-fn composite_postag(lemma_select: &Regex, postag_select: &Regex, original_postag: &str, desired_postag: &str, postag_replace: &str) -> String {
+fn composite_postag(
+    lemma_select: &Regex,
+    postag_select: &Regex,
+    original_postag: &str,
+    desired_postag: &str,
+    postag_replace: &str,
+) -> String {
     let a_chars: Vec<char> = original_postag.chars().collect();
     let b_chars: Vec<char> = desired_postag.chars().collect();
     let mut result = postag_replace.to_string();
-    if let (Some(a), Some(b)) = (lemma_select.full_match_chars(&a_chars), postag_select.full_match_chars(&b_chars)) {
+    if let (Some(a), Some(b)) = (
+        lemma_select.full_match_chars(&a_chars),
+        postag_select.full_match_chars(&b_chars),
+    ) {
         for i in 1..=lemma_select.group_count() {
             if let Some(group) = a.get(&a_chars, i) {
                 result = result.replace(&format!("\\a{i}"), &group);
@@ -63,15 +76,28 @@ impl RuleFilter for AdvancedSynthesizerFilter {
         let lemma_reading = analyzed_token(lemma_token, &lemma_select);
         let mut desired_lemma: Option<String> = lemma_reading.lemma.as_deref().map(str::to_string);
         let original_postag = lemma_reading.pos();
-        let mut desired_postag: String = analyzed_token(pattern_tokens[postag_from], &postag_select).pos()?.to_string();
+        let mut desired_postag: String =
+            analyzed_token(pattern_tokens[postag_from], &postag_select)
+                .pos()?
+                .to_string();
         if !new_lemma.is_empty() {
             // `getNewLemma` (a lemma derived from the old one, `_...`) is
             // not defined for French.
-            desired_lemma = if new_lemma.starts_with('_') { None } else { Some(new_lemma.to_string()) };
+            desired_lemma = if new_lemma.starts_with('_') {
+                None
+            } else {
+                Some(new_lemma.to_string())
+            };
         }
         let desired_lemma = desired_lemma?;
         if let Some(postag_replace) = postag_replace {
-            desired_postag = composite_postag(&lemma_select, &postag_select, original_postag?, &desired_postag, postag_replace);
+            desired_postag = composite_postag(
+                &lemma_select,
+                &postag_select,
+                original_postag?,
+                &desired_postag,
+                postag_replace,
+            );
         }
         let is_word_capitalized = strtools::is_capitalized_word(&lemma_token.token);
         let is_word_all_upper = strtools::is_all_uppercase(&lemma_token.token);
@@ -88,7 +114,10 @@ impl RuleFilter for AdvancedSynthesizerFilter {
         let mut suggestion_used = false;
         for r in &m.suggestions {
             for nr in &replacements {
-                if r.contains("{suggestion}") || r.contains("{Suggestion}") || r.contains("{SUGGESTION}") {
+                if r.contains("{suggestion}")
+                    || r.contains("{Suggestion}")
+                    || r.contains("{SUGGESTION}")
+                {
                     suggestion_used = true;
                 }
                 let mut nr = nr.clone();
@@ -124,9 +153,15 @@ mod tests {
     fn composite_tags() {
         let a = Regex::new("V.inf", Flags::default()).unwrap();
         let b = Regex::new("V.ind.pres.(.*)", Flags::default()).unwrap();
-        assert_eq!(composite_postag(&a, &b, "V inf", "V ind pres 3 s", "V.sub.pres.\\b1"), "V.sub.pres.3 s");
+        assert_eq!(
+            composite_postag(&a, &b, "V inf", "V ind pres 3 s", "V.sub.pres.\\b1"),
+            "V.sub.pres.3 s"
+        );
         // No substitution when one of the tags does not match its selector.
-        assert_eq!(composite_postag(&a, &b, "N m s", "V ind pres 3 s", "V.sub.pres.\\b1"), "V.sub.pres.\\b1");
+        assert_eq!(
+            composite_postag(&a, &b, "N m s", "V ind pres 3 s", "V.sub.pres.\\b1"),
+            "V.sub.pres.\\b1"
+        );
     }
 
     #[test]
@@ -142,26 +177,54 @@ mod tests {
         let tokens = s.non_ws_tokens();
         let mut m = match_over(&s, 3, 3, "");
         m.suggestions = vec!["{suggestion}".into(), "très {suggestion}".into()];
-        let a = args(&[("lemmaFrom", "marker"), ("lemmaSelect", "J.*"), ("postagFrom", "marker-1"), ("postagSelect", "N.*")]);
-        let out = AdvancedSynthesizerFilter.accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx).unwrap();
+        let a = args(&[
+            ("lemmaFrom", "marker"),
+            ("lemmaSelect", "J.*"),
+            ("postagFrom", "marker-1"),
+            ("postagSelect", "N.*"),
+        ]);
+        let out = AdvancedSynthesizerFilter
+            .accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx)
+            .unwrap();
         assert_eq!(out.suggestions, ["Blanches", "très Blanches"]);
         // A tag that inflects nothing leaves the match as it is.
-        let a = args(&[("lemmaFrom", "marker"), ("lemmaSelect", "J.*"), ("postagFrom", "1"), ("postagSelect", "D.*")]);
-        let out = AdvancedSynthesizerFilter.accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx).unwrap();
+        let a = args(&[
+            ("lemmaFrom", "marker"),
+            ("lemmaSelect", "J.*"),
+            ("postagFrom", "1"),
+            ("postagSelect", "D.*"),
+        ]);
+        let out = AdvancedSynthesizerFilter
+            .accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx)
+            .unwrap();
         assert_eq!(out.suggestions, m.suggestions);
 
         // Verb agreement: "pouvoir" with the tag of "sont".
-        let s = sentence(&[("sont", &[("V etre ind pres 3 p", "être")]), ("et", &[("C coor", "et")]), ("Peut", &[("V ind pres 3 s", "pouvoir")])]);
+        let s = sentence(&[
+            ("sont", &[("V etre ind pres 3 p", "être")]),
+            ("et", &[("C coor", "et")]),
+            ("Peut", &[("V ind pres 3 s", "pouvoir")]),
+        ]);
         let tokens = s.non_ws_tokens();
         let mut m = match_over(&s, 3, 3, "");
         m.suggestions = vec!["{suggestion}".into()];
-        let a = args(&[("lemmaFrom", "3"), ("lemmaSelect", "V.*"), ("postagFrom", "1"), ("postagSelect", "V.*"), ("postagReplace", "V ind pres 3 p")]);
-        let out = AdvancedSynthesizerFilter.accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx).unwrap();
+        let a = args(&[
+            ("lemmaFrom", "3"),
+            ("lemmaSelect", "V.*"),
+            ("postagFrom", "1"),
+            ("postagSelect", "V.*"),
+            ("postagReplace", "V ind pres 3 p"),
+        ]);
+        let out = AdvancedSynthesizerFilter
+            .accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx)
+            .unwrap();
         assert_eq!(out.suggestions, ["Peuvent"]);
 
         // Without a placeholder, the forms are appended as they are.
         m.suggestions = vec!["peut".into()];
-        let out = AdvancedSynthesizerFilter.accept(m, &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx).unwrap();
+        let out = AdvancedSynthesizerFilter
+            .accept(m, &a, 1, &tokens[1..], &[1, 1, 1], &s, &ctx)
+            .unwrap();
         assert_eq!(out.suggestions, ["peut", "peuvent"]);
     }
 
@@ -171,7 +234,14 @@ mod tests {
         let s = sentence(&[("chat", &[("N m s", "chat")]), ("xyz", &[])]);
         let tokens = s.non_ws_tokens();
         let m = match_over(&s, 2, 2, "");
-        let a = args(&[("lemmaFrom", "2"), ("lemmaSelect", "J.*"), ("postagFrom", "1"), ("postagSelect", "N.*")]);
-        assert!(AdvancedSynthesizerFilter.accept(m, &a, 1, &tokens[1..], &[1, 1], &s, &ctx).is_none());
+        let a = args(&[
+            ("lemmaFrom", "2"),
+            ("lemmaSelect", "J.*"),
+            ("postagFrom", "1"),
+            ("postagSelect", "N.*"),
+        ]);
+        assert!(AdvancedSynthesizerFilter
+            .accept(m, &a, 1, &tokens[1..], &[1, 1], &s, &ctx)
+            .is_none());
     }
 }

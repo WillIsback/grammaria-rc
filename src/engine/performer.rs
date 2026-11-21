@@ -34,7 +34,10 @@ impl TokenHint {
     }
 
     pub fn can_be_ignored_for(&self, sentence: &Sentence) -> bool {
-        !self.lower_case_values.iter().any(|h| self.indices(sentence, h).is_some())
+        !self
+            .lower_case_values
+            .iter()
+            .any(|h| self.indices(sentence, h).is_some())
     }
 
     /// Positions (among non-whitespace tokens) where a hinted string occurs.
@@ -75,12 +78,17 @@ impl TokenPattern {
         let groups_or_unification = test_unification || tokens.iter().any(|t| t.has_and_group());
 
         // AbstractTokenBasedRule: hints and the minimal sentence length.
-        let can_match_sentence_start =
-            |t: &PatternToken| t.is_sentence_start() || t.negation || !t.has_string_that_must_match();
+        let can_match_sentence_start = |t: &PatternToken| {
+            t.is_sentence_start() || t.negation || !t.has_string_that_must_match()
+        };
         let mut hints: Vec<TokenHint> = Vec::new();
         let mut anchor: Option<TokenHint> = None;
         let mut fixed_offset = true;
-        let mut min_token_count = if tokens.is_empty() || can_match_sentence_start(&tokens[0]) { 0 } else { 1 };
+        let mut min_token_count = if tokens.is_empty() || can_match_sentence_start(&tokens[0]) {
+            0
+        } else {
+            1
+        };
         for (i, token) in tokens.iter().enumerate() {
             if token.min_occurrence() > 0 {
                 min_token_count += 1;
@@ -95,9 +103,15 @@ impl TokenPattern {
                 let mut lower: Vec<String> = values.iter().map(|s| s.to_lowercase()).collect();
                 lower.sort();
                 lower.dedup();
-                let hint = TokenHint { inflected, lower_case_values: lower, token_index: i };
+                let hint = TokenHint {
+                    inflected,
+                    lower_case_values: lower,
+                    token_index: i,
+                };
                 if !hints.iter().any(|h| {
-                    h.inflected == hint.inflected && h.token_index == hint.token_index && h.lower_case_values == hint.lower_case_values
+                    h.inflected == hint.inflected
+                        && h.token_index == hint.token_index
+                        && h.lower_case_values == hint.lower_case_values
                 }) {
                     hints.push(hint.clone());
                 }
@@ -105,13 +119,22 @@ impl TokenPattern {
                     anchor = Some(hint);
                 }
             }
-            if fixed_offset && (token.min_occurrence() != 1 || token.skip != 0 || token.max_occurrence != 1) {
+            if fixed_offset
+                && (token.min_occurrence() != 1 || token.skip != 0 || token.max_occurrence != 1)
+            {
                 fixed_offset = false;
             }
         }
         // Most selective hints first.
         hints.sort_by_key(|h| {
-            (h.lower_case_values.len(), -(h.lower_case_values.iter().map(|s| s.chars().count()).min().unwrap_or(0) as i64))
+            (
+                h.lower_case_values.len(),
+                -(h.lower_case_values
+                    .iter()
+                    .map(|s| s.chars().count())
+                    .min()
+                    .unwrap_or(0) as i64),
+            )
         });
         TokenPattern {
             tokens,
@@ -130,7 +153,9 @@ impl TokenPattern {
         if sentence.len() < self.min_token_count {
             return true;
         }
-        self.token_hints.iter().any(|h| h.can_be_ignored_for(sentence))
+        self.token_hints
+            .iter()
+            .any(|h| h.can_be_ignored_for(sentence))
     }
 }
 
@@ -147,8 +172,18 @@ struct TokMatcher<'r> {
 
 impl<'r> TokMatcher<'r> {
     fn new(base: &'r PatternToken, key: usize) -> TokMatcher<'r> {
-        let and_group = base.and_group.iter().map(|t| TokMatcher::new(t, 0)).collect();
-        TokMatcher { base, key, compiled: None, and_group, and_group_check: Vec::new() }
+        let and_group = base
+            .and_group
+            .iter()
+            .map(|t| TokMatcher::new(t, 0))
+            .collect();
+        TokMatcher {
+            base,
+            key,
+            compiled: None,
+            and_group,
+            and_group_check: Vec::new(),
+        }
     }
 
     #[inline]
@@ -245,8 +280,16 @@ impl<'r> Performer<'r> {
         skip_immunized: bool,
         element_no: Option<&'r [usize]>,
     ) -> Performer<'r> {
-        let matchers = pattern.tokens.iter().map(|t| TokMatcher::new(t, Arc::as_ptr(t) as usize)).collect();
-        let min_occur_correction = pattern.tokens.iter().filter(|t| t.min_occurrence() == 0).count();
+        let matchers = pattern
+            .tokens
+            .iter()
+            .map(|t| TokMatcher::new(t, Arc::as_ptr(t) as usize))
+            .collect();
+        let min_occur_correction = pattern
+            .tokens
+            .iter()
+            .filter(|t| t.min_occurrence() == 0)
+            .count();
         Performer {
             pattern,
             lang,
@@ -273,7 +316,12 @@ impl<'r> Performer<'r> {
     /// The start positions `doMatch` tries: all of them, or only those the
     /// anchor hint allows. `use_anchor` is false when the tokens are not those
     /// the sentence indexes describe (pre-disambiguation tags).
-    pub fn start_indices(&self, sentence: &Sentence, token_count: usize, use_anchor: bool) -> Vec<usize> {
+    pub fn start_indices(
+        &self,
+        sentence: &Sentence,
+        token_count: usize,
+        use_anchor: bool,
+    ) -> Vec<usize> {
         let pattern_size = self.matchers.len();
         let limit = if self.pattern.sent_start {
             1
@@ -292,7 +340,13 @@ impl<'r> Performer<'r> {
     }
 
     /// `doMatch`: report every match of the pattern in `tokens`.
-    pub fn do_match(&mut self, sentence: &Sentence, tokens: &[&Readings], use_anchor: bool, consumer: &mut dyn FnMut(PatternMatch)) {
+    pub fn do_match(
+        &mut self,
+        sentence: &Sentence,
+        tokens: &[&Readings],
+        use_anchor: bool,
+        consumer: &mut dyn FnMut(PatternMatch),
+    ) {
         for i in self.start_indices(sentence, tokens.len(), use_anchor) {
             if let Some(m) = self.match_from(i, tokens) {
                 consumer(m);
@@ -331,18 +385,33 @@ impl<'r> Performer<'r> {
                 // up to the end of the sentence
                 prev_skip_next = n - (next_pos + 1);
             }
-            let max_tok = (next_pos + prev_skip_next).min(n - (pattern_size as i64 - k as i64) + self.min_occur_correction as i64);
+            let max_tok = (next_pos + prev_skip_next)
+                .min(n - (pattern_size as i64 - k as i64) + self.min_occur_correction as i64);
             let mut m = next_pos;
             while m <= max_tok {
                 if m < 0 || m >= n {
                     all_elements_match = false;
                     break;
                 }
-                all_elements_match = self.test_all_readings(tokens, k, k.checked_sub(1), m as usize, first_match_token, prev_skip_next);
+                all_elements_match = self.test_all_readings(
+                    tokens,
+                    k,
+                    k.checked_sub(1),
+                    m as usize,
+                    first_match_token,
+                    prev_skip_next,
+                );
                 if self.matchers[k].base.min_occurrence() == 0 {
                     let mut found_next = false;
                     for k2 in k + 1..pattern_size {
-                        let next_element_match = self.test_all_readings(tokens, k2, Some(k), m as usize, first_match_token, prev_skip_next);
+                        let next_element_match = self.test_all_readings(
+                            tokens,
+                            k2,
+                            Some(k),
+                            m as usize,
+                            first_match_token,
+                            prev_skip_next,
+                        );
                         if next_element_match {
                             all_elements_match = true;
                             min_occur_skip += 1;
@@ -361,7 +430,15 @@ impl<'r> Performer<'r> {
                     }
                 }
                 if all_elements_match {
-                    let skip_for_max = self.skip_max_tokens(tokens, k, k.checked_sub(1), first_match_token, prev_skip_next, m as usize, pattern_size - k - 1) as i64;
+                    let skip_for_max = self.skip_max_tokens(
+                        tokens,
+                        k,
+                        k.checked_sub(1),
+                        first_match_token,
+                        prev_skip_next,
+                        m as usize,
+                        pattern_size - k - 1,
+                    ) as i64;
                     last_match_token = m + skip_for_max;
                     let skip_shift = last_match_token - next_pos;
                     if matching_tokens < token_positions.len() {
@@ -387,7 +464,10 @@ impl<'r> Performer<'r> {
                 break;
             }
         }
-        let matched = all_elements_match && matching_tokens == pattern_size && self.test_unification() && first_match_token >= 0;
+        let matched = all_elements_match
+            && matching_tokens == pattern_size
+            && self.test_unification()
+            && first_match_token >= 0;
         if !matched {
             self.positions = token_positions;
             return None;
@@ -396,14 +476,24 @@ impl<'r> Performer<'r> {
             token_positions,
             first_match_token: first_match_token as usize,
             last_match_token: last_match_token as usize,
-            first_marker_match_token: (first_marker_match_token >= 0).then_some(first_marker_match_token as usize),
-            last_marker_match_token: (last_marker_match_token >= 0).then_some(last_marker_match_token as usize),
+            first_marker_match_token: (first_marker_match_token >= 0)
+                .then_some(first_marker_match_token as usize),
+            last_marker_match_token: (last_marker_match_token >= 0)
+                .then_some(last_marker_match_token as usize),
             unified_tokens: self.unified_tokens.take(),
         })
     }
 
     /// `testAllReadings`: does pattern element `k` accept `tokens[token_no]`?
-    fn test_all_readings(&mut self, tokens: &[&Readings], k: usize, prev: Option<usize>, token_no: usize, first_match_token: i64, prev_skip_next: i64) -> bool {
+    fn test_all_readings(
+        &mut self,
+        tokens: &[&Readings],
+        k: usize,
+        prev: Option<usize>,
+        token_no: usize,
+        first_match_token: i64,
+        prev_skip_next: i64,
+    ) -> bool {
         let token = tokens[token_no];
         if self.skip_immunized && token.immunized {
             return false;
@@ -417,11 +507,15 @@ impl<'r> Performer<'r> {
             let match_token = &token.readings[i];
             if !self.prev_matched && prev_skip_next > 0 {
                 if let Some(p) = prev {
-                    self.prev_matched = self.matchers[p].token().is_matched_by_scope_next_exception(match_token);
+                    self.prev_matched = self.matchers[p]
+                        .token()
+                        .is_matched_by_scope_next_exception(match_token);
                 }
             }
             if !self.prev_matched && prev_skip_next == 0 && token_no + 2 <= tokens.len() {
-                self.prev_matched = self.matchers[k].token().is_matched_by_scope_next_exception(&tokens[token_no + 1].readings[0]);
+                self.prev_matched = self.matchers[k]
+                    .token()
+                    .is_matched_by_scope_next_exception(&tokens[token_no + 1].readings[0]);
             }
             if self.prev_matched {
                 return false;
@@ -433,7 +527,9 @@ impl<'r> Performer<'r> {
                 any_matched = reading_matches;
                 reading_tested = true;
             }
-            if !any_matched && prev.is_none_or(|p| !self.matchers[p].base.has_current_or_next_exceptions()) {
+            if !any_matched
+                && prev.is_none_or(|p| !self.matchers[p].base.has_current_or_next_exceptions())
+            {
                 let elem = self.matchers[k].base;
                 if elem.pos_tag().is_none() {
                     if elem.inflected {
@@ -468,11 +564,19 @@ impl<'r> Performer<'r> {
                     return false;
                 }
             }
-            if token_no > 0 && self.matchers[k].token().has_previous_exception() && self.matchers[k].token().is_matched_by_previous_exception(tokens[token_no - 1]) {
+            if token_no > 0
+                && self.matchers[k].token().has_previous_exception()
+                && self.matchers[k]
+                    .token()
+                    .is_matched_by_previous_exception(tokens[token_no - 1])
+            {
                 return false;
             }
             if self.matchers[k].base.unification_neutral && collect {
-                self.neutral_readings.entry(self.matchers[k].key).or_default().push(token.clone());
+                self.neutral_readings
+                    .entry(self.matchers[k].key)
+                    .or_default()
+                    .push(token.clone());
             }
         }
         let elem = self.matchers[k].base;
@@ -485,7 +589,10 @@ impl<'r> Performer<'r> {
             }
         }
         if any_matched && collect && !readings_to_unify.is_empty() {
-            self.to_unify.entry(self.matchers[k].key).or_default().push(readings_to_unify);
+            self.to_unify
+                .entry(self.matchers[k].key)
+                .or_default()
+                .push(readings_to_unify);
         }
         any_matched
     }
@@ -504,8 +611,12 @@ impl<'r> Performer<'r> {
                 }
                 continue;
             }
-            let Some(reading_sets) = self.to_unify.get(&key) else { continue };
-            let Some(features) = &token.unification_features else { continue };
+            let Some(reading_sets) = self.to_unify.get(&key) else {
+                continue;
+            };
+            let Some(features) = &token.unification_features else {
+                continue;
+            };
             let last = reading_sets.len() - 1;
             for (si, readings) in reading_sets.iter().enumerate() {
                 let mut any_matched = false;
@@ -530,10 +641,23 @@ impl<'r> Performer<'r> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn skip_max_tokens(&mut self, tokens: &[&Readings], k: usize, prev: Option<usize>, first_match_token: i64, prev_skip_next: i64, m: usize, remaining_elems: usize) -> usize {
+    fn skip_max_tokens(
+        &mut self,
+        tokens: &[&Readings],
+        k: usize,
+        prev: Option<usize>,
+        first_match_token: i64,
+        prev_skip_next: i64,
+        m: usize,
+        remaining_elems: usize,
+    ) -> usize {
         let mut max_skip = 0;
         let max = self.matchers[k].base.max_occurrence;
-        let max_occurrences: usize = if max == -1 { usize::MAX } else { max.max(0) as usize };
+        let max_occurrences: usize = if max == -1 {
+            usize::MAX
+        } else {
+            max.max(0) as usize
+        };
         let mut j = 1;
         while j < max_occurrences && m + j + remaining_elems < tokens.len() {
             if self.test_all_readings(tokens, k, prev, m + j, first_match_token, prev_skip_next) {
@@ -556,7 +680,10 @@ mod tests {
         let rs: Vec<Reading> = if readings.is_empty() {
             vec![Reading::from_strs(token, None, None)]
         } else {
-            readings.iter().map(|(lemma, tag)| Reading::from_strs(token, Some(tag), Some(lemma))).collect()
+            readings
+                .iter()
+                .map(|(lemma, tag)| Reading::from_strs(token, Some(tag), Some(lemma)))
+                .collect()
         };
         let mut t = Readings::new(rs, start);
         if space_before {
@@ -568,7 +695,10 @@ mod tests {
     /// "Il a manger une pomme." with LanguageTool-like readings.
     fn sentence() -> Sentence {
         let text = "Il a manger une pomme.";
-        let mut tokens = vec![Readings::new(vec![Reading::from_strs("", Some("SENT_START"), None)], 0)];
+        let mut tokens = vec![Readings::new(
+            vec![Reading::from_strs("", Some("SENT_START"), None)],
+            0,
+        )];
         let specs: Vec<(&str, Vec<(&str, &str)>)> = vec![
             ("Il", vec![("il", "R pers suj 3 m s")]),
             ("a", vec![("avoir", "V avoir ind pres 3 s")]),
@@ -611,7 +741,8 @@ mod tests {
             return out;
         }
         let toks = s.non_ws_tokens();
-        Performer::new(&pattern, &lang, &cfg, true, None).do_match(&s, &toks, true, &mut |m| out.push(m));
+        Performer::new(&pattern, &lang, &cfg, true, None)
+            .do_match(&s, &toks, true, &mut |m| out.push(m));
         out
     }
 
@@ -623,7 +754,10 @@ mod tests {
         let m = run(vec![aux, pos("V inf", false)]);
         assert_eq!(m.len(), 1);
         assert_eq!((m[0].first_match_token, m[0].last_match_token), (2, 3));
-        assert_eq!((m[0].first_marker_match_token, m[0].last_marker_match_token), (Some(3), Some(3)));
+        assert_eq!(
+            (m[0].first_marker_match_token, m[0].last_marker_match_token),
+            (Some(3), Some(3))
+        );
         assert_eq!(m[0].token_positions, vec![1, 1]);
     }
 
@@ -640,7 +774,11 @@ mod tests {
         // an optional adverb between "a" and "manger"
         let mut adv = pos("A", false);
         adv.may_be_omitted = true;
-        let m = run(vec![tok("a", false, false), adv, tok("manger", false, false)]);
+        let m = run(vec![
+            tok("a", false, false),
+            adv,
+            tok("manger", false, false),
+        ]);
         assert_eq!(m.len(), 1);
         assert_eq!(m[0].token_positions, vec![1, 0, 1]);
     }
@@ -652,7 +790,10 @@ mod tests {
         assert_eq!(m.len(), 1);
         let m = run(vec![tok("pomme", false, false), pos("SENT_END", false)]);
         assert_eq!(m.len(), 1);
-        assert_eq!(m[0].last_match_token, 6, "the final period carries SENT_END");
+        assert_eq!(
+            m[0].last_match_token, 6,
+            "the final period carries SENT_END"
+        );
     }
 
     #[test]
@@ -676,7 +817,10 @@ mod tests {
         let pattern = TokenPattern::new(vec![Arc::new(tok("poire|banane", true, false))], false);
         assert!(pattern.can_be_ignored_for(&sentence()));
         let pattern = TokenPattern::new(vec![Arc::new(tok("être", false, true))], false);
-        assert!(pattern.can_be_ignored_for(&sentence()), "no form of être in the sentence");
+        assert!(
+            pattern.can_be_ignored_for(&sentence()),
+            "no form of être in the sentence"
+        );
         let pattern = TokenPattern::new(vec![Arc::new(tok("avoir", false, true))], false);
         assert!(!pattern.can_be_ignored_for(&sentence()));
     }
@@ -686,7 +830,11 @@ mod tests {
         // a noun phrase: determiner, then one to three tokens, then the period
         let mut any = tok(".*", true, false);
         any.max_occurrence = 3;
-        let m = run(vec![tok("manger", false, false), any, tok(".", false, false)]);
+        let m = run(vec![
+            tok("manger", false, false),
+            any,
+            tok(".", false, false),
+        ]);
         assert_eq!(m.len(), 1);
         assert_eq!(m[0].token_positions, vec![1, 2, 1]);
     }

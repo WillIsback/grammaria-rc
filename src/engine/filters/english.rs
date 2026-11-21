@@ -74,7 +74,9 @@ mod tests {
     impl WordTagger for English {
         fn tag_word(&self, word: &str) -> Readings {
             match word {
-                "make" => Readings::new(vec![Reading::from_strs(word, Some("VB"), Some("make"))], 0),
+                "make" => {
+                    Readings::new(vec![Reading::from_strs(word, Some("VB"), Some("make"))], 0)
+                }
                 "the" => Readings::new(vec![Reading::from_strs(word, Some("DT"), Some("the"))], 0),
                 _ => Readings::untagged(word, 0),
             }
@@ -87,16 +89,30 @@ mod tests {
         let tokens = s.non_ws_tokens();
         let accept = |filters: &FrenchFilters, a: &[(&str, &str)]| {
             IsEnglishWordFilter::new(filters.env.clone())
-                .accept(match_over(&s, 1, 2, ""), &args(a), 1, &tokens[1..], &[1, 1, 1], &s, &bare_context())
+                .accept(
+                    match_over(&s, 1, 2, ""),
+                    &args(a),
+                    1,
+                    &tokens[1..],
+                    &[1, 1, 1],
+                    &s,
+                    &bare_context(),
+                )
                 .is_some()
         };
         let without = FrenchFilters::new();
-        assert!(!accept(&without, &[("formPositions", "2")]), "no English tagger: never English");
+        assert!(
+            !accept(&without, &[("formPositions", "2")]),
+            "no English tagger: never English"
+        );
         let with = FrenchFilters::new();
         with.set_english_tagger(Arc::new(English));
         assert!(accept(&with, &[("formPositions", "2")]));
         assert!(accept(&with, &[("formPositions", "2"), ("postags", "VB")]));
         assert!(!accept(&with, &[("formPositions", "2"), ("postags", "NN")]));
-        assert!(!accept(&with, &[("formPositions", "2,3")]), "\"faire\" is not English");
+        assert!(
+            !accept(&with, &[("formPositions", "2,3")]),
+            "\"faire\" is not English"
+        );
     }
 }

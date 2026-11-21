@@ -66,7 +66,8 @@ pub(crate) use static_regex;
 macro_rules! tag_pattern {
     ($name:ident, $src:expr) => {
         fn $name() -> &'static crate::engine::filters::TagPattern {
-            static P: std::sync::OnceLock<crate::engine::filters::TagPattern> = std::sync::OnceLock::new();
+            static P: std::sync::OnceLock<crate::engine::filters::TagPattern> =
+                std::sync::OnceLock::new();
             P.get_or_init(|| crate::engine::filters::TagPattern::new($src))
         }
     };
@@ -90,13 +91,19 @@ impl TagPattern {
     pub(crate) fn new(src: &str) -> TagPattern {
         let regex = Regex::new(src, Flags::default()).expect("valid tag regex");
         let unknown = regex.is_full_match(UNKNOWN);
-        TagPattern { regex, unknown, cache: (0..TAG_CACHE).map(|_| AtomicU8::new(0)).collect() }
+        TagPattern {
+            regex,
+            unknown,
+            cache: (0..TAG_CACHE).map(|_| AtomicU8::new(0)).collect(),
+        }
     }
 
     /// Does the reading's tag match? A reading without a tag does not.
     #[inline]
     pub(crate) fn matches_tag(&self, r: &Reading) -> bool {
-        let (Some(tag), Some(text)) = (r.pos_tag, r.pos()) else { return false };
+        let (Some(tag), Some(text)) = (r.pos_tag, r.pos()) else {
+            return false;
+        };
         match self.cache.get(tag.id() as usize) {
             Some(slot) => match slot.load(Ordering::Relaxed) {
                 1 => false,
@@ -144,13 +151,34 @@ impl TagPattern {
 /// match.getShortMessage())`: a match rebuilt from its message. Its
 /// suggestions are those written in the message, in the case they were
 /// written in.
-pub(crate) fn rebuilt_match(m: &RuleMatch, sentence: &Sentence, from: usize, to: usize, message: String) -> RuleMatch {
-    RuleMatch::new(m.rule, &sentence.text, from, to, from, to, message, m.short_message.clone(), false, false, "")
+pub(crate) fn rebuilt_match(
+    m: &RuleMatch,
+    sentence: &Sentence,
+    from: usize,
+    to: usize,
+    message: String,
+) -> RuleMatch {
+    RuleMatch::new(
+        m.rule,
+        &sentence.text,
+        from,
+        to,
+        from,
+        to,
+        message,
+        m.short_message.clone(),
+        false,
+        false,
+        "",
+    )
 }
 
 /// `Integer.parseInt`.
 pub(crate) fn parse_int(s: &str) -> Option<i64> {
-    let digits = s.strip_prefix('-').or_else(|| s.strip_prefix('+')).unwrap_or(s);
+    let digits = s
+        .strip_prefix('-')
+        .or_else(|| s.strip_prefix('+'))
+        .unwrap_or(s);
     if digits.is_empty() || !digits.chars().all(|c| c.is_ascii_digit()) {
         return None;
     }
@@ -161,7 +189,12 @@ pub(crate) fn parse_int(s: &str) -> Option<i64> {
 /// their arguments: a number, or `marker`, `marker1`, `marker-1`... relative
 /// to the first token of the match. `skip_sentence_start` is the variant of
 /// `RuleFilter.getPosition`. Returns the 0-based index.
-pub(crate) fn token_position(from: &str, pattern_tokens: &[&Readings], m: &RuleMatch, skip_sentence_start: bool) -> Option<usize> {
+pub(crate) fn token_position(
+    from: &str,
+    pattern_tokens: &[&Readings],
+    m: &RuleMatch,
+    skip_sentence_start: bool,
+) -> Option<usize> {
     let position: i64 = if let Some(offset) = from.strip_prefix("marker") {
         let mut i = 0usize;
         loop {
@@ -236,9 +269,16 @@ impl FilterEnv {
     pub(crate) fn today(&self) -> Today {
         let packed = self.today.load(Ordering::Relaxed);
         if packed != 0 {
-            return Today { year: packed / 10000, month: (packed / 100 % 100) as u32, day: (packed % 100) as u32 };
+            return Today {
+                year: packed / 10000,
+                month: (packed / 100 % 100) as u32,
+                day: (packed % 100) as u32,
+            };
         }
-        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
         dates::civil_from_days(secs.div_euclid(86_400))
     }
 }
@@ -271,8 +311,12 @@ impl FrenchFilters {
     pub fn filter(&self, class: &str) -> Option<Arc<dyn RuleFilter>> {
         let env = || self.env.clone();
         let filter: Arc<dyn RuleFilter> = match class.rsplit('.').next().unwrap_or(class) {
-            "WordWithDeterminerFilter" => Arc::new(determiner::WordWithDeterminerFilter::new(env())),
-            "PostponedAdjectiveConcordanceFilter" => Arc::new(postponed_adjective::PostponedAdjectiveConcordanceFilter),
+            "WordWithDeterminerFilter" => {
+                Arc::new(determiner::WordWithDeterminerFilter::new(env()))
+            }
+            "PostponedAdjectiveConcordanceFilter" => {
+                Arc::new(postponed_adjective::PostponedAdjectiveConcordanceFilter)
+            }
             "SuggestionsFilter" => Arc::new(suggestions::SuggestionsFilter),
             "AdvancedSynthesizerFilter" => Arc::new(synthesizer::AdvancedSynthesizerFilter),
             "InterrogativeVerbFilter" => Arc::new(interrogative::InterrogativeVerbFilter),
@@ -280,7 +324,9 @@ impl FrenchFilters {
             "NewYearDateFilter" => Arc::new(dates::NewYearDateFilter::new(env())),
             "FrenchNumberInWordFilter" => Arc::new(number_in_word::FrenchNumberInWordFilter),
             "MakeContractionsFilter" => Arc::new(contractions::MakeContractionsFilter),
-            "SuppressIfAnyRuleMatchesFilter" => Arc::new(suppress::SuppressIfAnyRuleMatchesFilter::new(env())),
+            "SuppressIfAnyRuleMatchesFilter" => {
+                Arc::new(suppress::SuppressIfAnyRuleMatchesFilter::new(env()))
+            }
             "IsEnglishWordFilter" => Arc::new(english::IsEnglishWordFilter::new(env())),
             _ => return None,
         };
@@ -302,8 +348,12 @@ impl FrenchFilters {
     pub fn set_rules(&self, rules: &[GrammarRule]) {
         let mut wanted: Vec<&str> = determiner::RULES_TO_CHECK.to_vec();
         for rule in rules {
-            let GrammarRule::Pattern(p) = rule else { continue };
-            let Some(args) = p.rule.filter_args.as_deref() else { continue };
+            let GrammarRule::Pattern(p) = rule else {
+                continue;
+            };
+            let Some(args) = p.rule.filter_args.as_deref() else {
+                continue;
+            };
             for arg in args.split_whitespace() {
                 if let Some(ids) = arg.strip_prefix("ruleIDs:") {
                     wanted.extend(ids.split(','));
@@ -316,8 +366,16 @@ impl FrenchFilters {
                 GrammarRule::Pattern(p) => Some(p),
                 GrammarRule::Regex(_) => None,
             })
-            .filter(|p| is_active(p) && (p.info.category_id == determiner::CATEGORY_TO_CHECK || wanted.contains(&p.info.id.as_str())))
-            .map(|p| PatternRule { info: p.info.clone(), rule: p.rule.clone(), anti_patterns: p.anti_patterns.clone() })
+            .filter(|p| {
+                is_active(p)
+                    && (p.info.category_id == determiner::CATEGORY_TO_CHECK
+                        || wanted.contains(&p.info.id.as_str()))
+            })
+            .map(|p| PatternRule {
+                info: p.info.clone(),
+                rule: p.rule.clone(),
+                anti_patterns: p.anti_patterns.clone(),
+            })
             .collect();
         let _ = self.env.rules.set(kept);
     }
@@ -331,7 +389,9 @@ impl FrenchFilters {
 
     /// Fix the current date (tests); `None` goes back to the system clock.
     pub fn set_today(&self, today: Option<Today>) {
-        let packed = today.map(|t| t.year * 10000 + t.month as i64 * 100 + t.day as i64).unwrap_or(0);
+        let packed = today
+            .map(|t| t.year * 10000 + t.month as i64 * 100 + t.day as i64)
+            .unwrap_or(0);
         self.env.today.store(packed, Ordering::Relaxed);
     }
 }
@@ -358,17 +418,32 @@ pub(crate) mod testing {
         let mut lang = Lang::default();
         lang.synthesizer = Some(Arc::new(FrenchSynthesizer::load(dir).ok()?));
         lang.tagger = Some(Arc::new(SimpleDictTagger::load(dir).ok()?));
-        Some(RuleContext { lang, unifier: UnifierConfiguration::default(), disambig_unifier: UnifierConfiguration::default() })
+        Some(RuleContext {
+            lang,
+            unifier: UnifierConfiguration::default(),
+            disambig_unifier: UnifierConfiguration::default(),
+        })
     }
 
     pub(crate) fn bare_context() -> RuleContext {
-        RuleContext { lang: Lang::default(), unifier: UnifierConfiguration::default(), disambig_unifier: UnifierConfiguration::default() }
+        RuleContext {
+            lang: Lang::default(),
+            unifier: UnifierConfiguration::default(),
+            disambig_unifier: UnifierConfiguration::default(),
+        }
     }
 
     /// A sentence from `(token, [(tag, lemma)])` pairs, separated by spaces
     /// unless the previous token ends with an apostrophe.
     pub(crate) fn sentence(words: &[(&str, &[(&str, &str)])]) -> Sentence {
-        let mut tokens = vec![Readings::new(vec![Reading::from_strs("", Some(crate::engine::token::SENTENCE_START), None)], 0)];
+        let mut tokens = vec![Readings::new(
+            vec![Reading::from_strs(
+                "",
+                Some(crate::engine::token::SENTENCE_START),
+                None,
+            )],
+            0,
+        )];
         let mut text = String::new();
         for (i, (word, readings)) in words.iter().enumerate() {
             let mut space: Option<Readings> = None;
@@ -379,7 +454,10 @@ pub(crate) mod testing {
             let list: Vec<Reading> = if readings.is_empty() {
                 vec![Reading::from_strs(word, None, None)]
             } else {
-                readings.iter().map(|(tag, lemma)| Reading::from_strs(word, Some(tag), Some(lemma))).collect()
+                readings
+                    .iter()
+                    .map(|(tag, lemma)| Reading::from_strs(word, Some(tag), Some(lemma)))
+                    .collect()
             };
             let mut t = Readings::new(list, text.len());
             if let Some(sp) = space {
@@ -398,11 +476,26 @@ pub(crate) mod testing {
 
     /// A match over the non-whitespace tokens `from..=to` of `s`.
     pub(crate) fn match_over(s: &Sentence, from: usize, to: usize, message: &str) -> RuleMatch {
-        RuleMatch::new(0, &s.text, s.tok(from).start_pos, s.tok(to).end_pos(), s.tok(from).start_pos, s.tok(to).end_pos(), message.to_string(), String::new(), false, false, "")
+        RuleMatch::new(
+            0,
+            &s.text,
+            s.tok(from).start_pos,
+            s.tok(to).end_pos(),
+            s.tok(from).start_pos,
+            s.tok(to).end_pos(),
+            message.to_string(),
+            String::new(),
+            false,
+            false,
+            "",
+        )
     }
 
     pub(crate) fn args(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 }
 
@@ -430,7 +523,9 @@ mod tests {
             assert!(f.filter(class).is_some(), "{class}");
         }
         // The speller-based filters are ported elsewhere.
-        assert!(f.filter("org.languagetool.rules.fr.FindSuggestionsFilter").is_none());
+        assert!(f
+            .filter("org.languagetool.rules.fr.FindSuggestionsFilter")
+            .is_none());
         assert!(french_filter("SuggestionsFilter").is_some());
     }
 
@@ -440,7 +535,10 @@ mod tests {
         let unknown = Readings::untagged("xyz", 0);
         assert!(p.matches(&unknown));
         assert!(!p.matches_tagged(&unknown));
-        let noun = Readings::new(vec![Reading::from_strs("chat", Some("N m s"), Some("chat"))], 0);
+        let noun = Readings::new(
+            vec![Reading::from_strs("chat", Some("N m s"), Some("chat"))],
+            0,
+        );
         assert!(p.matches(&noun) && p.matches_tagged(&noun));
         assert_eq!(p.find(&noun).and_then(|r| r.pos()), Some("N m s"));
         assert!(!TagPattern::new("J .*").matches(&noun));
@@ -453,8 +551,14 @@ mod tests {
         let pattern_tokens = &tokens[1..];
         let m = match_over(&s, 2, 3, "");
         assert_eq!(token_position("marker", pattern_tokens, &m, false), Some(1));
-        assert_eq!(token_position("marker1", pattern_tokens, &m, false), Some(2));
-        assert_eq!(token_position("marker-1", pattern_tokens, &m, true), Some(0));
+        assert_eq!(
+            token_position("marker1", pattern_tokens, &m, false),
+            Some(2)
+        );
+        assert_eq!(
+            token_position("marker-1", pattern_tokens, &m, true),
+            Some(0)
+        );
         assert_eq!(token_position("3", pattern_tokens, &m, false), Some(2));
         assert_eq!(token_position("4", pattern_tokens, &m, false), None);
         assert_eq!(token_position("marker2", pattern_tokens, &m, false), None);
@@ -463,8 +567,19 @@ mod tests {
     #[test]
     fn today_can_be_fixed() {
         let f = FrenchFilters::new();
-        f.set_today(Some(Today { year: 2014, month: 1, day: 15 }));
-        assert_eq!(f.env.today(), Today { year: 2014, month: 1, day: 15 });
+        f.set_today(Some(Today {
+            year: 2014,
+            month: 1,
+            day: 15,
+        }));
+        assert_eq!(
+            f.env.today(),
+            Today {
+                year: 2014,
+                month: 1,
+                day: 15
+            }
+        );
         f.set_today(None);
         assert!(f.env.today().year >= 2024);
     }

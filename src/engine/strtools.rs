@@ -21,7 +21,11 @@ fn is_letter_unit(c: char) -> bool {
 /// `Character.isSpaceChar`: the Unicode space, line and paragraph separators.
 #[inline]
 pub fn java_is_space_char(c: char) -> bool {
-    matches!(c, ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+    matches!(
+        c,
+        ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}'
+    )
 }
 
 /// What `\b` takes for a word character in a Java pattern (see
@@ -49,7 +53,9 @@ pub fn is_whitespace(s: &str) -> bool {
         return true;
     }
     let mut it = trimmed.chars();
-    let (Some(c), None) = (it.next(), it.next()) else { return false };
+    let (Some(c), None) = (it.next(), it.next()) else {
+        return false;
+    };
     if s == "\u{200b}" || s == "\u{a0}" || s == "\u{202f}" {
         return true;
     }
@@ -59,8 +65,10 @@ pub fn is_whitespace(s: &str) -> bool {
 /// `Character.isWhitespace`: Unicode space separators except the non-breaking
 /// ones, plus the ASCII control separators.
 pub fn java_is_whitespace(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | '\u{1c}'..='\u{1f}')
-        || (matches!(c, ' ' | '\u{1680}' | '\u{2000}'..='\u{2006}' | '\u{2008}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{205f}' | '\u{3000}'))
+    matches!(
+        c,
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | '\u{1c}'..='\u{1f}'
+    ) || (matches!(c, ' ' | '\u{1680}' | '\u{2000}'..='\u{2006}' | '\u{2008}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{205f}' | '\u{3000}'))
 }
 
 /// `StringTools.isAllUppercase`: no lowercase letter (a string without
@@ -79,7 +87,9 @@ pub fn is_not_all_lowercase(s: &str) -> bool {
 pub fn is_capitalized_word(s: &str) -> bool {
     let mut it = s.chars();
     match it.next() {
-        Some(c) if c.is_uppercase() && (c as u32) < 0x10000 => it.all(|c| !(is_letter_unit(c) && !c.is_lowercase())),
+        Some(c) if c.is_uppercase() && (c as u32) < 0x10000 => {
+            it.all(|c| !(is_letter_unit(c) && !c.is_lowercase()))
+        }
         _ => false,
     }
 }
@@ -122,7 +132,11 @@ fn change_first_char_case(s: &str, upper: bool) -> String {
         return String::new();
     }
     if chars.len() == 1 {
-        return if upper { s.to_uppercase() } else { s.to_lowercase() };
+        return if upper {
+            s.to_uppercase()
+        } else {
+            s.to_lowercase()
+        };
     }
     let mut pos = 0;
     let len = chars.len() - 1;
@@ -131,7 +145,11 @@ fn change_first_char_case(s: &str, upper: bool) -> String {
     }
     let mut out = String::with_capacity(s.len());
     out.extend(&chars[..pos]);
-    out.push(if upper { upper_char(chars[pos]) } else { lower_char(chars[pos]) });
+    out.push(if upper {
+        upper_char(chars[pos])
+    } else {
+        lower_char(chars[pos])
+    });
     out.extend(&chars[pos + 1..]);
     out
 }
@@ -221,8 +239,10 @@ pub fn is_emoji(s: &str) -> bool {
         return false;
     }
     static WORD_FOR_SPELLER: std::sync::OnceLock<crate::re::Regex> = std::sync::OnceLock::new();
-    let re = WORD_FOR_SPELLER
-        .get_or_init(|| crate::re::Regex::new("^[\\p{L}\\d\\p{P}\\p{Zs}]+$", crate::re::Flags::default()).expect("valid pattern"));
+    let re = WORD_FOR_SPELLER.get_or_init(|| {
+        crate::re::Regex::new("^[\\p{L}\\d\\p{P}\\p{Zs}]+$", crate::re::Flags::default())
+            .expect("valid pattern")
+    });
     !re.is_full_match(s)
 }
 
@@ -273,7 +293,10 @@ mod tests {
         assert!(is_whitespace("  \t"));
         assert!(!is_whitespace("a"));
         assert!(!is_whitespace("\u{1}"));
-        assert!(!is_whitespace("\u{2009}\u{2009}"), "two thin spaces are not trimmed by Java");
+        assert!(
+            !is_whitespace("\u{2009}\u{2009}"),
+            "two thin spaces are not trimmed by Java"
+        );
         assert!(is_whitespace("\u{2009}"));
     }
 
@@ -290,16 +313,31 @@ mod tests {
         assert_eq!(uppercase_first_char("école"), "École");
         assert_eq!(uppercase_first_char("«école"), "«École");
         assert_eq!(lowercase_first_char("École"), "école");
-        assert_eq!(convert_to_title_case_iterating_chars("jean-pierre"), "Jean-Pierre");
-        assert_eq!(convert_to_title_case_iterating_chars("l'homme DE fer"), "L'homme De Fer");
-        assert_eq!(convert_to_title_case_iterating_chars("ÉTATS-UNIS"), "États-Unis");
+        assert_eq!(
+            convert_to_title_case_iterating_chars("jean-pierre"),
+            "Jean-Pierre"
+        );
+        assert_eq!(
+            convert_to_title_case_iterating_chars("l'homme DE fer"),
+            "L'homme De Fer"
+        );
+        assert_eq!(
+            convert_to_title_case_iterating_chars("ÉTATS-UNIS"),
+            "États-Unis"
+        );
         assert_eq!(preserve_case("chat", "Chien"), "Chat");
         assert_eq!(preserve_case("chat", "CHIEN"), "CHAT");
         assert!(is_emoji("😂"));
         assert!(is_emoji("a😂"));
         assert!(!is_emoji("❤\u{fe0f}"), "no char outside the BMP");
         assert!(!is_emoji("𝒶"), "a letter outside the BMP is not an emoji");
-        assert!(is_letter('é') && is_letter('ª') && !is_letter('Ⅷ') && !is_letter('ⓐ') && !is_letter('1'));
+        assert!(
+            is_letter('é')
+                && is_letter('ª')
+                && !is_letter('Ⅷ')
+                && !is_letter('ⓐ')
+                && !is_letter('1')
+        );
         assert!(equals_ignore_case("École", "éCOLE"));
         assert!(!equals_ignore_case("a", "à"));
     }

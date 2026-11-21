@@ -21,7 +21,12 @@ pub trait NativeRule: Send + Sync {
     fn info(&self) -> &RuleInfo;
 
     /// Matches in one sentence, with byte positions relative to the sentence.
-    fn match_sentence(&self, _rule: usize, _sentence: &Sentence, _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        _rule: usize,
+        _sentence: &Sentence,
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         Vec::new()
     }
 
@@ -31,7 +36,12 @@ pub trait NativeRule: Send + Sync {
         false
     }
 
-    fn match_text(&self, _rule: usize, _sentences: &[Sentence], _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_text(
+        &self,
+        _rule: usize,
+        _sentences: &[Sentence],
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         Vec::new()
     }
 
@@ -57,7 +67,12 @@ impl CheckRule {
         }
     }
 
-    fn match_sentence(&self, index: usize, sentence: &Sentence, ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        index: usize,
+        sentence: &Sentence,
+        ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         match self {
             CheckRule::Pattern(r) => r.match_sentence(index, sentence, ctx),
             CheckRule::Regex(r) => r.match_sentence(index, sentence),
@@ -118,14 +133,25 @@ impl RuleIndex {
             let position = position as u32;
             let hint = match &rules[i] {
                 // Any hint is a necessary condition: take the most selective.
-                CheckRule::Pattern(r) => r.rule.pattern.token_hints.iter().min_by_key(|h| h.lower_case_values.len()),
+                CheckRule::Pattern(r) => r
+                    .rule
+                    .pattern
+                    .token_hints
+                    .iter()
+                    .min_by_key(|h| h.lower_case_values.len()),
                 _ => None,
             };
             match hint {
                 Some(h) => {
-                    let map = if h.inflected { &mut index.by_lemma } else { &mut index.by_token };
+                    let map = if h.inflected {
+                        &mut index.by_lemma
+                    } else {
+                        &mut index.by_token
+                    };
                     for value in &h.lower_case_values {
-                        map.entry(Box::from(value.as_str())).or_default().push(position);
+                        map.entry(Box::from(value.as_str()))
+                            .or_default()
+                            .push(position);
                     }
                 }
                 None => index.unhinted.push(position),
@@ -154,7 +180,9 @@ impl RuleIndex {
                 }
             }
         }
-        (0..n_rules as u32).filter(|&p| wanted[p as usize]).collect()
+        (0..n_rules as u32)
+            .filter(|&p| wanted[p as usize])
+            .collect()
     }
 }
 
@@ -174,10 +202,24 @@ impl Checker {
     /// `rules` in LanguageTool's order: native rules, then the rule files.
     /// The rules LanguageTool runs at its default level are active.
     pub fn new(rules: Vec<CheckRule>, ctx: RuleContext) -> Checker {
-        let priority: Vec<i32> = rules.iter().map(|r| french::rule_priority(r.info())).collect();
-        let picky: Vec<bool> = rules.iter().map(|r| r.info().tags.iter().any(|t| t == "picky")).collect();
-        let mut checker =
-            Checker { rules, ctx, active: Vec::new(), priority, picky, text_rules: Vec::new(), sentence_rules: Vec::new(), index: RuleIndex::default() };
+        let priority: Vec<i32> = rules
+            .iter()
+            .map(|r| french::rule_priority(r.info()))
+            .collect();
+        let picky: Vec<bool> = rules
+            .iter()
+            .map(|r| r.info().tags.iter().any(|t| t == "picky"))
+            .collect();
+        let mut checker = Checker {
+            rules,
+            ctx,
+            active: Vec::new(),
+            priority,
+            picky,
+            text_rules: Vec::new(),
+            sentence_rules: Vec::new(),
+            index: RuleIndex::default(),
+        };
         checker.select(|_, by_default| by_default);
         checker
     }
@@ -185,7 +227,10 @@ impl Checker {
     /// Choose the rules that report: `keep(rule, active by default)`.
     pub fn select(&mut self, keep: impl Fn(&RuleInfo, bool) -> bool) {
         let rules = &self.rules;
-        let active: Vec<bool> = rules.iter().map(|r| keep(r.info(), is_active_by_default(r.info()))).collect();
+        let active: Vec<bool> = rules
+            .iter()
+            .map(|r| keep(r.info(), is_active_by_default(r.info())))
+            .collect();
         let mut text_rules: Vec<TextRule> = Vec::new();
         let mut repeated: Vec<(String, Vec<usize>)> = Vec::new();
         let mut group_of: HashMap<String, usize> = HashMap::new();
@@ -218,7 +263,11 @@ impl Checker {
                 }
             }
         }
-        text_rules.extend(repeated.into_iter().map(|(_, members)| TextRule::Repeated(members)));
+        text_rules.extend(
+            repeated
+                .into_iter()
+                .map(|(_, members)| TextRule::Repeated(members)),
+        );
         self.index = RuleIndex::build(rules, &sentence_rules);
         self.active = active;
         self.text_rules = text_rules;
@@ -272,7 +321,9 @@ impl Checker {
         for text_rule in &self.text_rules {
             match text_rule {
                 TextRule::Native(i) => {
-                    let CheckRule::Native(rule) = &self.rules[*i] else { continue };
+                    let CheckRule::Native(rule) = &self.rules[*i] else {
+                        continue;
+                    };
                     for m in rule.match_text(*i, sentences, &self.ctx) {
                         if sentences.is_empty() {
                             continue;
@@ -307,7 +358,9 @@ impl Checker {
                         });
                     }
                 }
-                TextRule::Repeated(members) => self.repeated(members, sentences, &found_in, &mut all),
+                TextRule::Repeated(members) => {
+                    self.repeated(members, sentences, &found_in, &mut all)
+                }
             }
         }
         for (si, sentence) in sentences.iter().enumerate() {
@@ -331,7 +384,13 @@ impl Checker {
     }
 
     /// `RepeatedPatternRule.match`.
-    fn repeated(&self, members: &[usize], sentences: &[Sentence], found_in: &dyn Fn(RuleMatch, usize) -> Found, out: &mut Vec<Found>) {
+    fn repeated(
+        &self,
+        members: &[usize],
+        sentences: &[Sentence],
+        found_in: &dyn Fn(RuleMatch, usize) -> Found,
+        out: &mut Vec<Found>,
+    ) {
         const DEFAULT_MAX_DISTANCE_TOKENS: i32 = 60;
         let mut offset_tokens = 0usize;
         let mut prev_from_token = 0usize;
@@ -350,7 +409,9 @@ impl Checker {
                 let m = sentence_matches[i].clone();
                 while i + 1 < sentence_matches.len() && {
                     let next = &sentence_matches[i + 1];
-                    m.from_pos <= next.to_pos && m.to_pos >= next.from_pos && self.info(m.rule).id == self.info(next.rule).id
+                    m.from_pos <= next.to_pos
+                        && m.to_pos >= next.from_pos
+                        && self.info(m.rule).id == self.info(next.rule).id
                 } {
                     i += 1;
                 }
@@ -402,7 +463,9 @@ impl Checker {
             let mut j = i;
             while j + 1 < matches.len() && {
                 let next = &matches[j + 1];
-                m.from <= next.to && m.to >= next.from && self.info(m.rule).id == self.info(next.rule).id
+                m.from <= next.to
+                    && m.to >= next.from
+                    && self.info(m.rule).id == self.info(next.rule).id
             } {
                 j += 1;
             }
@@ -423,8 +486,11 @@ impl Checker {
                 continue;
             };
             let mut duplicate_suggestion = false;
-            if let (Some(suggestion), Some(prev_suggestion)) = (m.suggestions.first(), p.suggestions.first()) {
-                if m.from == p.to && prev_suggestion.ends_with(',') && suggestion.starts_with(", ") {
+            if let (Some(suggestion), Some(prev_suggestion)) =
+                (m.suggestions.first(), p.suggestions.first())
+            {
+                if m.from == p.to && prev_suggestion.ends_with(',') && suggestion.starts_with(", ")
+                {
                     duplicate_suggestion = true;
                 }
                 let inner_space = |s: &str| s.find(' ').is_some_and(|i| i > 0);

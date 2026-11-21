@@ -10,9 +10,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::disambig::{DisambigAction, DisambigRule};
-use super::pattern::{CaseConversion, ChunkTagPattern, IncludeRange, Match, PatternToken, PosToken, StringMatcher, UniFeatures};
+use super::pattern::{
+    CaseConversion, ChunkTagPattern, IncludeRange, Match, PatternToken, PosToken, StringMatcher,
+    UniFeatures,
+};
 use super::performer::TokenPattern;
-use super::rule::{FilterRef, PatternRule, RegexRule, RuleFilter, RuleInfo, TokenRule, PLEASE_SPELL_ME};
+use super::rule::{
+    FilterRef, PatternRule, RegexRule, RuleFilter, RuleInfo, TokenRule, PLEASE_SPELL_ME,
+};
 use super::token::{Reading, Tag};
 use super::unifier::UnifierConfiguration;
 use crate::re::{self, Flags};
@@ -39,7 +44,10 @@ impl GrammarRule {
 type Attrs = Vec<(String, String)>;
 
 fn attr<'a>(attrs: &'a Attrs, name: &str) -> Option<&'a str> {
-    attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+    attrs
+        .iter()
+        .find(|(n, _)| n == name)
+        .map(|(_, v)| v.as_str())
 }
 
 fn yes(attrs: &Attrs, name: &str) -> bool {
@@ -123,7 +131,11 @@ fn has_posix_character_class(s: &str) -> bool {
 
 impl Common {
     fn new() -> Common {
-        Common { min_occurrence: 1, max_occurrence: 1, ..Default::default() }
+        Common {
+            min_occurrence: 1,
+            max_occurrence: 1,
+            ..Default::default()
+        }
     }
 
     fn intern_matcher(&mut self, text: &str, regexp: bool, case_sensitive: bool) -> StringMatcher {
@@ -236,7 +248,11 @@ impl Common {
     fn finalize_exceptions(&mut self) {
         self.in_exception = false;
         if !self.exception_set {
-            let token_case = if self.token_level_case_set { self.token_level_case_sensitive } else { self.case_sensitive };
+            let token_case = if self.token_level_case_set {
+                self.token_level_case_sensitive
+            } else {
+                self.case_sensitive
+            };
             let text = self.elements.trim().to_string();
             let m = self.intern_matcher(&text, self.reg_expression, token_case);
             self.pattern_token = Some(PatternToken::new(self.token_inflected, m));
@@ -250,7 +266,11 @@ impl Common {
             if has_posix_character_class(&self.exceptions) {
                 self.exception_level_case_sensitive = Some(true);
             }
-            let token_cs = self.pattern_token.as_ref().map(|t| t.is_case_sensitive()).unwrap_or(false);
+            let token_cs = self
+                .pattern_token
+                .as_ref()
+                .map(|t| t.is_case_sensitive())
+                .unwrap_or(false);
             let case_sensitive = self.exception_level_case_sensitive.unwrap_or(token_cs);
             let text = self.exceptions.trim().to_string();
             let m = self.intern_matcher(&text, self.exception_string_regexp, case_sensitive);
@@ -259,8 +279,16 @@ impl Common {
             // `obtainPosToken(null, ...)` still yields a PosToken, whose
             // negation flag then applies to "no tag condition".
             exception.pos = Some(match self.exception_pos_token.clone() {
-                Some(p) => self.obtain_pos_token(&p, self.exception_pos_regexp, self.exception_pos_negation),
-                None => Arc::new(PosToken::new(None, self.exception_pos_regexp, self.exception_pos_negation)),
+                Some(p) => self.obtain_pos_token(
+                    &p,
+                    self.exception_pos_regexp,
+                    self.exception_pos_negation,
+                ),
+                None => Arc::new(PosToken::new(
+                    None,
+                    self.exception_pos_regexp,
+                    self.exception_pos_negation,
+                )),
             });
             let (next, prev) = (self.exception_valid_next, self.exception_valid_prev);
             if let Some(t) = self.pattern_token.as_mut() {
@@ -292,7 +320,10 @@ impl Common {
         } else {
             let (cs, re) = {
                 let t = self.pattern_token.as_ref().unwrap();
-                (t.is_case_sensitive() || has_posix_character_class(&self.elements), t.text.is_regexp)
+                (
+                    t.is_case_sensitive() || has_posix_character_class(&self.elements),
+                    t.text.is_regexp,
+                )
             };
             let m = self.intern_matcher(&text, re, cs);
             self.pattern_token.as_mut().unwrap().set_text_matcher(m);
@@ -369,10 +400,14 @@ impl Common {
             yes(attrs, "postag_regexp"),
             attr(attrs, "regexp_match"),
             attr(attrs, "regexp_replace"),
-            attr(attrs, "case_conversion").map(CaseConversion::parse).unwrap_or(CaseConversion::None),
+            attr(attrs, "case_conversion")
+                .map(CaseConversion::parse)
+                .unwrap_or(CaseConversion::None),
             yes(attrs, "setpos"),
             suppress_misspelled,
-            attr(attrs, "include_skipped").map(IncludeRange::parse).unwrap_or(IncludeRange::None),
+            attr(attrs, "include_skipped")
+                .map(IncludeRange::parse)
+                .unwrap_or(IncludeRange::None),
         )
     }
 
@@ -412,7 +447,17 @@ impl Common {
         while i < chars.len() {
             if chars[i] == '\\' && chars.get(i + 1).is_some_and(|c| c.is_ascii_digit()) {
                 if i == 0 || chars[i - 1] != '\u{1}' {
-                    let mut m = Match::new(None, None, false, None, None, CaseConversion::None, false, false, IncludeRange::None);
+                    let mut m = Match::new(
+                        None,
+                        None,
+                        false,
+                        None,
+                        None,
+                        CaseConversion::None,
+                        false,
+                        false,
+                        IncludeRange::None,
+                    );
                     m.in_message_only = true;
                     sug.push(m);
                 } else if let Some(m) = existing.get(match_counter) {
@@ -424,7 +469,12 @@ impl Common {
             i += 1;
         }
         if !removals.is_empty() {
-            *message = chars.iter().enumerate().filter(|(i, _)| !removals.contains(i)).map(|(_, c)| *c).collect();
+            *message = chars
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !removals.contains(i))
+                .map(|(_, c)| *c)
+                .collect();
         }
         if sug.is_empty() {
             existing
@@ -446,15 +496,20 @@ impl Common {
             }
         }
         if let Some(id) = self.phrase_id.clone() {
-            self.phrase_map.insert(id, self.phrase_pattern_tokens.clone());
+            self.phrase_map
+                .insert(id, self.phrase_pattern_tokens.clone());
         }
         self.pattern_tokens.clear();
         self.phrase_pattern_tokens.clear();
     }
 
     fn prepare_phrase(&mut self, attrs: &Attrs) {
-        let Some(idref) = attr(attrs, "idref") else { return };
-        let Some(phrases) = self.phrase_map.get(idref).cloned() else { return };
+        let Some(idref) = attr(attrs, "idref") else {
+            return;
+        };
+        let Some(phrases) = self.phrase_map.get(idref).cloned() else {
+            return;
+        };
         for cur in phrases {
             let mut copy = cur;
             for t in &mut copy {
@@ -479,7 +534,10 @@ impl Common {
                 if let Some(mut r) = t.token_reference.clone() {
                     let tok_ref = r.token_ref;
                     r.token_ref = tok_ref + counter - 1;
-                    let s = t.string().replace(&format!("\\{tok_ref}"), &format!("\\{}", tok_ref + counter - 1));
+                    let s = t.string().replace(
+                        &format!("\\{tok_ref}"),
+                        &format!("\\{}", tok_ref + counter - 1),
+                    );
                     t.token_reference = Some(r);
                     t.set_string_element(&s);
                 }
@@ -488,7 +546,11 @@ impl Common {
     }
 }
 
-fn make_filter(class: Option<&str>, args: Option<&str>, factory: FilterFactory) -> (Option<FilterRef>, Option<String>) {
+fn make_filter(
+    class: Option<&str>,
+    args: Option<&str>,
+    factory: FilterFactory,
+) -> (Option<FilterRef>, Option<String>) {
     match (class, args) {
         (Some(class), Some(args)) => {
             let short = class.rsplit('.').next().unwrap_or(class);
@@ -504,7 +566,13 @@ fn make_filter(class: Option<&str>, args: Option<&str>, factory: FilterFactory) 
 
 /// Load a grammar file (`PatternRuleHandler`). `<unification>` definitions
 /// are added to `unifier`.
-pub fn load_grammar(xml: &str, source_file: &str, is_style_file: bool, factory: FilterFactory, unifier: &mut UnifierConfiguration) -> Vec<GrammarRule> {
+pub fn load_grammar(
+    xml: &str,
+    source_file: &str,
+    is_style_file: bool,
+    factory: FilterFactory,
+    unifier: &mut UnifierConfiguration,
+) -> Vec<GrammarRule> {
     let mut h = GrammarHandler {
         c: Common::new(),
         rules: Vec::new(),
@@ -572,7 +640,11 @@ pub fn load_grammar(xml: &str, source_file: &str, is_style_file: bool, factory: 
     let mut parser = Parser::new(xml);
     loop {
         match parser.next_event() {
-            Event::Start { name, attrs, self_closing } => {
+            Event::Start {
+                name,
+                attrs,
+                self_closing,
+            } => {
                 h.start(&name, &attrs);
                 if self_closing {
                     h.end(&name, factory, unifier);
@@ -652,11 +724,25 @@ struct GrammarHandler {
 }
 
 fn tone_tags_of(attrs: &Attrs) -> Vec<String> {
-    attr(attrs, "tone_tags").map(|t| t.split(' ').filter(|x| !x.is_empty()).map(str::to_string).collect()).unwrap_or_default()
+    attr(attrs, "tone_tags")
+        .map(|t| {
+            t.split(' ')
+                .filter(|x| !x.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn tags_of(attrs: &Attrs) -> Vec<String> {
-    attr(attrs, "tags").map(|t| t.split(' ').filter(|x| !x.is_empty()).map(str::to_string).collect()).unwrap_or_default()
+    attr(attrs, "tags")
+        .map(|t| {
+            t.split(' ')
+                .filter(|x| !x.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// `replaceSpacesInRegex`: a space in a "smart" `<regexp>` matches any run of
@@ -703,7 +789,9 @@ impl GrammarHandler {
                 self.in_regex = true;
                 self.regex_exact = attr(attrs, "type") == Some("exact");
                 self.regex_case_sensitive = yes(attrs, "case_sensitive");
-                self.regexp_mark = attr(attrs, "mark").and_then(|m| m.parse().ok()).unwrap_or(0);
+                self.regexp_mark = attr(attrs, "mark")
+                    .and_then(|m| m.parse().ok())
+                    .unwrap_or(0);
             }
             "rule" => {
                 self.regex = String::new();
@@ -714,8 +802,12 @@ impl GrammarHandler {
                 self.url = String::new();
                 self.c.id = attr(attrs, "id").map(str::to_string);
                 self.name = attr(attrs, "name").map(str::to_string);
-                self.min_prev_matches = attr(attrs, "min_prev_matches").and_then(|v| v.parse().ok()).unwrap_or(self.rule_group_min_prev_matches);
-                self.distance_tokens = attr(attrs, "distance_tokens").and_then(|v| v.parse().ok()).unwrap_or(self.rule_group_distance_tokens);
+                self.min_prev_matches = attr(attrs, "min_prev_matches")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(self.rule_group_min_prev_matches);
+                self.distance_tokens = attr(attrs, "distance_tokens")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(self.rule_group_distance_tokens);
                 if self.c.in_rule_group {
                     self.sub_id += 1;
                     if self.c.id.is_none() {
@@ -870,7 +962,8 @@ impl GrammarHandler {
                 if self.in_example {
                     return;
                 }
-                let suppress = self.c.in_suggestion && (self.is_suggestion_suppress_misspelled || self.is_rule_suppress_misspelled);
+                let suppress = self.c.in_suggestion
+                    && (self.is_suggestion_suppress_misspelled || self.is_rule_suppress_misspelled);
                 self.c.set_match_element(attrs, suppress);
             }
             "marker" => {
@@ -912,7 +1005,10 @@ impl GrammarHandler {
             "regexp" => self.in_regex = false,
             "rule" => {
                 let mut out = std::mem::take(&mut self.c.suggestions_out_msg);
-                self.c.suggestion_matches_out_msg = Common::add_legacy_matches(std::mem::take(&mut self.c.suggestion_matches_out_msg), &mut out);
+                self.c.suggestion_matches_out_msg = Common::add_legacy_matches(
+                    std::mem::take(&mut self.c.suggestion_matches_out_msg),
+                    &mut out,
+                );
                 self.c.suggestions_out_msg = out;
                 if self.c.phrase_pattern_tokens.is_empty() {
                     let elems = std::mem::take(&mut self.c.pattern_tokens);
@@ -964,7 +1060,11 @@ impl GrammarHandler {
                 let mut anti_id = self.c.id.clone().unwrap_or_default();
                 if self.c.in_rule_group {
                     let group = self.rule_group_id.clone().unwrap_or_default();
-                    anti_id = if self.sub_id > 0 { format!("{group}[{}]", self.sub_id) } else { group };
+                    anti_id = if self.sub_id > 0 {
+                        format!("{group}[{}]", self.sub_id)
+                    } else {
+                        group
+                    };
                 }
                 let mut tokens = std::mem::take(&mut self.c.pattern_tokens);
                 let with_marker = self.start_pos != -1 && self.end_pos != -1;
@@ -973,7 +1073,10 @@ impl GrammarHandler {
                         t.inside_marker = true;
                     }
                 }
-                let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(PatternToken::shared).collect(), true));
+                let mut rule = TokenRule::new(TokenPattern::new(
+                    tokens.into_iter().map(PatternToken::shared).collect(),
+                    true,
+                ));
                 if with_marker {
                     rule.start_position_correction = self.start_pos;
                     rule.end_position_correction = self.end_pos - self.token_count_for_marker;
@@ -1000,7 +1103,10 @@ impl GrammarHandler {
             "example" => self.in_example = false,
             "message" => {
                 let mut msg = std::mem::take(&mut self.c.message);
-                self.c.suggestion_matches = Common::add_legacy_matches(std::mem::take(&mut self.c.suggestion_matches), &mut msg);
+                self.c.suggestion_matches = Common::add_legacy_matches(
+                    std::mem::take(&mut self.c.suggestion_matches),
+                    &mut msg,
+                );
                 self.c.message = msg;
                 self.c.in_message = false;
             }
@@ -1155,7 +1261,11 @@ impl GrammarHandler {
         };
         RuleInfo {
             id: self.c.id.clone().unwrap_or_default(),
-            sub_id: Some(if self.c.in_rule_group { self.sub_id.to_string() } else { "1".to_string() }),
+            sub_id: Some(if self.c.in_rule_group {
+                self.sub_id.to_string()
+            } else {
+                "1".to_string()
+            }),
             description: self.name.clone().unwrap_or_default(),
             category_id: self.category_id.clone(),
             category_name: self.category_name.clone(),
@@ -1176,13 +1286,30 @@ impl GrammarHandler {
     }
 
     /// `createRules`: one rule per combination of `<or>` alternatives.
-    fn create_rules(&mut self, elem_list: &[PatternToken], tmp: Vec<PatternToken>, num_element: usize, factory: FilterFactory) {
-        let short_message = if !self.short_message.is_empty() { self.short_message.clone() } else { self.short_message_for_rule_group.clone() };
+    fn create_rules(
+        &mut self,
+        elem_list: &[PatternToken],
+        tmp: Vec<PatternToken>,
+        num_element: usize,
+        factory: FilterFactory,
+    ) {
+        let short_message = if !self.short_message.is_empty() {
+            self.short_message.clone()
+        } else {
+            self.short_message_for_rule_group.clone()
+        };
         if num_element >= elem_list.len() {
             let info = self.info();
-            let (filter, filter_args) = make_filter(self.filter_class.as_deref(), self.filter_args.as_deref(), factory);
+            let (filter, filter_args) = make_filter(
+                self.filter_class.as_deref(),
+                self.filter_args.as_deref(),
+                factory,
+            );
             if !tmp.is_empty() {
-                let mut rule = TokenRule::new(TokenPattern::new(tmp.into_iter().map(PatternToken::shared).collect(), false));
+                let mut rule = TokenRule::new(TokenPattern::new(
+                    tmp.into_iter().map(PatternToken::shared).collect(),
+                    false,
+                ));
                 rule.message = self.c.message.clone();
                 rule.short_message = short_message;
                 rule.suggestions_out_msg = self.c.suggestions_out_msg.clone();
@@ -1199,9 +1326,17 @@ impl GrammarHandler {
                 let mut anti = self.rulegroup_anti_patterns.clone();
                 anti.extend(self.rule_anti_patterns.iter().cloned());
                 self.rule_anti_patterns.clear();
-                self.rules.push(GrammarRule::Pattern(PatternRule { info, rule, anti_patterns: anti }));
+                self.rules.push(GrammarRule::Pattern(PatternRule {
+                    info,
+                    rule,
+                    anti_patterns: anti,
+                }));
             } else if !self.regex.is_empty() {
-                let flags = if self.regex_case_sensitive { Flags::UNICODE_CLASS } else { Flags::IGNORE_CASE_UNICODE_CLASS };
+                let flags = if self.regex_case_sensitive {
+                    Flags::UNICODE_CLASS
+                } else {
+                    Flags::IGNORE_CASE_UNICODE_CLASS
+                };
                 let mut regex_str = self.regex.clone();
                 if !self.regex_exact {
                     regex_str = replace_spaces_in_regex(&regex_str);
@@ -1255,7 +1390,11 @@ impl GrammarHandler {
 }
 
 /// Load a disambiguation file (`DisambiguationRuleHandler`).
-pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut UnifierConfiguration) -> Vec<Arc<DisambigRule>> {
+pub fn load_disambiguation(
+    xml: &str,
+    factory: FilterFactory,
+    unifier: &mut UnifierConfiguration,
+) -> Vec<Arc<DisambigRule>> {
     let mut c = Common::new();
     let mut rules: Vec<Arc<DisambigRule>> = Vec::new();
     let mut in_disambiguation = false;
@@ -1285,7 +1424,11 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
     loop {
         let ev = parser.next_event();
         let (name, attrs, is_start, also_end) = match ev {
-            Event::Start { name, attrs, self_closing } => (name, attrs, true, self_closing),
+            Event::Start {
+                name,
+                attrs,
+                self_closing,
+            } => (name, attrs, true, self_closing),
             Event::End { name } => (name, Vec::new(), false, true),
             Event::Text(s) => {
                 if c.in_exception {
@@ -1353,7 +1496,9 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
                 "disambig" => {
                     in_disambiguation = true;
                     disambiguated_pos = attr(&attrs, "postag").map(str::to_string);
-                    action = attr(&attrs, "action").and_then(DisambigAction::parse).unwrap_or(DisambigAction::Replace);
+                    action = attr(&attrs, "action")
+                        .and_then(DisambigAction::parse)
+                        .unwrap_or(DisambigAction::Replace);
                 }
                 "match" => {
                     if !in_example {
@@ -1408,17 +1553,27 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
             match name.as_str() {
                 "rule" => {
                     let tokens = std::mem::take(&mut c.pattern_tokens);
-                    let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(PatternToken::shared).collect(), true));
+                    let mut rule = TokenRule::new(TokenPattern::new(
+                        tokens.into_iter().map(PatternToken::shared).collect(),
+                        true,
+                    ));
                     if start_pos != -1 && end_pos != -1 {
                         rule.start_position_correction = start_pos;
                         rule.end_position_correction = end_pos - token_count_for_marker;
                     }
-                    let (filter, args) = make_filter(filter_class.as_deref(), filter_args.as_deref(), factory);
+                    let (filter, args) =
+                        make_filter(filter_class.as_deref(), filter_args.as_deref(), factory);
                     rule.filter = filter;
                     rule.filter_args = args;
                     let mut new_readings = Vec::new();
                     if let Some(list) = new_wd_list.as_mut() {
-                        if matches!(action, DisambigAction::AddChunk | DisambigAction::Add | DisambigAction::Remove | DisambigAction::Replace) {
+                        if matches!(
+                            action,
+                            DisambigAction::AddChunk
+                                | DisambigAction::Add
+                                | DisambigAction::Remove
+                                | DisambigAction::Replace
+                        ) {
                             new_readings = list.clone();
                         }
                         list.clear();
@@ -1427,7 +1582,11 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
                     let mut anti = rulegroup_anti.clone();
                     anti.append(&mut rule_anti);
                     let id = c.id.clone().unwrap_or_default();
-                    let full_id = if c.in_rule_group { format!("{id}[{sub_id}]") } else { format!("{id}[1]") };
+                    let full_id = if c.in_rule_group {
+                        format!("{id}[{sub_id}]")
+                    } else {
+                        format!("{id}[1]")
+                    };
                     rules.push(Arc::new(DisambigRule {
                         id: full_id,
                         rule,
@@ -1496,19 +1655,29 @@ pub fn load_disambiguation(xml: &str, factory: FilterFactory, unifier: &mut Unif
                 }
                 "unify-ignore" => c.in_unification_neutral = false,
                 "wd" => {
-                    let reading = Reading::new(Arc::from(wd.as_str()), wd_pos.as_deref().map(|p| Tag::new(p.trim())), wd_lemma.as_deref().map(Arc::from));
+                    let reading = Reading::new(
+                        Arc::from(wd.as_str()),
+                        wd_pos.as_deref().map(|p| Tag::new(p.trim())),
+                        wd_lemma.as_deref().map(Arc::from),
+                    );
                     new_wd_list.get_or_insert_with(Vec::new).push(reading);
                     in_word = false;
                 }
                 "antipattern" => {
                     let tokens = std::mem::take(&mut c.pattern_tokens);
-                    let mut rule = TokenRule::new(TokenPattern::new(tokens.into_iter().map(PatternToken::shared).collect(), true));
+                    let mut rule = TokenRule::new(TokenPattern::new(
+                        tokens.into_iter().map(PatternToken::shared).collect(),
+                        true,
+                    ));
                     if start_pos != -1 && end_pos != -1 {
                         rule.start_position_correction = start_pos;
                         rule.end_position_correction = end_pos - token_count_for_marker;
                     }
                     let anti = Arc::new(DisambigRule {
-                        id: format!("{}_antipattern:{anti_pattern_counter}", c.id.clone().unwrap_or_default()),
+                        id: format!(
+                            "{}_antipattern:{anti_pattern_counter}",
+                            c.id.clone().unwrap_or_default()
+                        ),
                         rule,
                         disambiguated_pos: None,
                         match_element: None,
@@ -1575,7 +1744,9 @@ mod tests {
         assert!(!u.is_empty());
         // R_INF, two <or> alternatives, one regexp rule
         assert_eq!(rules.len(), 4);
-        let GrammarRule::Pattern(r) = &rules[0] else { panic!("pattern rule") };
+        let GrammarRule::Pattern(r) = &rules[0] else {
+            panic!("pattern rule")
+        };
         assert_eq!(r.info.id, "R_INF");
         assert_eq!(r.info.full_id(), "R_INF[1]");
         assert_eq!(r.info.category_id, "CAT_A");
@@ -1589,16 +1760,31 @@ mod tests {
         assert_eq!(toks[1].pos_tag(), Some("V inf"));
         assert_eq!(r.rule.start_position_correction, 1);
         assert_eq!(r.rule.end_position_correction, 0);
-        assert_eq!(r.rule.message, "Écrivez <suggestion>\\2</suggestion> après \\1.");
+        assert_eq!(
+            r.rule.message,
+            "Écrivez <suggestion>\\2</suggestion> après \\1."
+        );
         assert_eq!(r.rule.suggestion_matches.len(), 2);
-        assert_eq!(r.rule.suggestion_matches[0].pos_tag_replace.as_deref(), Some("V ppa m s"));
+        assert_eq!(
+            r.rule.suggestion_matches[0].pos_tag_replace.as_deref(),
+            Some("V ppa m s")
+        );
         assert!(r.rule.suggestion_matches[1].in_message_only);
         assert_eq!(r.rule.short_message, "Participe");
         // the hint comes from the lemma alternation
-        assert!(r.rule.pattern.token_hints.iter().any(|h| h.inflected && h.lower_case_values.len() == 2));
+        assert!(r
+            .rule
+            .pattern
+            .token_hints
+            .iter()
+            .any(|h| h.inflected && h.lower_case_values.len() == 2));
 
-        let GrammarRule::Pattern(a) = &rules[1] else { panic!() };
-        let GrammarRule::Pattern(b) = &rules[2] else { panic!() };
+        let GrammarRule::Pattern(a) = &rules[1] else {
+            panic!()
+        };
+        let GrammarRule::Pattern(b) = &rules[2] else {
+            panic!()
+        };
         assert_eq!(a.info.full_id(), "G[1]");
         assert!(a.info.default_off && b.info.default_off);
         // As in LanguageTool, the <or> alternatives come first.
@@ -1606,7 +1792,9 @@ mod tests {
         assert_eq!(b.rule.pattern.tokens[0].string(), "le");
         assert!(a.rule.pattern.tokens[1].may_be_omitted);
         assert_eq!(a.rule.pattern.tokens[1].skip, 2);
-        let GrammarRule::Regex(x) = &rules[3] else { panic!("regex rule") };
+        let GrammarRule::Regex(x) = &rules[3] else {
+            panic!("regex rule")
+        };
         assert_eq!(x.info.full_id(), "G[2]");
         assert_eq!(x.mark_group, 1);
     }
@@ -1632,7 +1820,10 @@ mod tests {
         assert_eq!(rules[1].new_token_readings.len(), 1);
         assert_eq!(rules[1].new_token_readings[0].pos(), Some("N m sp"));
         assert_eq!(rules[2].action, DisambigAction::Replace);
-        assert_eq!(rules[2].new_token_readings[0].lemma.as_deref(), Some("être"));
+        assert_eq!(
+            rules[2].new_token_readings[0].lemma.as_deref(),
+            Some("être")
+        );
         assert_eq!(&*rules[2].new_token_readings[0].token, "est");
     }
 }

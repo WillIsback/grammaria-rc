@@ -22,10 +22,19 @@ impl LongParagraphRule {
 
     pub fn with_max_words(max_words: usize) -> LongParagraphRule {
         let limit = max_words.to_string();
-        let mut info = rule_info("TOO_LONG_PARAGRAPH", &messages::LONG_PARAGRAPH_RULE_DESC.replace("{0}", &limit), &STYLE, "style");
+        let mut info = rule_info(
+            "TOO_LONG_PARAGRAPH",
+            &messages::LONG_PARAGRAPH_RULE_DESC.replace("{0}", &limit),
+            &STYLE,
+            "style",
+        );
         info.default_off = true;
         info.tags = vec!["picky".to_string()];
-        LongParagraphRule { info, max_words, message: messages::LONG_PARAGRAPH_RULE_MSG.replace("{0}", &limit) }
+        LongParagraphRule {
+            info,
+            max_words,
+            message: messages::LONG_PARAGRAPH_RULE_MSG.replace("{0}", &limit),
+        }
     }
 }
 
@@ -58,7 +67,12 @@ impl NativeRule for LongParagraphRule {
         true
     }
 
-    fn match_text(&self, rule: usize, sentences: &[Sentence], _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_text(
+        &self,
+        rule: usize,
+        sentences: &[Sentence],
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut matches = Vec::new();
         let mut pos = 0;
         let mut start_pos = 0;
@@ -85,7 +99,14 @@ impl NativeRule for LongParagraphRule {
             if paragraph_end {
                 // + 5: no match almost at the end of the paragraph.
                 if word_count > self.max_words + 5 && !para_has_linebreaks {
-                    matches.extend(rule_match(rule, start_pos, end_pos, &self.message, "", Vec::new()));
+                    matches.extend(rule_match(
+                        rule,
+                        start_pos,
+                        end_pos,
+                        &self.message,
+                        "",
+                        Vec::new(),
+                    ));
                 }
                 word_count = 0;
                 para_has_linebreaks = false;
@@ -93,7 +114,14 @@ impl NativeRule for LongParagraphRule {
             pos += sentence.text.len();
         }
         if word_count > self.max_words {
-            matches.extend(rule_match(rule, start_pos, end_pos, &self.message, "", Vec::new()));
+            matches.extend(rule_match(
+                rule,
+                start_pos,
+                end_pos,
+                &self.message,
+                "",
+                Vec::new(),
+            ));
         }
         matches
     }
@@ -106,17 +134,28 @@ mod tests {
 
     fn check(sentences: &[&str]) -> Vec<(usize, usize)> {
         let sentences: Vec<Sentence> = sentences.iter().map(|s| plain(s)).collect();
-        LongParagraphRule::with_max_words(4).match_text(0, &sentences, &context()).into_iter().map(|m| (m.from_pos, m.to_pos)).collect()
+        LongParagraphRule::with_max_words(4)
+            .match_text(0, &sentences, &context())
+            .into_iter()
+            .map(|m| (m.from_pos, m.to_pos))
+            .collect()
     }
 
     #[test]
     fn marks_the_words_at_the_limit() {
         // Ten words: the third and the fourth are marked.
-        assert_eq!(check(&["Un deux trois. ", "Quatre cinq six sept huit neuf dix."]), vec![(8, 21)]);
+        assert_eq!(
+            check(&["Un deux trois. ", "Quatre cinq six sept huit neuf dix."]),
+            vec![(8, 21)]
+        );
         // Nine words: too close to the limit.
         assert!(check(&["Un deux trois. ", "Quatre cinq six sept huit neuf."]).is_empty());
         // Two paragraphs of five words.
-        assert!(check(&["Un deux trois quatre cinq.\n\n", "Un deux trois quatre cinq."]).is_empty());
+        assert!(check(&[
+            "Un deux trois quatre cinq.\n\n",
+            "Un deux trois quatre cinq."
+        ])
+        .is_empty());
     }
 
     #[test]

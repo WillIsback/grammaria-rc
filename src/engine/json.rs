@@ -114,10 +114,17 @@ fn value(c: &[char], i: &mut usize) -> Option<Value> {
         }
         _ => {
             let start = *i;
-            while *i < c.len() && (c[*i].is_ascii_digit() || matches!(c[*i], '-' | '+' | '.' | 'e' | 'E')) {
+            while *i < c.len()
+                && (c[*i].is_ascii_digit() || matches!(c[*i], '-' | '+' | '.' | 'e' | 'E'))
+            {
                 *i += 1;
             }
-            c[start..*i].iter().collect::<String>().parse().ok().map(Value::Num)
+            c[start..*i]
+                .iter()
+                .collect::<String>()
+                .parse()
+                .ok()
+                .map(Value::Num)
         }
     }
 }
@@ -151,7 +158,9 @@ fn string(c: &[char], i: &mut usize) -> Option<String> {
                             high = Some(code);
                         } else if (0xDC00..0xE000).contains(&code) {
                             if let Some(h) = high.take() {
-                                out.push(char::from_u32(0x10000 + ((h - 0xD800) << 10) + (code - 0xDC00))?);
+                                out.push(char::from_u32(
+                                    0x10000 + ((h - 0xD800) << 10) + (code - 0xDC00),
+                                )?);
                             }
                         } else {
                             out.push(char::from_u32(code)?);
@@ -177,6 +186,9 @@ mod tests {
         assert_eq!(a[0].as_arr()[0].as_str(), Some("a\"b"));
         assert_eq!(a[0].as_arr()[1], Value::Null);
         assert_eq!(a[0].as_arr()[2].as_i64(), 3);
-        assert_eq!(a[1], Value::Obj(vec![("k".into(), Value::Str("é😀".into()))]));
+        assert_eq!(
+            a[1],
+            Value::Obj(vec![("k".into(), Value::Str("é😀".into()))])
+        );
     }
 }

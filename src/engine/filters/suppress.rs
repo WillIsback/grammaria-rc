@@ -27,23 +27,39 @@ impl SuppressIfAnyRuleMatchesFilter {
 
 /// `anyRuleMatches`: a match of one of the rules touching the end of the
 /// original match.
-fn any_rule_matches(rules: &[&PatternRule], sentence: &Sentence, m: &RuleMatch, ctx: &RuleContext) -> bool {
+fn any_rule_matches(
+    rules: &[&PatternRule],
+    sentence: &Sentence,
+    m: &RuleMatch,
+    ctx: &RuleContext,
+) -> bool {
     rules.iter().any(|rule| {
         rule.match_sentence(usize::MAX, sentence, ctx)
             .iter()
-            .any(|o| (o.to_pos >= m.from_pos && o.to_pos <= m.to_pos) || (m.to_pos >= o.from_pos && m.to_pos <= o.to_pos))
+            .any(|o| {
+                (o.to_pos >= m.from_pos && o.to_pos <= m.to_pos)
+                    || (m.to_pos >= o.from_pos && m.to_pos <= o.to_pos)
+            })
     })
 }
 
 /// `replaceTokenInAnalyzedSentence`: the sentence with the matched token
 /// retagged as `replacement`, when the match is one token and the
 /// replacement has its length.
-fn replace_token(sentence: &Sentence, m: &RuleMatch, replacement: &str, ctx: &RuleContext) -> Option<Sentence> {
+fn replace_token(
+    sentence: &Sentence,
+    m: &RuleMatch,
+    replacement: &str,
+    ctx: &RuleContext,
+) -> Option<Sentence> {
     let original = sentence.text.get(m.from_pos..m.to_pos)?;
     if utf16_len(replacement) != utf16_len(original) || replacement.contains(' ') {
         return None;
     }
-    let idx = sentence.tokens.iter().position(|t| !t.is_whitespace && t.start_pos == m.from_pos)?;
+    let idx = sentence
+        .tokens
+        .iter()
+        .position(|t| !t.is_whitespace && t.start_pos == m.from_pos)?;
     let tagged = ctx.lang.tagger.as_ref()?.tag_word(replacement);
     let mut tokens = sentence.tokens.clone();
     tokens[idx] = Readings::with_readings(&sentence.tokens[idx], tagged.readings);
@@ -52,7 +68,11 @@ fn replace_token(sentence: &Sentence, m: &RuleMatch, replacement: &str, ctx: &Ru
         pre_disambig[idx] = tokens[idx].clone();
     }
     let text: String = tokens.iter().map(|t| &*t.token).collect();
-    Some(Sentence::new(Arc::from(text.as_str()), tokens, pre_disambig))
+    Some(Sentence::new(
+        Arc::from(text.as_str()),
+        tokens,
+        pre_disambig,
+    ))
 }
 
 impl RuleFilter for SuppressIfAnyRuleMatchesFilter {
@@ -68,7 +88,12 @@ impl RuleFilter for SuppressIfAnyRuleMatchesFilter {
     ) -> Option<RuleMatch> {
         let rule_ids: Vec<&str> = args.get("ruleIDs")?.split(',').collect();
         let fast_only = args.get("fastOnly").is_some_and(|v| v == "true");
-        let rules: Vec<&PatternRule> = self.env.rules().iter().filter(|r| rule_ids.contains(&r.info.id.as_str())).collect();
+        let rules: Vec<&PatternRule> = self
+            .env
+            .rules()
+            .iter()
+            .filter(|r| rule_ids.contains(&r.info.id.as_str()))
+            .collect();
         if rules.is_empty() {
             return Some(m);
         }
@@ -81,7 +106,12 @@ impl RuleFilter for SuppressIfAnyRuleMatchesFilter {
                     continue;
                 }
             }
-            let new_sentence = format!("{}{}{}", &sentence.text[..m.from_pos], replacement, &sentence.text[m.to_pos..]);
+            let new_sentence = format!(
+                "{}{}{}",
+                &sentence.text[..m.from_pos],
+                replacement,
+                &sentence.text[m.to_pos..]
+            );
             if let Some(analyzed) = self.env.analyze(&new_sentence, ctx) {
                 if any_rule_matches(&rules, &analyzed, &m, ctx) {
                     return None;
@@ -124,13 +154,33 @@ mod tests {
         filters.set_rules(&rules);
         let filter = SuppressIfAnyRuleMatchesFilter::new(filters.env.clone());
 
-        let s = sentence(&[("le", &[("D m s", "le")]), ("où", &[("A", "où")]), ("là", &[("A", "là")])]);
+        let s = sentence(&[
+            ("le", &[("D m s", "le")]),
+            ("où", &[("A", "où")]),
+            ("là", &[("A", "là")]),
+        ]);
         let tokens = s.non_ws_tokens();
         let mut m = match_over(&s, 2, 2, "");
         m.suggestions = vec!["ou".into()];
-        let accept = |m: RuleMatch, ids: &str| filter.accept(m, &args(&[("ruleIDs", ids)]), 2, &tokens[2..=2], &[1], &s, &ctx);
-        assert!(accept(m.clone(), "NO_OU").is_none(), "NO_OU matches the corrected token");
-        assert!(accept(m.clone(), "UNKNOWN_RULE,OTHER").is_some(), "unknown rules match nothing");
+        let accept = |m: RuleMatch, ids: &str| {
+            filter.accept(
+                m,
+                &args(&[("ruleIDs", ids)]),
+                2,
+                &tokens[2..=2],
+                &[1],
+                &s,
+                &ctx,
+            )
+        };
+        assert!(
+            accept(m.clone(), "NO_OU").is_none(),
+            "NO_OU matches the corrected token"
+        );
+        assert!(
+            accept(m.clone(), "UNKNOWN_RULE,OTHER").is_some(),
+            "unknown rules match nothing"
+        );
         m.suggestions = vec!["et".into()];
         assert!(accept(m, "NO_OU").is_some());
     }

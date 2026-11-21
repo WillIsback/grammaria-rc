@@ -111,7 +111,11 @@ pub fn build_fsa5(words: &[&[u8]]) -> Vec<u8> {
             continue;
         }
         debug_assert!(previous < word, "input must be sorted");
-        let common = previous.iter().zip(word).take_while(|(a, b)| a == b).count();
+        let common = previous
+            .iter()
+            .zip(word)
+            .take_while(|(a, b)| a == b)
+            .count();
         // Freeze the states below the common prefix, deepest first.
         while depth > common + 1 {
             depth -= 1;
@@ -222,19 +226,40 @@ mod tests {
 
     #[test]
     fn accepts_exactly_the_words_in_order() {
-        let lines: Vec<String> = ["chat", "chats", "chien", "a", "ab", "Joe Biden", "école", "chat", "zèbre", "abc", "b"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let lines: Vec<String> = [
+            "chat",
+            "chats",
+            "chien",
+            "a",
+            "ab",
+            "Joe Biden",
+            "école",
+            "chat",
+            "zèbre",
+            "abc",
+            "b",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         let fsa = fsa_from_lines(&lines).unwrap();
         let mut expected: Vec<&[u8]> = lines.iter().map(|l| l.as_bytes()).collect();
         expected.sort_unstable();
         expected.dedup();
-        let expected: Vec<String> = expected.into_iter().map(|b| String::from_utf8(b.to_vec()).unwrap()).collect();
+        let expected: Vec<String> = expected
+            .into_iter()
+            .map(|b| String::from_utf8(b.to_vec()).unwrap())
+            .collect();
         assert_eq!(words_of(&fsa), expected);
         assert_eq!(fsa.match_sequence(b"chat").kind, MatchKind::ExactMatch);
-        assert_eq!(fsa.match_sequence("école".as_bytes()).kind, MatchKind::ExactMatch);
-        assert_eq!(fsa.match_sequence(b"cha").kind, MatchKind::SequenceIsAPrefix);
+        assert_eq!(
+            fsa.match_sequence("école".as_bytes()).kind,
+            MatchKind::ExactMatch
+        );
+        assert_eq!(
+            fsa.match_sequence(b"cha").kind,
+            MatchKind::SequenceIsAPrefix
+        );
         assert_ne!(fsa.match_sequence(b"chatte").kind, MatchKind::ExactMatch);
         assert_ne!(fsa.match_sequence(b"x").kind, MatchKind::ExactMatch);
     }
@@ -250,8 +275,14 @@ mod tests {
         }
         let fsa = fsa_from_lines(&lines).unwrap();
         assert_eq!(words_of(&fsa).len(), 3000);
-        assert_eq!(fsa.match_sequence(b"mot29x99ement").kind, MatchKind::ExactMatch);
-        assert_ne!(fsa.match_sequence(b"mot30x0ement").kind, MatchKind::ExactMatch);
+        assert_eq!(
+            fsa.match_sequence(b"mot29x99ement").kind,
+            MatchKind::ExactMatch
+        );
+        assert_ne!(
+            fsa.match_sequence(b"mot30x0ement").kind,
+            MatchKind::ExactMatch
+        );
         // Minimal: far fewer bytes than a trie of 3 000 * 13 arcs.
         assert!(fsa.size_in_bytes() < 3000 * 13);
     }

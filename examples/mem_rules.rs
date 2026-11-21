@@ -6,7 +6,15 @@ use grammaria::engine::unifier::UnifierConfiguration;
 use grammaria::engine::xmlrules::{load_disambiguation, load_grammar, GrammarRule};
 
 fn rss() -> usize {
-    std::fs::read_to_string("/proc/self/status").ok().and_then(|s| s.lines().find(|l| l.starts_with("VmRSS:")).and_then(|l| l.split_whitespace().nth(1)?.parse::<usize>().ok())).unwrap_or(0) / 1024
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmRSS:"))
+                .and_then(|l| l.split_whitespace().nth(1)?.parse::<usize>().ok())
+        })
+        .unwrap_or(0)
+        / 1024
 }
 
 fn main() {
@@ -30,11 +38,16 @@ fn main() {
                 let mut count = |pattern: &grammaria::engine::performer::TokenPattern| {
                     tokens += pattern.tokens.len();
                     for t in &pattern.tokens {
-                        exceptions += t.current_and_next_exceptions.len() + t.previous_exceptions.len();
+                        exceptions +=
+                            t.current_and_next_exceptions.len() + t.previous_exceptions.len();
                     }
                     for h in &pattern.token_hints {
                         hints += h.lower_case_values.len();
-                        hint_bytes += h.lower_case_values.iter().map(|v| v.len() + 24).sum::<usize>();
+                        hint_bytes += h
+                            .lower_case_values
+                            .iter()
+                            .map(|v| v.len() + 24)
+                            .sum::<usize>();
                     }
                 };
                 count(&p.rule.pattern);
@@ -47,7 +60,15 @@ fn main() {
         all.push(rules);
     }
     let mut dis = UnifierConfiguration::default();
-    let d = load_disambiguation(&std::fs::read_to_string(format!("{dir}/disambiguation.xml")).unwrap(), &none, &mut dis);
+    let d = load_disambiguation(
+        &std::fs::read_to_string(format!("{dir}/disambiguation.xml")).unwrap(),
+        &none,
+        &mut dis,
+    );
     println!("disambiguation: {} rules -> {} MiB", d.len(), rss());
-    println!("size_of PatternToken = {}, TokenRule = {}", std::mem::size_of::<grammaria::engine::pattern::PatternToken>(), std::mem::size_of::<grammaria::engine::rule::TokenRule>());
+    println!(
+        "size_of PatternToken = {}, TokenRule = {}",
+        std::mem::size_of::<grammaria::engine::pattern::PatternToken>(),
+        std::mem::size_of::<grammaria::engine::rule::TokenRule>()
+    );
 }

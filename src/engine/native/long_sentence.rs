@@ -19,16 +19,28 @@ pub struct LongSentenceRule {
 impl LongSentenceRule {
     pub fn new(max_words: usize) -> LongSentenceRule {
         let limit = max_words.to_string();
-        let mut info = rule_info("TOO_LONG_SENTENCE", &messages::LONG_SENTENCE_RULE_DESC.replace("{0}", &limit), &STYLE, "style");
+        let mut info = rule_info(
+            "TOO_LONG_SENTENCE",
+            &messages::LONG_SENTENCE_RULE_DESC.replace("{0}", &limit),
+            &STYLE,
+            "style",
+        );
         info.tags = vec!["picky".to_string()];
-        LongSentenceRule { info, max_words, message: messages::LONG_SENTENCE_RULE_MSG2.replace("{0}", &limit) }
+        LongSentenceRule {
+            info,
+            max_words,
+            message: messages::LONG_SENTENCE_RULE_MSG2.replace("{0}", &limit),
+        }
     }
 }
 
 /// `isWordCount`: the token starts with a letter. (Java tests the first
 /// UTF-16 unit: half of a character outside the BMP is not a letter.)
 fn is_word_count(token: &str) -> bool {
-    token.chars().next().is_some_and(|c| c.len_utf16() == 1 && c.is_alphabetic())
+    token
+        .chars()
+        .next()
+        .is_some_and(|c| c.len_utf16() == 1 && c.is_alphabetic())
 }
 
 /// `[?!.]["“”„»«]`: a sentence end inside a quotation.
@@ -52,7 +64,12 @@ impl NativeRule for LongSentenceRule {
         true
     }
 
-    fn match_text(&self, rule: usize, sentences: &[Sentence], _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_text(
+        &self,
+        rule: usize,
+        sentences: &[Sentence],
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut matches = Vec::new();
         let mut pos = 0;
         for sentence in sentences {
@@ -70,7 +87,9 @@ impl NativeRule for LongSentenceRule {
                 let mut num_words = 0;
                 // One part of the sentence, up to a colon, a semicolon or a
                 // line break.
-                while i < tokens.len() && !matches!(&*tokens[i].token, ":" | ";" | "\n" | "\r\n" | "\n\r") {
+                while i < tokens.len()
+                    && !matches!(&*tokens[i].token, ":" | ";" | "\n" | "\r\n" | "\n\r")
+                {
                     let token: &str = &tokens[i].token;
                     match index_of_quote {
                         None => index_of_quote = OPENING_QUOTES.iter().position(|q| *q == token),
@@ -88,14 +107,27 @@ impl NativeRule for LongSentenceRule {
                             if to_token.is_none() {
                                 // The last word of the sentence, with the
                                 // mark that follows it.
-                                if let Some(j) = (0..tokens.len()).rev().find(|&j| is_word_count(&tokens[j].token)) {
-                                    let followed_by_end = tokens.len() > j + 1 && matches!(&*tokens[j + 1].token, "?" | "!" | ".");
-                                    to_token = Some(if followed_by_end { &tokens[j + 1] } else { &tokens[j] });
+                                if let Some(j) = (0..tokens.len())
+                                    .rev()
+                                    .find(|&j| is_word_count(&tokens[j].token))
+                                {
+                                    let followed_by_end = tokens.len() > j + 1
+                                        && matches!(&*tokens[j + 1].token, "?" | "!" | ".");
+                                    to_token = Some(if followed_by_end {
+                                        &tokens[j + 1]
+                                    } else {
+                                        &tokens[j]
+                                    });
                                 }
                             }
                             match (from_token, to_token) {
-                                (Some(from), Some(to)) => spans.push((from.start_pos, to.end_pos())),
-                                _ => spans.push((tokens[0].start_pos, tokens[tokens.len() - 1].end_pos())),
+                                (Some(from), Some(to)) => {
+                                    spans.push((from.start_pos, to.end_pos()))
+                                }
+                                _ => spans.push((
+                                    tokens[0].start_pos,
+                                    tokens[tokens.len() - 1].end_pos(),
+                                )),
                             }
                             break;
                         }
@@ -106,7 +138,14 @@ impl NativeRule for LongSentenceRule {
                 i += 1;
             }
             for (from, to) in spans {
-                matches.extend(rule_match(rule, pos + from, pos + to, &self.message, "", Vec::new()));
+                matches.extend(rule_match(
+                    rule,
+                    pos + from,
+                    pos + to,
+                    &self.message,
+                    "",
+                    Vec::new(),
+                ));
             }
             pos += sentence.text.len();
         }
@@ -120,12 +159,19 @@ mod tests {
     use super::*;
 
     fn check(max_words: usize, text: &str) -> Vec<(usize, usize)> {
-        LongSentenceRule::new(max_words).match_text(0, &[plain(text)], &context()).into_iter().map(|m| (m.from_pos, m.to_pos)).collect()
+        LongSentenceRule::new(max_words)
+            .match_text(0, &[plain(text)], &context())
+            .into_iter()
+            .map(|m| (m.from_pos, m.to_pos))
+            .collect()
     }
 
     #[test]
     fn counts_words_up_to_the_limit() {
-        assert_eq!(check(5, "Un deux trois quatre cinq six sept."), vec![(0, 35)]);
+        assert_eq!(
+            check(5, "Un deux trois quatre cinq six sept."),
+            vec![(0, 35)]
+        );
         assert!(check(7, "Un deux trois quatre cinq six sept.").is_empty());
         // Each part between colons is counted on its own.
         assert!(check(5, "Un deux trois quatre : cinq six sept huit.").is_empty());

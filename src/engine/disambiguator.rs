@@ -27,11 +27,21 @@ pub struct Disambiguator {
 impl Disambiguator {
     /// Load `multiwords.txt`, `spelling_global.txt`, `disambiguation.xml` and
     /// `disambiguation-global.xml` from a LanguageTool resource directory.
-    pub fn load(dir: &Path, factory: FilterFactory, unifier: &mut UnifierConfiguration) -> std::io::Result<Disambiguator> {
+    pub fn load(
+        dir: &Path,
+        factory: FilterFactory,
+        unifier: &mut UnifierConfiguration,
+    ) -> std::io::Result<Disambiguator> {
         let read = |name: &str| std::fs::read_to_string(dir.join(name));
         let chunker = MultiWordChunker::new(
             &read("multiwords.txt")?,
-            &ChunkerSettings { allow_first_capitalized: true, allow_all_uppercase: true, default_tag: None, ignore_spelling: false, remove_previous_tags: true },
+            &ChunkerSettings {
+                allow_first_capitalized: true,
+                allow_all_uppercase: true,
+                default_tag: None,
+                ignore_spelling: false,
+                remove_previous_tags: true,
+            },
         );
         let chunker_global = MultiWordChunker::new(
             &read("spelling_global.txt").unwrap_or_default(),
@@ -52,17 +62,32 @@ impl Disambiguator {
         for (i, rule) in rules.iter().enumerate() {
             // Lemmas change during disambiguation, words do not: only
             // requirements on the word itself are indexed.
-            let hint = rule.rule.pattern.token_hints.iter().filter(|h| !h.inflected).min_by_key(|h| h.lower_case_values.len());
+            let hint = rule
+                .rule
+                .pattern
+                .token_hints
+                .iter()
+                .filter(|h| !h.inflected)
+                .min_by_key(|h| h.lower_case_values.len());
             match hint {
                 Some(h) => {
                     for value in &h.lower_case_values {
-                        by_token.entry(Box::from(value.as_str())).or_default().push(i as u32);
+                        by_token
+                            .entry(Box::from(value.as_str()))
+                            .or_default()
+                            .push(i as u32);
                     }
                 }
                 None => unhinted.push(i as u32),
             }
         }
-        Ok(Disambiguator { chunker_global, chunker, rules, unhinted, by_token })
+        Ok(Disambiguator {
+            chunker_global,
+            chunker,
+            rules,
+            unhinted,
+            by_token,
+        })
     }
 
     pub fn rule_count(&self) -> usize {
@@ -83,13 +108,20 @@ impl Disambiguator {
                 }
             }
         }
-        (0..self.rules.len() as u32).filter(|&r| wanted[r as usize]).collect()
+        (0..self.rules.len() as u32)
+            .filter(|&r| wanted[r as usize])
+            .collect()
     }
 
     /// `FrenchHybridDisambiguator.disambiguate`: from the tagger's sentence to
     /// the disambiguated one. `raw.pre_disambig` is kept as given.
     pub fn disambiguate(&self, raw: Sentence, ctx: &RuleContext) -> Sentence {
-        let Sentence { text, mut tokens, pre_disambig, .. } = raw;
+        let Sentence {
+            text,
+            mut tokens,
+            pre_disambig,
+            ..
+        } = raw;
         self.chunker_global.disambiguate(&mut tokens);
         self.chunker.disambiguate(&mut tokens);
         // The tagger's tokens come back as the pre-disambiguation state at

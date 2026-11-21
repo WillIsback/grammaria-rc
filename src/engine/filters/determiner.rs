@@ -19,7 +19,12 @@ tag_pattern!(ends_mp, ".+([me]) (p|sp)");
 tag_pattern!(ends_fp, ".+([fe]) (p|sp)");
 
 /// Masculine singular, feminine singular, masculine plural, feminine plural.
-const GENDER_NUMBER: [&str; 4] = ["([me]) (s|sp)", "([fe]) (s|sp)", "([me]) (p|sp)", "([fe]) (p|sp)"];
+const GENDER_NUMBER: [&str; 4] = [
+    "([me]) (s|sp)",
+    "([fe]) (s|sp)",
+    "([me]) (p|sp)",
+    "([fe]) (p|sp)",
+];
 const DETERMINER: &str = "((P.)?D |J |V.* ppa )";
 /// Forms of "beau", "fou", "mou", "nouveau" that are no determiners.
 const EXCEPTIONS_DETERMINER: [&str; 4] = ["bels", "fols", "mols", "nouvels"];
@@ -47,7 +52,13 @@ impl WordWithDeterminerFilter {
         if !self.env.has_analyzer() {
             return true;
         }
-        if let Some(&verdict) = self.env.suggestion_verdicts.lock().unwrap_or_else(|e| e.into_inner()).get(suggestion) {
+        if let Some(&verdict) = self
+            .env
+            .suggestion_verdicts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(suggestion)
+        {
             return verdict;
         }
         let verdict = match self.env.analyze(suggestion, ctx) {
@@ -55,11 +66,18 @@ impl WordWithDeterminerFilter {
                 .env
                 .rules()
                 .iter()
-                .filter(|r| r.info.category_id == CATEGORY_TO_CHECK || RULES_TO_CHECK.contains(&r.info.id.as_str()))
+                .filter(|r| {
+                    r.info.category_id == CATEGORY_TO_CHECK
+                        || RULES_TO_CHECK.contains(&r.info.id.as_str())
+                })
                 .any(|r| !r.match_sentence(usize::MAX, &sentence, ctx).is_empty()),
             None => true,
         };
-        let mut verdicts = self.env.suggestion_verdicts.lock().unwrap_or_else(|e| e.into_inner());
+        let mut verdicts = self
+            .env
+            .suggestion_verdicts
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if verdicts.len() >= MAX_VERDICTS {
             verdicts.clear();
         }
@@ -87,7 +105,8 @@ impl RuleFilter for WordWithDeterminerFilter {
         let atr_determiner = pattern_tokens[position("determinerFrom")?];
         let is_determiner_capitalized = strtools::is_capitalized_word(&atr_determiner.token);
         let is_word_capitalized = strtools::is_capitalized_word(&atr_word.token);
-        let is_determiner_all_upper = strtools::is_all_uppercase(&atr_determiner.token) && !strtools::equals_ignore_case(&atr_determiner.token, "L'");
+        let is_determiner_all_upper = strtools::is_all_uppercase(&atr_determiner.token)
+            && !strtools::equals_ignore_case(&atr_determiner.token, "L'");
         let is_word_all_upper = strtools::is_all_uppercase(&atr_word.token);
         // LanguageTool fails on a sentence where either reading is missing.
         let at_determiner = det_pattern().find(atr_determiner)?;
@@ -105,8 +124,16 @@ impl RuleFilter for WordWithDeterminerFilter {
         for i in 0..4 {
             let (mut determiner_forms, mut word_forms) = match &ctx.lang.synthesizer {
                 Some(synth) => (
-                    synth.synthesize_regexp(at_determiner, &format!("{DETERMINER}{}", GENDER_NUMBER[i]), true),
-                    synth.synthesize_regexp(at_word, &format!("{prefix}{}", GENDER_NUMBER[i]), true),
+                    synth.synthesize_regexp(
+                        at_determiner,
+                        &format!("{DETERMINER}{}", GENDER_NUMBER[i]),
+                        true,
+                    ),
+                    synth.synthesize_regexp(
+                        at_word,
+                        &format!("{prefix}{}", GENDER_NUMBER[i]),
+                        true,
+                    ),
                 ),
                 None => (Vec::new(), Vec::new()),
             };
@@ -165,30 +192,60 @@ mod tests {
     use crate::engine::filters::testing::*;
     use crate::engine::filters::FrenchFilters;
 
-    fn suggest(determiner: (&str, &[(&str, &str)]), word: (&str, &[(&str, &str)])) -> Option<Vec<String>> {
+    fn suggest(
+        determiner: (&str, &[(&str, &str)]),
+        word: (&str, &[(&str, &str)]),
+    ) -> Option<Vec<String>> {
         let ctx = context()?;
         let filter = WordWithDeterminerFilter::new(FrenchFilters::new().env.clone());
         let s = sentence(&[determiner, word]);
         let tokens = s.non_ws_tokens();
         let m = match_over(&s, 1, 2, "");
         let a = args(&[("wordFrom", "2"), ("determinerFrom", "1")]);
-        Some(filter.accept(m, &a, 1, &tokens[1..], &[1, 1], &s, &ctx)?.suggestions)
+        Some(
+            filter
+                .accept(m, &a, 1, &tokens[1..], &[1, 1], &s, &ctx)?
+                .suggestions,
+        )
     }
 
     #[test]
     fn proposes_the_agreeing_pairs() {
         // Without an analyzer nothing weeds out the elided article.
-        let Some(found) = suggest(("Les", &[("D e p", "le")]), ("voiture", &[("N f s", "voiture")])) else { return };
+        let Some(found) = suggest(
+            ("Les", &[("D e p", "le")]),
+            ("voiture", &[("N f s", "voiture")]),
+        ) else {
+            return;
+        };
         assert_eq!(found, ["La voiture", "L'voiture", "Les voitures"]);
-        let Some(found) = suggest(("un", &[("D m s", "un")]), ("vaches", &[("N f p", "vache")])) else { return };
+        let Some(found) = suggest(
+            ("un", &[("D m s", "un")]),
+            ("vaches", &[("N f p", "vache")]),
+        ) else {
+            return;
+        };
         assert_eq!(found, ["des vaches", "une vache"]);
     }
 
     #[test]
     fn keeps_the_case_of_both_words() {
-        let Some(found) = suggest(("ses", &[("D e p", "son")]), ("Considération", &[("N f s", "considération")])) else { return };
-        assert!(found.contains(&"ses Considérations".to_string()), "{found:?}");
-        let Some(found) = suggest(("LES", &[("D e p", "le")]), ("VOITURE", &[("N f s", "voiture")])) else { return };
+        let Some(found) = suggest(
+            ("ses", &[("D e p", "son")]),
+            ("Considération", &[("N f s", "considération")]),
+        ) else {
+            return;
+        };
+        assert!(
+            found.contains(&"ses Considérations".to_string()),
+            "{found:?}"
+        );
+        let Some(found) = suggest(
+            ("LES", &[("D e p", "le")]),
+            ("VOITURE", &[("N f s", "voiture")]),
+        ) else {
+            return;
+        };
         assert_eq!(found, ["LA VOITURE", "L'VOITURE", "LES VOITURES"]);
     }
 
@@ -199,6 +256,16 @@ mod tests {
         let s = sentence(&[("les", &[("D e p", "le")]), ("xyz", &[])]);
         let tokens = s.non_ws_tokens();
         let a = args(&[("wordFrom", "2"), ("determinerFrom", "1")]);
-        assert!(filter.accept(match_over(&s, 1, 2, ""), &a, 1, &tokens[1..], &[1, 1], &s, &ctx).is_none());
+        assert!(filter
+            .accept(
+                match_over(&s, 1, 2, ""),
+                &a,
+                1,
+                &tokens[1..],
+                &[1, 1],
+                &s,
+                &ctx
+            )
+            .is_none());
     }
 }

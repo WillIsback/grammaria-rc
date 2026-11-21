@@ -69,8 +69,15 @@ struct Work {
 }
 
 impl Work {
-    fn edit_in_place(&mut self, sentence: &Sentence, non_ws_index: usize, f: &dyn Fn(&mut Readings)) {
-        let Some(&position) = sentence.non_ws.get(non_ws_index) else { return };
+    fn edit_in_place(
+        &mut self,
+        sentence: &Sentence,
+        non_ws_index: usize,
+        f: &dyn Fn(&mut Readings),
+    ) {
+        let Some(&position) = sentence.non_ws.get(non_ws_index) else {
+            return;
+        };
         f(&mut self.all[position]);
         if self.attached[non_ws_index] {
             f(&mut self.view[non_ws_index]);
@@ -78,7 +85,9 @@ impl Work {
     }
 
     fn replace(&mut self, sentence: &Sentence, non_ws_index: usize, new: Readings) {
-        let Some(&position) = sentence.non_ws.get(non_ws_index) else { return };
+        let Some(&position) = sentence.non_ws.get(non_ws_index) else {
+            return;
+        };
         self.all[position] = new;
         self.attached[non_ws_index] = false;
     }
@@ -92,27 +101,46 @@ impl DisambigRule {
 
     /// `replace`, without the pre-disambiguation bookkeeping when the caller
     /// sets it itself at the end (the disambiguator does).
-    pub fn replace_with(&self, sentence: &Sentence, ctx: &RuleContext, track_previous: bool) -> Option<Sentence> {
+    pub fn replace_with(
+        &self,
+        sentence: &Sentence,
+        ctx: &RuleContext,
+        track_previous: bool,
+    ) -> Option<Sentence> {
         if self.rule.pattern.can_be_ignored_for(sentence) {
             return None;
         }
         // The tokens are only copied once the rule changes something.
         let base: Vec<&Readings> = sentence.non_ws_tokens();
         let mut work: Option<Work> = None;
-        let mut performer = Performer::new(&self.rule.pattern, &ctx.lang, &ctx.disambig_unifier, false, None);
+        let mut performer = Performer::new(
+            &self.rule.pattern,
+            &ctx.lang,
+            &ctx.disambig_unifier,
+            false,
+            None,
+        );
         let starts = performer.start_indices(sentence, base.len(), true);
         for start in starts {
             let view: Option<Vec<&Readings>> = work.as_ref().map(|w| w.view.iter().collect());
             let tokens: &[&Readings] = view.as_deref().unwrap_or(&base);
-            let Some(pm) = performer.match_from(start, tokens) else { continue };
+            let Some(pm) = performer.match_from(start, tokens) else {
+                continue;
+            };
             let rule_match_from = tokens[pm.first_match_token].start_pos;
             let rule_match_to = tokens[pm.last_match_token.min(tokens.len() - 1)].end_pos();
             let matching_tokens = pm.token_positions.iter().filter(|&&p| p != 0).count();
-            if self.keep_despite_filter(sentence, tokens, &pm, ctx) && self.keep_by_disambig(sentence, rule_match_from, rule_match_to, ctx) {
+            if self.keep_despite_filter(sentence, tokens, &pm, ctx)
+                && self.keep_by_disambig(sentence, rule_match_from, rule_match_to, ctx)
+            {
                 drop(view);
                 let work = work.get_or_insert_with(|| Work {
                     all: sentence.tokens.clone(),
-                    view: sentence.non_ws.iter().map(|&i| sentence.tokens[i].clone()).collect(),
+                    view: sentence
+                        .non_ws
+                        .iter()
+                        .map(|&i| sentence.tokens[i].clone())
+                        .collect(),
                     attached: vec![true; sentence.non_ws.len()],
                 });
                 self.execute_action(sentence, work, &pm, matching_tokens, ctx);
@@ -133,9 +161,22 @@ impl DisambigRule {
             }
             // Immunizing and ignoring spelling only set flags; ADD may change
             // a token's text, so nothing is reused then.
-            let readings_unchanged = matches!(self.action, DisambigAction::Immunize | DisambigAction::IgnoreSpelling);
-            let previous = if matches!(self.action, DisambigAction::Add) { None } else { Some(sentence) };
-            Some(Sentence::derived(sentence.text.clone(), work.all, pre, previous, readings_unchanged))
+            let readings_unchanged = matches!(
+                self.action,
+                DisambigAction::Immunize | DisambigAction::IgnoreSpelling
+            );
+            let previous = if matches!(self.action, DisambigAction::Add) {
+                None
+            } else {
+                Some(sentence)
+            };
+            Some(Sentence::derived(
+                sentence.text.clone(),
+                work.all,
+                pre,
+                previous,
+                readings_unchanged,
+            ))
         } else {
             None
         }
@@ -143,13 +184,25 @@ impl DisambigRule {
 
     /// `keepByDisambig`: an antipattern of the rule overlapping the match
     /// cancels it.
-    fn keep_by_disambig(&self, sentence: &Sentence, from: usize, to: usize, ctx: &RuleContext) -> bool {
+    fn keep_by_disambig(
+        &self,
+        sentence: &Sentence,
+        from: usize,
+        to: usize,
+        ctx: &RuleContext,
+    ) -> bool {
         for ap in &self.anti_patterns {
             if ap.rule.pattern.can_be_ignored_for(sentence) {
                 continue;
             }
-            for d in ap.rule.match_sentence(usize::MAX, sentence, ctx, &ctx.disambig_unifier) {
-                if (d.from_pos <= from && d.to_pos >= from) || (d.from_pos <= to && d.to_pos >= to) || (d.from_pos >= from && d.to_pos <= to) {
+            for d in ap
+                .rule
+                .match_sentence(usize::MAX, sentence, ctx, &ctx.disambig_unifier)
+            {
+                if (d.from_pos <= from && d.to_pos >= from)
+                    || (d.from_pos <= to && d.to_pos >= to)
+                    || (d.from_pos >= from && d.to_pos <= to)
+                {
                     return false;
                 }
             }
@@ -157,7 +210,13 @@ impl DisambigRule {
         true
     }
 
-    fn keep_despite_filter(&self, sentence: &Sentence, tokens: &[&Readings], pm: &PatternMatch, ctx: &RuleContext) -> bool {
+    fn keep_despite_filter(
+        &self,
+        sentence: &Sentence,
+        tokens: &[&Readings],
+        pm: &PatternMatch,
+        ctx: &RuleContext,
+    ) -> bool {
         match &self.rule.filter {
             None => true,
             Some(FilterRef::Unsupported(_)) => false,
@@ -166,17 +225,50 @@ impl DisambigRule {
                 let relevant = &tokens[pm.first_match_token..=last];
                 // LanguageTool resolves `\N` arguments against the whole
                 // sentence here (unlike grammar rules).
-                let Some(args) = resolve_filter_arguments(self.rule.filter_args.as_deref().unwrap_or(""), tokens, &pm.token_positions) else {
+                let Some(args) = resolve_filter_arguments(
+                    self.rule.filter_args.as_deref().unwrap_or(""),
+                    tokens,
+                    &pm.token_positions,
+                ) else {
                     return false;
                 };
-                let fake = RuleMatch::new(usize::MAX, "", 0, 1, 0, 1, "(internal rule)".into(), String::new(), false, false, "");
-                filter.accept(fake, &args, pm.first_match_token, relevant, &pm.token_positions, sentence, ctx).is_some()
+                let fake = RuleMatch::new(
+                    usize::MAX,
+                    "",
+                    0,
+                    1,
+                    0,
+                    1,
+                    "(internal rule)".into(),
+                    String::new(),
+                    false,
+                    false,
+                    "",
+                );
+                filter
+                    .accept(
+                        fake,
+                        &args,
+                        pm.first_match_token,
+                        relevant,
+                        &pm.token_positions,
+                        sentence,
+                        ctx,
+                    )
+                    .is_some()
             }
         }
     }
 
     /// `executeAction`.
-    fn execute_action(&self, sentence: &Sentence, work: &mut Work, pm: &PatternMatch, matching_tokens: usize, ctx: &RuleContext) {
+    fn execute_action(
+        &self,
+        sentence: &Sentence,
+        work: &mut Work,
+        pm: &PatternMatch,
+        matching_tokens: usize,
+        ctx: &RuleContext,
+    ) {
         let token_positions = &pm.token_positions;
         let first_match_token = pm.first_match_token as i64;
         // The original passes the last token inside <marker> here.
@@ -209,7 +301,10 @@ impl DisambigRule {
             }
         }
         if last_match_token != -1 {
-            let max_pos_correction = ((last_match_token + 1 - (first_match_token + corrected_st_pos)) - matching_tokens as i64).max(0);
+            let max_pos_correction = ((last_match_token + 1
+                - (first_match_token + corrected_st_pos))
+                - matching_tokens as i64)
+                .max(0);
             matching_tokens_with_correction += max_pos_correction;
         }
         let base = first_match_token + corrected_st_pos;
@@ -217,7 +312,8 @@ impl DisambigRule {
             return;
         }
         let base = base as usize;
-        let span = matching_tokens_with_correction - start_position_correction + end_position_correction;
+        let span =
+            matching_tokens_with_correction - start_position_correction + end_position_correction;
         let from_pos = sentence.non_ws[base];
         let in_range = |i: usize| base + i < sentence.non_ws.len();
         let new_readings = &self.new_token_readings;
@@ -232,7 +328,11 @@ impl DisambigRule {
                             break;
                         }
                         let position = sentence.non_ws[base + i];
-                        let token: Arc<str> = if nr.token.is_empty() { work.all[position].token.clone() } else { nr.token.clone() };
+                        let token: Arc<str> = if nr.token.is_empty() {
+                            work.all[position].token.clone()
+                        } else {
+                            nr.token.clone()
+                        };
                         let lemma: Arc<str> = nr.lemma.clone().unwrap_or_else(|| token.clone());
                         let analyzed = Reading::new(token, nr.pos_tag, Some(lemma));
                         let to_replace = Readings::new(vec![analyzed], start_pos);
@@ -251,7 +351,8 @@ impl DisambigRule {
                 if lemma.as_deref().map(str::is_empty).unwrap_or(true) {
                     lemma = old.readings[0].lemma.clone();
                 }
-                let analyzed = Reading::new(old.token.clone(), pos.map(super::token::Tag::new), lemma);
+                let analyzed =
+                    Reading::new(old.token.clone(), pos.map(super::token::Tag::new), lemma);
                 let new = Readings::with_readings(old, vec![analyzed]);
                 work.replace(sentence, base, new);
             } else if let Some(me) = &self.match_element {
@@ -268,7 +369,10 @@ impl DisambigRule {
         match self.action {
             DisambigAction::Unify => {
                 if let Some(unified) = &pm.unified_tokens {
-                    if unified.len() as i64 == span && !unified.is_empty() && in_range(unified.len() - 1) {
+                    if unified.len() as i64 == span
+                        && !unified.is_empty()
+                        && in_range(unified.len() - 1)
+                    {
                         let mut unified = unified.clone();
                         let last_position = sentence.non_ws[base + unified.len() - 1];
                         if work.all[last_position].is_sent_end {
@@ -310,16 +414,23 @@ impl DisambigRule {
                             break;
                         }
                         let position = sentence.non_ws[base + i];
-                        let token: Arc<str> = if nr.token.is_empty() { work.all[position].token.clone() } else { nr.token.clone() };
+                        let token: Arc<str> = if nr.token.is_empty() {
+                            work.all[position].token.clone()
+                        } else {
+                            nr.token.clone()
+                        };
                         let lemma: Arc<str> = nr.lemma.clone().unwrap_or_else(|| token.clone());
                         let new_tok = Reading::new(token, nr.pos_tag, Some(lemma));
                         // A reading that is already there is not added again.
-                        let exists = work.all[position]
-                            .readings
-                            .iter()
-                            .any(|r| r.token == new_tok.token && r.pos_tag == new_tok.pos_tag && r.lemma == new_tok.lemma);
+                        let exists = work.all[position].readings.iter().any(|r| {
+                            r.token == new_tok.token
+                                && r.pos_tag == new_tok.pos_tag
+                                && r.lemma == new_tok.lemma
+                        });
                         if !exists {
-                            work.edit_in_place(sentence, base + i, &|t| t.add_reading(new_tok.clone()));
+                            work.edit_in_place(sentence, base + i, &|t| {
+                                t.add_reading(new_tok.clone())
+                            });
                         }
                     }
                 }
@@ -357,7 +468,8 @@ impl DisambigRule {
                         pattern_tokens.get(idx)
                     } else {
                         let mut k = 1usize;
-                        while ((idx + k) as i64) < pattern_tokens.len() as i64 + end_position_correction
+                        while ((idx + k) as i64)
+                            < pattern_tokens.len() as i64 + end_position_correction
                             && idx + k < token_positions.len()
                             && token_positions[idx + k] == 0
                         {
@@ -367,7 +479,17 @@ impl DisambigRule {
                     };
                     let Some(p_token) = p_token else { break };
                     let tag = p_token.pos_tag();
-                    let tmp = Match::new(tag, None, true, tag, None, CaseConversion::None, false, false, IncludeRange::None);
+                    let tmp = Match::new(
+                        tag,
+                        None,
+                        true,
+                        tag,
+                        None,
+                        CaseConversion::None,
+                        false,
+                        false,
+                        IncludeRange::None,
+                    );
                     let old = work.all[position].clone();
                     let mut st = MatchState::new(&tmp, &ctx.lang);
                     st.set_token(&old);
@@ -393,10 +515,23 @@ impl DisambigRule {
             }
             DisambigAction::Filter if self.match_element.is_none() => {
                 if let Some(pos) = pos {
-                    let tmp = Match::new(Some(pos), None, true, Some(pos), None, CaseConversion::None, false, false, IncludeRange::None);
+                    let tmp = Match::new(
+                        Some(pos),
+                        None,
+                        true,
+                        Some(pos),
+                        None,
+                        CaseConversion::None,
+                        false,
+                        false,
+                        IncludeRange::None,
+                    );
                     let old = work.all[from_pos].clone();
                     let new_pos_matches = match re::compile(pos, Flags::default()) {
-                        Ok(p) => old.readings.iter().any(|r| !r.has_no_tag && r.pos().is_some_and(|t| p.is_full_match(t))),
+                        Ok(p) => old
+                            .readings
+                            .iter()
+                            .any(|r| !r.has_no_tag && r.pos().is_some_and(|t| p.is_full_match(t))),
                         Err(_) => false,
                     };
                     if new_pos_matches {

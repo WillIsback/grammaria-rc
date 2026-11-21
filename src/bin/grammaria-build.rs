@@ -49,6 +49,10 @@ fn main() -> io::Result<()> {
     if assets.join("grammaria").is_dir() {
         bytes += copy_dir(&assets.join("grammaria"), &out.join("grammaria"))?;
     }
-    println!("{}: {:.1} MiB", out.display(), bytes as f64 / (1024.0 * 1024.0));
+    println!(
+        "{}: {:.1} MiB",
+        out.display(),
+        bytes as f64 / (1024.0 * 1024.0)
+    );
     Ok(())
 }

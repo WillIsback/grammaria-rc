@@ -101,19 +101,28 @@ impl RuleMatch {
         is_all_uppercase: bool,
         suggestions_out_msg: &str,
     ) -> RuleMatch {
-        let original_error_str = sentence_text.get(from_pos..to_pos).unwrap_or("").to_string();
+        let original_error_str = sentence_text
+            .get(from_pos..to_pos)
+            .unwrap_or("")
+            .to_string();
         let mut suggestions: Vec<String> = Vec::new();
         let suggestion = format!("{message}{suggestions_out_msg}");
         let mut pos = suggestion.find(SUGGESTION_START_TAG);
         while let Some(p) = pos {
-            let Some(end) = suggestion[p..].find(SUGGESTION_END_TAG).map(|e| e + p) else { break };
+            let Some(end) = suggestion[p..].find(SUGGESTION_END_TAG).map(|e| e + p) else {
+                break;
+            };
             let mut replacement = suggestion[p + SUGGESTION_START_TAG.len()..end].to_string();
             let next_from = end + SUGGESTION_END_TAG.len();
-            pos = suggestion[next_from..].find(SUGGESTION_START_TAG).map(|x| x + next_from);
+            pos = suggestion[next_from..]
+                .find(SUGGESTION_START_TAG)
+                .map(|x| x + next_from);
             if replacement.contains(MISTAKE) {
                 continue;
             }
-            if is_all_uppercase && !(strtools::is_mixed_case(&replacement) && !replacement.contains(' ')) {
+            if is_all_uppercase
+                && !(strtools::is_mixed_case(&replacement) && !replacement.contains(' '))
+            {
                 if original_error_str != replacement.to_uppercase() {
                     replacement = replacement.to_uppercase();
                 }
@@ -124,7 +133,17 @@ impl RuleMatch {
                 suggestions.push(replacement);
             }
         }
-        RuleMatch { rule, from_pos, to_pos, pattern_from, pattern_to, message, short_message, suggestions, original_error_str }
+        RuleMatch {
+            rule,
+            from_pos,
+            to_pos,
+            pattern_from,
+            pattern_to,
+            message,
+            short_message,
+            suggestions,
+            original_error_str,
+        }
     }
 }
 
@@ -163,7 +182,11 @@ pub fn skip_corrected_reference(token_positions: &[usize], ref_number: i64) -> i
 
 /// `RuleFilterEvaluator.getResolvedArguments`: `key:value` pairs, where a
 /// value `\N` stands for the text of the N-th matched pattern element.
-pub fn resolve_filter_arguments(filter_args: &str, pattern_tokens: &[&Readings], token_positions: &[usize]) -> Option<HashMap<String, String>> {
+pub fn resolve_filter_arguments(
+    filter_args: &str,
+    pattern_tokens: &[&Readings],
+    token_positions: &[usize],
+) -> Option<HashMap<String, String>> {
     let mut result = HashMap::new();
     for arg in filter_args.split_whitespace() {
         let delim = arg.find(':')?;
@@ -178,7 +201,10 @@ pub fn resolve_filter_arguments(filter_args: &str, pattern_tokens: &[&Readings],
             if corrected < 0 || corrected as usize >= pattern_tokens.len() {
                 return None;
             }
-            result.insert(key.to_string(), pattern_tokens[corrected as usize].token.to_string());
+            result.insert(
+                key.to_string(),
+                pattern_tokens[corrected as usize].token.to_string(),
+            );
         } else {
             result.insert(key.to_string(), val.to_string());
         }
@@ -276,9 +302,23 @@ impl TokenRule {
 
     /// `PatternRuleMatcher.match`: all matches of the rule in the sentence,
     /// after the per-rule inclusion filter.
-    pub fn match_sentence(&self, rule_index: usize, sentence: &Sentence, ctx: &RuleContext, unifier: &UnifierConfiguration) -> Vec<RuleMatch> {
-        let tokens: Vec<&Readings> = if self.raw_pos { sentence.pre_disambig_non_ws_tokens() } else { sentence.non_ws_tokens() };
-        let element_no = if self.use_list { Some(self.element_no.as_slice()) } else { None };
+    pub fn match_sentence(
+        &self,
+        rule_index: usize,
+        sentence: &Sentence,
+        ctx: &RuleContext,
+        unifier: &UnifierConfiguration,
+    ) -> Vec<RuleMatch> {
+        let tokens: Vec<&Readings> = if self.raw_pos {
+            sentence.pre_disambig_non_ws_tokens()
+        } else {
+            sentence.non_ws_tokens()
+        };
+        let element_no = if self.use_list {
+            Some(self.element_no.as_slice())
+        } else {
+            None
+        };
         let mut performer = Performer::new(&self.pattern, &ctx.lang, unifier, true, element_no);
         let mut matches: Vec<RuleMatch> = Vec::new();
         performer.do_match(sentence, &tokens, !self.raw_pos, &mut |pm| {
@@ -291,7 +331,11 @@ impl TokenRule {
 
     fn match_preserves_case(&self, suggestion_matches: &[Match], msg: &str) -> bool {
         if !suggestion_matches.is_empty() {
-            let mut sug_start = msg.find(SUGGESTION_START_TAG).map(|p| p as i64).unwrap_or(-1) + SUGGESTION_START_TAG.len() as i64;
+            let mut sug_start = msg
+                .find(SUGGESTION_START_TAG)
+                .map(|p| p as i64)
+                .unwrap_or(-1)
+                + SUGGESTION_START_TAG.len() as i64;
             if msg.contains(PLEASE_SPELL_ME) {
                 sug_start += PLEASE_SPELL_ME.len() as i64;
             }
@@ -313,7 +357,15 @@ impl TokenRule {
         }
     }
 
-    fn concat_matches(&self, m: &Match, index: usize, token_index: usize, tokens: &[&Readings], next_token_pos: usize, ctx: &RuleContext) -> Vec<String> {
+    fn concat_matches(
+        &self,
+        m: &Match,
+        index: usize,
+        token_index: usize,
+        tokens: &[&Readings],
+        next_token_pos: usize,
+        ctx: &RuleContext,
+    ) -> Vec<String> {
         let len = self.phrase_len(index);
         if len == 1 {
             let skipped = next_token_pos as i64 - token_index as i64;
@@ -334,7 +386,15 @@ impl TokenRule {
 
     /// `formatMatches`: replace the `\N` references of a message by the
     /// matched tokens, rewritten by the corresponding `<match>` elements.
-    fn format_matches(&self, tokens: &[&Readings], positions: &[usize], first_match_tok: usize, error_msg: &str, suggestion_matches: &[Match], ctx: &RuleContext) -> String {
+    fn format_matches(
+        &self,
+        tokens: &[&Readings],
+        positions: &[usize],
+        first_match_tok: usize,
+        error_msg: &str,
+        suggestion_matches: &[Match],
+        ctx: &RuleContext,
+    ) -> String {
         let mut suggestion_matches: Vec<&Match> = suggestion_matches.iter().collect();
         let mut error_message = error_msg.to_string();
         let mut match_counter = 0usize;
@@ -342,9 +402,12 @@ impl TokenRule {
         let mut new_way = false;
         let mut processed = 0usize;
         let is_positive = |b: Option<u8>| matches!(b, Some(b'1'..=b'9'));
-        let find_from = |s: &str, from: usize| s.get(from..).and_then(|t| t.find('\\')).map(|p| p + from);
+        let find_from =
+            |s: &str, from: usize| s.get(from..).and_then(|t| t.find('\\')).map(|p| p + from);
         let mut err_marker = find_from(&error_message, processed);
-        let mut number_follows = err_marker.is_some_and(|m| m + 1 < error_message.len() && is_positive(error_message.as_bytes().get(m + 1).copied()));
+        let mut number_follows = err_marker.is_some_and(|m| {
+            m + 1 < error_message.len() && is_positive(error_message.as_bytes().get(m + 1).copied())
+        });
         let mut guard = 0;
         while err_marker.is_some() && number_follows {
             guard += 1;
@@ -352,13 +415,18 @@ impl TokenRule {
                 break;
             }
             let backslash_pos = find_from(&error_message, processed);
-            if let Some(bp) = backslash_pos.filter(|&bp| is_positive(error_message.as_bytes().get(bp + 1).copied())) {
+            if let Some(bp) = backslash_pos
+                .filter(|&bp| is_positive(error_message.as_bytes().get(bp + 1).copied()))
+            {
                 let bytes = error_message.as_bytes();
                 let mut num_len = 1;
                 while bp + num_len < bytes.len() && bytes[bp + num_len].is_ascii_digit() {
                     num_len += 1;
                 }
-                let j: usize = error_message[bp + 1..bp + num_len].parse::<usize>().unwrap_or(1) - 1;
+                let j: usize = error_message[bp + 1..bp + num_len]
+                    .parse::<usize>()
+                    .unwrap_or(1)
+                    - 1;
                 let mut rep_token_pos = 0usize;
                 let mut next_token_pos = 0usize;
                 for l in 0..=j.min(positions.len().saturating_sub(1)) {
@@ -375,7 +443,14 @@ impl TokenRule {
                             numbers_to_matches[j] = match_counter;
                         }
                         let matches: Vec<String> = if j >= positions.len() || positions[j] != 0 {
-                            self.concat_matches(suggestion_matches[match_counter], j, first_match_tok + rep_token_pos, tokens, next_token_pos, ctx)
+                            self.concat_matches(
+                                suggestion_matches[match_counter],
+                                j,
+                                first_match_tok + rep_token_pos,
+                                tokens,
+                                next_token_pos,
+                                ctx,
+                            )
                         } else {
                             vec![String::new()]
                         };
@@ -402,7 +477,9 @@ impl TokenRule {
                 }
                 if !new_way {
                     let needle = format!("\\{}", j + 1);
-                    let tok_index = (first_match_tok + rep_token_pos).saturating_sub(1).min(tokens.len() - 1);
+                    let tok_index = (first_match_tok + rep_token_pos)
+                        .saturating_sub(1)
+                        .min(tokens.len() - 1);
                     let tok_text = tokens[tok_index].token.to_string();
                     let new_processed = error_message.rfind(&needle).unwrap_or(0) + tok_text.len();
                     let head = error_message[..processed].to_string();
@@ -415,22 +492,55 @@ impl TokenRule {
                 processed += 1;
             }
             err_marker = find_from(&error_message, processed);
-            number_follows = err_marker.is_some_and(|m| m + 1 < error_message.len() && is_positive(error_message.as_bytes().get(m + 1).copied()));
+            number_follows = err_marker.is_some_and(|m| {
+                m + 1 < error_message.len()
+                    && is_positive(error_message.as_bytes().get(m + 1).copied())
+            });
         }
         remove_suppress_misspelled(&error_message)
     }
 
     /// `createRuleMatch`.
-    fn create_rule_match(&self, rule_index: usize, pm: &PatternMatch, tokens: &[&Readings], sentence: &Sentence, ctx: &RuleContext) -> Option<RuleMatch> {
+    fn create_rule_match(
+        &self,
+        rule_index: usize,
+        pm: &PatternMatch,
+        tokens: &[&Readings],
+        sentence: &Sentence,
+        ctx: &RuleContext,
+    ) -> Option<RuleMatch> {
         let positions = &pm.token_positions;
         let first = pm.first_match_token;
         let last = pm.last_match_token;
-        let err_message = self.format_matches(tokens, positions, first, &self.message, &self.suggestion_matches, ctx);
-        let short_err_message = self.format_matches(tokens, positions, first, &self.short_message, &self.suggestion_matches, ctx);
-        let suggestions_out_msg = self.format_matches(tokens, positions, first, &self.suggestions_out_msg, &self.suggestion_matches_out_msg, ctx);
+        let err_message = self.format_matches(
+            tokens,
+            positions,
+            first,
+            &self.message,
+            &self.suggestion_matches,
+            ctx,
+        );
+        let short_err_message = self.format_matches(
+            tokens,
+            positions,
+            first,
+            &self.short_message,
+            &self.suggestion_matches,
+            ctx,
+        );
+        let suggestions_out_msg = self.format_matches(
+            tokens,
+            positions,
+            first,
+            &self.suggestions_out_msg,
+            &self.suggestion_matches_out_msg,
+            ctx,
+        );
         let mut corrected_st_pos: i64 = 0;
         if self.start_position_correction > 0 {
-            for l in 0..=(self.start_position_correction as usize).min(positions.len().saturating_sub(1)) {
+            for l in
+                0..=(self.start_position_correction as usize).min(positions.len().saturating_sub(1))
+            {
                 corrected_st_pos += positions[l] as i64;
             }
             corrected_st_pos -= 1;
@@ -440,15 +550,19 @@ impl TokenRule {
             idx = tokens.len() - 1;
         }
         let mut first_obj = tokens[idx];
-        let input_tokens: Vec<&str> = (idx..=last.min(tokens.len() - 1)).map(|i| &*tokens[i].token).collect();
+        let input_tokens: Vec<&str> = (idx..=last.min(tokens.len() - 1))
+            .map(|i| &*tokens[i].token)
+            .collect();
         let is_input_all_uppercase = is_all_uppercase_list(&input_tokens);
         let preserves = self.match_preserves_case(&self.suggestion_matches, &self.message)
-            && self.match_preserves_case(&self.suggestion_matches_out_msg, &self.suggestions_out_msg);
+            && self
+                .match_preserves_case(&self.suggestion_matches_out_msg, &self.suggestions_out_msg);
         let mut is_all_uppercase = is_input_all_uppercase
             && (strtools::utf16_len(&first_obj.token.replace('\'', "")) > 1 || last > idx)
             && preserves;
         is_all_uppercase = is_all_uppercase && self.adjust_suggestion_case;
-        let mut starts_with_uppercase = strtools::starts_with_uppercase(&first_obj.token) && preserves;
+        let mut starts_with_uppercase =
+            strtools::starts_with_uppercase(&first_obj.token) && preserves;
         let after = (first as i64 + corrected_st_pos + 1) as usize;
         if first_obj.is_sent_start && tokens.len() > after {
             first_obj = tokens[after];
@@ -458,7 +572,10 @@ impl TokenRule {
         let first_marker = pm.first_marker_match_token.unwrap_or(first);
         let mut from_pos = tokens[first_marker].start_pos;
         let comma_suggestion = format!("{SUGGESTION_START_TAG},");
-        if first_marker >= 1 && (err_message.contains(&comma_suggestion) || suggestions_out_msg.contains(&comma_suggestion)) {
+        if first_marker >= 1
+            && (err_message.contains(&comma_suggestion)
+                || suggestions_out_msg.contains(&comma_suggestion))
+        {
             from_pos = tokens[first_marker - 1].end_pos();
         }
         let last_marker = pm.last_marker_match_token.unwrap_or(last);
@@ -469,7 +586,9 @@ impl TokenRule {
                 && !err_message.contains(SUGGESTION_START_TAG)
                 && !suggestions_out_msg.contains(SUGGESTION_START_TAG))
         {
-            let clear_msg = err_message.replace(PLEASE_SPELL_ME, "").replace(MISTAKE, "");
+            let clear_msg = err_message
+                .replace(PLEASE_SPELL_ME, "")
+                .replace(MISTAKE, "");
             let rule_match = RuleMatch::new(
                 rule_index,
                 &sentence.text,
@@ -488,8 +607,20 @@ impl TokenRule {
                 Some(FilterRef::Unsupported(_)) => None,
                 Some(FilterRef::Native(filter)) => {
                     let pattern_tokens = &tokens[first..=last.min(tokens.len() - 1)];
-                    let args = resolve_filter_arguments(self.filter_args.as_deref().unwrap_or(""), pattern_tokens, positions)?;
-                    filter.accept(rule_match, &args, first, pattern_tokens, positions, sentence, ctx)
+                    let args = resolve_filter_arguments(
+                        self.filter_args.as_deref().unwrap_or(""),
+                        pattern_tokens,
+                        positions,
+                    )?;
+                    filter.accept(
+                        rule_match,
+                        &args,
+                        first,
+                        pattern_tokens,
+                        positions,
+                        sentence,
+                        ctx,
+                    )
                 }
             };
         }
@@ -513,14 +644,23 @@ fn is_all_uppercase_list(list: &[&str]) -> bool {
 pub fn is_punctuation_mark(s: &str) -> bool {
     let mut it = s.chars();
     match (it.next(), it.next()) {
-        (Some(c), None) => c == '\'' || c.is_ascii_punctuation() && !"$+<=>^`|~".contains(c) || "«»“”‘’…–—¿¡·„‚‹›".contains(c),
+        (Some(c), None) => {
+            c == '\''
+                || c.is_ascii_punctuation() && !"$+<=>^`|~".contains(c)
+                || "«»“”‘’…–—¿¡·„‚‹›".contains(c)
+        }
         _ => false,
     }
 }
 
 fn concat_without_extra_space(left: &str, right: &str) -> String {
-    let ws_or_punct = right.chars().next().is_some_and(|c| c.is_ascii_whitespace() || ",:;.!?".contains(c));
-    if (left.ends_with(' ') && right.starts_with(SUGGESTION_END_TAG)) || (left.ends_with(' ') && ws_or_punct) {
+    let ws_or_punct = right
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_ascii_whitespace() || ",:;.!?".contains(c));
+    if (left.ends_with(' ') && right.starts_with(SUGGESTION_END_TAG))
+        || (left.ends_with(' ') && ws_or_punct)
+    {
         return format!("{}{}", &left[..left.len() - 1], right);
     }
     if left.ends_with("suggestion>") && right.starts_with(' ') {
@@ -544,7 +684,10 @@ fn remove_suppress_misspelled(s: &str) -> String {
         .expect("valid regex")
     });
     let result = re.replace_all(s, "");
-    result.replace(&format!("{SUGGESTION_START_TAG}{PLEASE_SPELL_ME}"), SUGGESTION_START_TAG)
+    result.replace(
+        &format!("{SUGGESTION_START_TAG}{PLEASE_SPELL_ME}"),
+        SUGGESTION_START_TAG,
+    )
 }
 
 /// `formatMultipleSynthesis`: several synthesized forms become several
@@ -559,7 +702,11 @@ fn format_multiple_synthesis(matches: &[String], left: &str, right: &str) -> Str
     let error_message: String = if suggestion_left.is_empty() {
         left.to_string()
     } else {
-        format!("{}{}", &left[..left.rfind(SUGGESTION_START_TAG).unwrap()], SUGGESTION_START_TAG)
+        format!(
+            "{}{}",
+            &left[..left.rfind(SUGGESTION_START_TAG).unwrap()],
+            SUGGESTION_START_TAG
+        )
     };
     if let Some(r_pos) = right.find(SUGGESTION_END_TAG) {
         suggestion_right = &right[..r_pos];
@@ -567,8 +714,14 @@ fn format_multiple_synthesis(matches: &[String], left: &str, right: &str) -> Str
     if !suggestion_right.is_empty() {
         right_new = &right[right.find(SUGGESTION_END_TAG).unwrap()..];
     }
-    let last_left_sug_end = left.find(SUGGESTION_END_TAG).map(|p| p as i64).unwrap_or(-1);
-    let last_left_sug_start = left.rfind(SUGGESTION_START_TAG).map(|p| p as i64).unwrap_or(-1);
+    let last_left_sug_end = left
+        .find(SUGGESTION_END_TAG)
+        .map(|p| p as i64)
+        .unwrap_or(-1);
+    let last_left_sug_start = left
+        .rfind(SUGGESTION_START_TAG)
+        .map(|p| p as i64)
+        .unwrap_or(-1);
     let mut sb = error_message;
     for (z, m) in matches.iter().enumerate() {
         sb.push_str(suggestion_left);
@@ -655,11 +808,18 @@ pub struct PatternRule {
 impl PatternRule {
     /// `PatternRule.match`: matches, re-evaluated on an immunized copy of the
     /// sentence when an antipattern applies.
-    pub fn match_sentence(&self, rule_index: usize, sentence: &Sentence, ctx: &RuleContext) -> Vec<RuleMatch> {
+    pub fn match_sentence(
+        &self,
+        rule_index: usize,
+        sentence: &Sentence,
+        ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         if self.rule.pattern.can_be_ignored_for(sentence) {
             return Vec::new();
         }
-        let matches = self.rule.match_sentence(rule_index, sentence, ctx, &ctx.unifier);
+        let matches = self
+            .rule
+            .match_sentence(rule_index, sentence, ctx, &ctx.unifier);
         if !matches.is_empty() && !self.anti_patterns.is_empty() {
             let mut immunized: Option<Sentence> = None;
             for ap in &self.anti_patterns {
@@ -717,16 +877,26 @@ impl RegexRule {
         byte_at.push(b);
         let mut start = 0usize;
         while start <= chars.len() {
-            let Some(caps) = self.pattern.find_chars(&chars, start) else { break };
+            let Some(caps) = self.pattern.find_chars(&chars, start) else {
+                break;
+            };
             let (m_start, m_end) = caps.spans[0].unwrap();
             let group = |n: usize| caps.spans.get(n).copied().flatten();
             let Some((mark_start, mark_end)) = group(self.mark_group) else {
                 start = if m_end > m_start { m_end } else { m_end + 1 };
                 continue;
             };
-            let text_of = |n: usize| group(n).map(|(a, b)| chars[a..b].iter().collect::<String>()).unwrap_or_default();
+            let text_of = |n: usize| {
+                group(n)
+                    .map(|(a, b)| chars[a..b].iter().collect::<String>())
+                    .unwrap_or_default()
+            };
             let message = process_regex_message(&self.message, &self.suggestion_matches, &text_of);
-            let out_msg = process_regex_message(&self.suggestions_out_msg, &self.suggestion_matches_out_msg, &text_of);
+            let out_msg = process_regex_message(
+                &self.suggestions_out_msg,
+                &self.suggestion_matches_out_msg,
+                &text_of,
+            );
             let starts_with_upper = m_start == 0 && chars.first().is_some_and(|c| c.is_uppercase());
             if mark_end > mark_start {
                 out.push(RuleMatch::new(
@@ -750,7 +920,11 @@ impl RegexRule {
 }
 
 /// `RegexPatternRule.processMessage`: `\N` is capture group N of the regex.
-fn process_regex_message(message: &str, matches: &[Match], group: &dyn Fn(usize) -> String) -> String {
+fn process_regex_message(
+    message: &str,
+    matches: &[Match],
+    group: &dyn Fn(usize) -> String,
+) -> String {
     let bytes = message.as_bytes();
     let mut out = String::with_capacity(message.len());
     let mut i = 0;
@@ -762,7 +936,9 @@ fn process_regex_message(message: &str, matches: &[Match], group: &dyn Fn(usize)
             let value = group(n);
             let suggestion = match matches.get(ref_index) {
                 Some(m) => match (&m.regex_replace, &m.regex_match) {
-                    (Some(repl), Some(rm)) => convert_case(m.case_conversion, &rm.replace_first(&value, repl), &value),
+                    (Some(repl), Some(rm)) => {
+                        convert_case(m.case_conversion, &rm.replace_first(&value, repl), &value)
+                    }
                     _ => value,
                 },
                 None => value,
@@ -785,14 +961,54 @@ mod tests {
     use super::*;
 
     fn m(from: usize, to: usize) -> RuleMatch {
-        RuleMatch::new(0, "0123456789", from, to, from, to, String::new(), String::new(), false, false, "")
+        RuleMatch::new(
+            0,
+            "0123456789",
+            from,
+            to,
+            from,
+            to,
+            String::new(),
+            String::new(),
+            false,
+            false,
+            "",
+        )
     }
 
     #[test]
     fn suggestions_are_extracted_and_cased() {
-        let r = RuleMatch::new(0, "un pomme", 0, 8, 0, 8, "Écrivez <suggestion>une pomme</suggestion> ou <suggestion>une pomme</suggestion>.".into(), String::new(), true, false, "<suggestion>un pommier</suggestion>");
-        assert_eq!(r.suggestions, vec!["Une pomme".to_string(), "Un pommier".to_string()]);
-        let r = RuleMatch::new(0, "UN POMME", 0, 8, 0, 8, "<suggestion>une pomme</suggestion><suggestion><mistake/></suggestion>".into(), String::new(), true, true, "");
+        let r = RuleMatch::new(
+            0,
+            "un pomme",
+            0,
+            8,
+            0,
+            8,
+            "Écrivez <suggestion>une pomme</suggestion> ou <suggestion>une pomme</suggestion>."
+                .into(),
+            String::new(),
+            true,
+            false,
+            "<suggestion>un pommier</suggestion>",
+        );
+        assert_eq!(
+            r.suggestions,
+            vec!["Une pomme".to_string(), "Un pommier".to_string()]
+        );
+        let r = RuleMatch::new(
+            0,
+            "UN POMME",
+            0,
+            8,
+            0,
+            8,
+            "<suggestion>une pomme</suggestion><suggestion><mistake/></suggestion>".into(),
+            String::new(),
+            true,
+            true,
+            "",
+        );
         assert_eq!(r.suggestions, vec!["UNE POMME".to_string()]);
     }
 
@@ -806,11 +1022,21 @@ mod tests {
     #[test]
     fn multiple_synthesis_and_spacing() {
         assert_eq!(
-            format_multiple_synthesis(&["a".into(), "b".into()], "Use <suggestion>le ", "</suggestion>."),
+            format_multiple_synthesis(
+                &["a".into(), "b".into()],
+                "Use <suggestion>le ",
+                "</suggestion>."
+            ),
             "Use <suggestion>le a</suggestion>, <suggestion>le b</suggestion>."
         );
-        assert_eq!(concat_without_extra_space("<suggestion>le ", "</suggestion>"), "<suggestion>le</suggestion>");
-        assert_eq!(combine_lists(&[vec!["a".into(), "b".into()], vec![".".into()]]), vec!["a.".to_string(), "b.".to_string()]);
+        assert_eq!(
+            concat_without_extra_space("<suggestion>le ", "</suggestion>"),
+            "<suggestion>le</suggestion>"
+        );
+        assert_eq!(
+            combine_lists(&[vec!["a".into(), "b".into()], vec![".".into()]]),
+            vec!["a.".to_string(), "b.".to_string()]
+        );
         assert_eq!(
             remove_suppress_misspelled("x <suggestion><pleasespellme/>(abc)</suggestion> <suggestion><pleasespellme/>ok</suggestion>"),
             "x  <suggestion>ok</suggestion>"
@@ -822,7 +1048,9 @@ mod tests {
         let a = Readings::untagged("le", 0);
         let b = Readings::untagged("chat", 3);
         let toks = vec![&a, &b];
-        let args = resolve_filter_arguments("wordFrom:2 desiredPostag:N.* form:\\2", &toks, &[1, 1]).unwrap();
+        let args =
+            resolve_filter_arguments("wordFrom:2 desiredPostag:N.* form:\\2", &toks, &[1, 1])
+                .unwrap();
         assert_eq!(args["wordFrom"], "2");
         assert_eq!(args["desiredPostag"], "N.*");
         assert_eq!(args["form"], "chat");

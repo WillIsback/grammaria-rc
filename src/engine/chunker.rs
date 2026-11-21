@@ -44,7 +44,10 @@ pub struct ChunkerSettings<'a> {
 fn is_camel_case(token: &str) -> bool {
     let b = token.as_bytes();
     let lower = b.iter().take_while(|c| c.is_ascii_lowercase()).count();
-    lower >= 1 && b.len() >= lower + 2 && b[lower].is_ascii_uppercase() && b[lower + 1..].iter().all(|c| c.is_ascii_alphabetic())
+    lower >= 1
+        && b.len() >= lower + 2
+        && b[lower].is_ascii_uppercase()
+        && b[lower + 1..].iter().all(|c| c.is_ascii_alphabetic())
 }
 
 impl MultiWordChunker {
@@ -105,7 +108,11 @@ impl MultiWordChunker {
             let contains_space = original.find(' ').is_some_and(|p| p > 0);
             let mut variants = vec![original.clone()];
             {
-                let map = if contains_space { &c.full_space } else { &c.full_no_space };
+                let map = if contains_space {
+                    &c.full_space
+                } else {
+                    &c.full_no_space
+                };
                 if settings.allow_all_uppercase && !is_camel_case(&original) {
                     let upper = original.to_uppercase();
                     if !map.contains_key(&upper) && original != upper {
@@ -120,7 +127,10 @@ impl MultiWordChunker {
                 }
             }
             for variant in variants {
-                let entry = Entry { pos_tag: tag.clone(), lemma: Arc::from(original.as_str()) };
+                let entry = Entry {
+                    pos_tag: tag.clone(),
+                    lemma: Arc::from(original.as_str()),
+                };
                 if !contains_space {
                     let first = variant.chars().next().unwrap();
                     let len = strtools::utf16_len(&variant);
@@ -132,7 +142,11 @@ impl MultiWordChunker {
                 } else {
                     let tokens: Vec<&str> = variant.split(' ').collect();
                     // String.split drops trailing empty strings.
-                    let count = tokens.iter().rposition(|t| !t.is_empty()).map(|p| p + 1).unwrap_or(0);
+                    let count = tokens
+                        .iter()
+                        .rposition(|t| !t.is_empty())
+                        .map(|p| p + 1)
+                        .unwrap_or(0);
                     let first = tokens[0].to_string();
                     let slot = c.start_space.entry(first).or_insert(count);
                     if *slot < count {
@@ -150,7 +164,11 @@ impl MultiWordChunker {
     }
 
     fn add_boundary(target: &mut Readings, entry: &Entry, token: Arc<str>, is_last: bool) {
-        let tag = if is_last { format!("</{}>", entry.pos_tag) } else { format!("<{}>", entry.pos_tag) };
+        let tag = if is_last {
+            format!("</{}>", entry.pos_tag)
+        } else {
+            format!("<{}>", entry.pos_tag)
+        };
         MultiWordChunker::add(target, token, &tag, entry.lemma.clone());
     }
 
@@ -179,12 +197,22 @@ impl MultiWordChunker {
                             if at.pos_tag != TAG_FOR_NOT_ADDING_TAGS {
                                 if final_len == 0 {
                                     let t = tokens[j].token.clone();
-                                    MultiWordChunker::add(&mut tokens[i], t, &at.pos_tag, at.lemma.clone());
+                                    MultiWordChunker::add(
+                                        &mut tokens[i],
+                                        t,
+                                        &at.pos_tag,
+                                        at.lemma.clone(),
+                                    );
                                 } else {
                                     let t = tokens[i].token.clone();
                                     MultiWordChunker::add_boundary(&mut tokens[i], at, t, false);
                                     let t = tokens[final_len].token.clone();
-                                    MultiWordChunker::add_boundary(&mut tokens[final_len], at, t, true);
+                                    MultiWordChunker::add_boundary(
+                                        &mut tokens[final_len],
+                                        at,
+                                        t,
+                                        true,
+                                    );
                                 }
                             }
                             if self.add_ignore_spelling {
@@ -220,9 +248,17 @@ impl MultiWordChunker {
                         if at.pos_tag != TAG_FOR_NOT_ADDING_TAGS {
                             if i == j {
                                 let low_priority = at.pos_tag == "NPCN000";
-                                if !low_priority || tokens[i].readings.is_empty() || tokens[i].is_pos_tag_unknown {
+                                if !low_priority
+                                    || tokens[i].readings.is_empty()
+                                    || tokens[i].is_pos_tag_unknown
+                                {
                                     let t = tokens[j].token.clone();
-                                    MultiWordChunker::add(&mut tokens[i], t, &at.pos_tag, at.lemma.clone());
+                                    MultiWordChunker::add(
+                                        &mut tokens[i],
+                                        t,
+                                        &at.pos_tag,
+                                        at.lemma.clone(),
+                                    );
                                 }
                             } else {
                                 let t = tokens[i].token.clone();
@@ -257,7 +293,11 @@ impl MultiWordChunker {
         while i < tokens.len() {
             if !tokens[i].is_whitespace {
                 if !next_pos_tag.is_empty() {
-                    let new = Reading::new(tokens[i].token.clone(), Some(Tag::new(&next_pos_tag)), Some(lemma.clone()));
+                    let new = Reading::new(
+                        tokens[i].token.clone(),
+                        Some(Tag::new(&next_pos_tag)),
+                        Some(lemma.clone()),
+                    );
                     if tokens[i].has_pos_tag_and_lemma(&format!("</{pos_tag}>"), &lemma) {
                         next_pos_tag.clear();
                         lemma = Arc::from("");
@@ -270,17 +310,35 @@ impl MultiWordChunker {
                     let closing = format!("</{pos_tag}>");
                     let opening = format!("<{pos_tag}>");
                     if tokens[i].has_pos_tag_and_lemma(&closing, &lemma) {
-                        if let Some(r) = tokens[i].readings.iter().find(|r| r.pos() == Some(closing.as_str())).cloned() {
+                        if let Some(r) = tokens[i]
+                            .readings
+                            .iter()
+                            .find(|r| r.pos() == Some(closing.as_str()))
+                            .cloned()
+                        {
                             tokens[i].remove_reading(&r);
                         }
-                        if let Some(r) = tokens[i].readings.iter().find(|r| r.pos() == Some(opening.as_str())).cloned() {
+                        if let Some(r) = tokens[i]
+                            .readings
+                            .iter()
+                            .find(|r| r.pos() == Some(opening.as_str()))
+                            .cloned()
+                        {
                             tokens[i].remove_reading(&r);
                         }
-                        tokens[i].add_reading(Reading::new(at.token.clone(), Some(Tag::new(&pos_tag)), Some(lemma.clone())));
+                        tokens[i].add_reading(Reading::new(
+                            at.token.clone(),
+                            Some(Tag::new(&pos_tag)),
+                            Some(lemma.clone()),
+                        ));
                         next_pos_tag.clear();
                         lemma = Arc::from("");
                     } else {
-                        let new = Reading::new(at.token.clone(), Some(Tag::new(&pos_tag)), Some(lemma.clone()));
+                        let new = Reading::new(
+                            at.token.clone(),
+                            Some(Tag::new(&pos_tag)),
+                            Some(lemma.clone()),
+                        );
                         tokens[i] = Readings::with_readings(&tokens[i], vec![new]);
                         next_pos_tag = next_pos_tag_of(&pos_tag);
                     }
@@ -296,14 +354,19 @@ impl MultiWordChunker {
         let candidates: Vec<&Reading> = tokens[i]
             .readings
             .iter()
-            .filter(|r| r.pos().is_some_and(|p| p.starts_with('<') && p.ends_with('>') && !p.starts_with("</")))
+            .filter(|r| {
+                r.pos()
+                    .is_some_and(|p| p.starts_with('<') && p.ends_with('>') && !p.starts_with("</"))
+            })
             .collect();
         let mut selected: Option<Reading> = None;
         let mut max_distance = 0usize;
         for at in candidates {
             let p = at.pos().unwrap();
             let closing = format!("</{}", &p[1..]);
-            let Some(lemma) = at.lemma.as_deref() else { continue };
+            let Some(lemma) = at.lemma.as_deref() else {
+                continue;
+            };
             let mut distance = 1;
             while i + distance < tokens.len() {
                 if tokens[i + distance].has_pos_tag_and_lemma(&closing, lemma) {
@@ -343,7 +406,10 @@ mod tests {
     use super::*;
 
     fn sentence(words: &[&str]) -> Vec<Readings> {
-        let mut out = vec![Readings::new(vec![Reading::from_strs("", Some("SENT_START"), None)], 0)];
+        let mut out = vec![Readings::new(
+            vec![Reading::from_strs("", Some("SENT_START"), None)],
+            0,
+        )];
         let mut pos = 0;
         for (i, w) in words.iter().enumerate() {
             if i > 0 {
@@ -364,7 +430,13 @@ mod tests {
     fn multiword_gets_the_expression_tag_and_previous_tags_are_removed() {
         let c = MultiWordChunker::new(
             "#separatorRegExp=[\\t;]\npoint presse; N m s\nhome page;N f s\n",
-            &ChunkerSettings { allow_first_capitalized: true, allow_all_uppercase: true, default_tag: None, ignore_spelling: false, remove_previous_tags: true },
+            &ChunkerSettings {
+                allow_first_capitalized: true,
+                allow_all_uppercase: true,
+                default_tag: None,
+                ignore_spelling: false,
+                remove_previous_tags: true,
+            },
         );
         let mut s = sentence(&["Le", "point", "presse", "commence"]);
         c.disambiguate(&mut s);
@@ -383,7 +455,13 @@ mod tests {
     fn global_list_only_protects_from_the_speller() {
         let c = MultiWordChunker::new(
             "Microsoft Entra\npeer2peer\n",
-            &ChunkerSettings { allow_first_capitalized: false, allow_all_uppercase: true, default_tag: Some(TAG_FOR_NOT_ADDING_TAGS), ignore_spelling: true, remove_previous_tags: false },
+            &ChunkerSettings {
+                allow_first_capitalized: false,
+                allow_all_uppercase: true,
+                default_tag: Some(TAG_FOR_NOT_ADDING_TAGS),
+                ignore_spelling: true,
+                remove_previous_tags: false,
+            },
         );
         let mut s = sentence(&["Avec", "Microsoft", "Entra", "et", "peer2peer"]);
         c.disambiguate(&mut s);

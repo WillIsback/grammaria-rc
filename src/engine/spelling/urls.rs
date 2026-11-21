@@ -10,7 +10,8 @@ use crate::re::{self, Flags, Regex};
 
 /// `WordTokenizer.getProtocols`.
 const PROTOCOLS: [&str; 18] = [
-    "http", "https", "ws", "wss", "ftp", "ftps", "sftp", "file", "mailto", "tel", "sms", "git", "ssh", "data", "magnet", "smb", "slack", "spotify",
+    "http", "https", "ws", "wss", "ftp", "ftps", "sftp", "file", "mailto", "tel", "sms", "git",
+    "ssh", "data", "magnet", "smb", "slack", "spotify",
 ];
 
 fn no_protocol_url() -> &'static Arc<Regex> {
