@@ -201,11 +201,26 @@ packages.
   half they find fewer new errors than on the half they were tuned on
   (+6.5 points against +13.5), and a few are tied to its word lists.
 
-## Licenses
+## License
 
-Grammaria's own code and rules: MPL-2.0. The engine modules that are ports
-of LanguageTool's Java code, and LanguageTool's data, are under the LGPL 2.1
-or later; the dictionary reader is a port of Morfologik (BSD-3-Clause). The crate as a
-whole is therefore `MPL-2.0 AND LGPL-2.1-or-later AND BSD-3-Clause`; the
-license texts are in `LICENSE` and `LICENSE-LGPL-2.1`. See
-`THIRD_PARTY_LICENSES.md`.
+Grammaria is free software under the **GNU Lesser General Public License,
+version 2.1 or later** (`LICENSE`), the license of LanguageTool: use it,
+redistribute it, modify it, embed it in other software; a modified engine
+that is redistributed stays under the same license.
+
+## Acknowledgements
+
+This engine stands on other free projects:
+
+* **[LanguageTool](https://languagetool.org)** (Daniel Naber and
+  contributors): its French rule files and dictionaries are read as they are,
+  and its analysis chain was ported from Java to Rust.
+* **[Grammalecte](https://grammalecte.net) and Dicollecte** (Olivier R.): the
+  French dictionary derives from their data, and Grammalecte's test sentences
+  were the benchmark Grammaria's own rules were written against.
+* **[Morfologik](https://github.com/morfologik/morfologik-stemming)** (Dawid
+  Weiss and Marcin Miłkowski): the dictionary reader and speller, ported to
+  Rust.
+* **Numbertext**: the number-to-text programs shipped with LanguageTool.
+
+Their copyright notices and license terms are in `THIRD_PARTY_LICENSES.md`.

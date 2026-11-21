@@ -1,12 +1,14 @@
-# Third-party data and code
+# Third-party notices
 
-Grammaria's own source code — the rule files in `assets/fr/grammaria/`, the
-tools, and the code that is not a port (see below) — is licensed under the
-**Mozilla Public License 2.0** (see `LICENSE`).
+Grammaria is distributed as a whole under the **GNU Lesser General Public
+License, version 2.1 or later** (see `LICENSE`). That covers the project's
+own code and rule files (`assets/fr/grammaria/`) and the parts below that
+come from LanguageTool.
 
-Part of this repository comes from other open-source projects, as data that
-is redistributed unmodified or as code ported to Rust. Their licenses apply
-to those parts.
+This file keeps the notices of the projects Grammaria builds on, as their
+licenses require. Two of them keep their own terms inside the whole, both
+compatible with the LGPL: Morfologik's (BSD-3-Clause) and the dictionary
+data's (MPL-2.0).
 
 ## LanguageTool — data (`assets/fr/lt/`)
 
@@ -47,7 +49,7 @@ filtering of matches (`src/engine/checker.rs`, `src/engine/french.rs`). Each
 file names the Java classes it follows.
 
 These files are translations of LGPL-2.1-or-later code: the LGPL's terms
-apply to them. The full text of the license is in `LICENSE-LGPL-2.1`. The message strings of the native rules come from
+apply to them. The full text of the license is in `LICENSE`. The message strings of the native rules come from
 LanguageTool's `MessagesBundle_fr.properties`.
 
 No code comes from `@valueerror/ltjs` (a GPL-3 JavaScript port of
@@ -61,6 +63,37 @@ A Rust port of the dictionary reader and speller of
 [Morfologik](https://github.com/morfologik/morfologik-stemming) 2.1.9
 (© Dawid Weiss and Marcin Miłkowski, **BSD-3-Clause**), with Unicode
 character tables generated from the JDK it was checked against.
+
+```
+Copyright (c) 2006 Dawid Weiss
+Copyright (c) 2007-2015 Dawid Weiss, Marcin Miłkowski
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation
+    and/or other materials provided with the distribution.
+
+    * Neither the name of Morfologik nor the names of its contributors
+    may be used to endorse or promote products derived from this software
+    without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ## Benchmark material (`eval/`, not used at run time)
 
