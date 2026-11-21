@@ -11,6 +11,10 @@ repository = "https://github.com/WillIsback/grammaria-rc"
 readme = "README.md"
 keywords = ["grammar", "french", "spellcheck", "nlp", "languagetool"]
 categories = ["text-processing", "command-line-utilities"]
+# What crates.io receives: the engine and its data. The benchmark material,
+# the development tools and the tests (which read the benchmark) stay in the
+# repository.
+exclude = ["/eval", "/tools", "/tests", "/.github"]
 
 [[bin]]
 name = "grammaria"

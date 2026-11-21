@@ -128,6 +128,10 @@ grammaria check --tagger article.txt      # tokens and tags
 grammaria check --watch 1 article.txt     # re-check when the file changes
 ```
 
+Installed from crates.io (`cargo install grammaria`), the binary comes
+without its data: take `assets/fr` from this repository (or from the crate's
+source) and point `--data` or `GRAMMARIA_DATA` at it.
+
 The data directory holds `lt/` and `grammaria/`. From a source checkout it
 is `assets/fr`; elsewhere set `--data DIR` or `GRAMMARIA_DATA`, and make the
 directory with `grammaria-build --out DIR` (a plain copy of the assets).
