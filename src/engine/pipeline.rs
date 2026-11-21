@@ -8,6 +8,7 @@ use std::sync::Arc;
 use super::analysis::Analyzer;
 use super::checker::{CheckRule, Checker, Found, NativeRule};
 use super::disambiguator::Disambiguator;
+use super::fastload::load_grammar_parallel;
 use super::filters::{FrenchFilters, SentenceAnalyzer};
 use super::pattern::{Lang, SpellChecker, WordTagger};
 use super::rule::{RuleContext, RuleFilter};
@@ -16,7 +17,6 @@ use super::synth::FrenchSynthesizer;
 use super::tagger::{FrenchTagger, WordDictionary};
 use super::token::{Readings, Sentence};
 use super::unifier::UnifierConfiguration;
-use super::fastload::load_grammar_parallel;
 use super::xmlrules::GrammarRule;
 use crate::morfologik::{Dictionary, WordData};
 
@@ -26,7 +26,11 @@ pub fn default_rule_files(dir: &Path) -> Vec<PathBuf> {
     let mut files = vec![dir.join("grammar.xml"), dir.join("style.xml")];
     if let Some(own) = dir.parent().map(|p| p.join("grammaria")) {
         if let Ok(entries) = std::fs::read_dir(&own) {
-            let mut extra: Vec<PathBuf> = entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "xml")).collect();
+            let mut extra: Vec<PathBuf> = entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x == "xml"))
+                .collect();
             extra.sort();
             files.extend(extra);
         }
@@ -91,12 +95,19 @@ struct FirstSentence {
 
 impl SentenceAnalyzer for FirstSentence {
     fn analyze(&self, text: &str, ctx: &RuleContext) -> Option<Sentence> {
-        analyze(&self.analyzer, &self.disambiguator, text, ctx).into_iter().next()
+        analyze(&self.analyzer, &self.disambiguator, text, ctx)
+            .into_iter()
+            .next()
     }
 }
 
 /// `JLanguageTool.analyzeText`.
-fn analyze(analyzer: &Analyzer, disambiguator: &Disambiguator, text: &str, ctx: &RuleContext) -> Vec<Sentence> {
+fn analyze(
+    analyzer: &Analyzer,
+    disambiguator: &Disambiguator,
+    text: &str,
+    ctx: &RuleContext,
+) -> Vec<Sentence> {
     analyzer.analyze_with(text, |raw| {
         let pre = raw.tokens.clone();
         let Sentence { text, tokens, .. } = raw;
@@ -119,37 +130,76 @@ impl French {
         rule_files: &[PathBuf],
         extend: impl FnOnce(&Loaded) -> Extensions,
     ) -> io::Result<French> {
-        let dictionary = Arc::new(Dictionary::load(dir.join("french.dict"), dir.join("french.info"))?);
-        let tagger = Arc::new(FrenchTagger::new(Arc::new(MorfologikDictionary(dictionary.clone())), dir)?);
+        let dictionary = Arc::new(Dictionary::load(
+            dir.join("french.dict"),
+            dir.join("french.info"),
+        )?);
+        let tagger = Arc::new(FrenchTagger::new(
+            Arc::new(MorfologikDictionary(dictionary.clone())),
+            dir,
+        )?);
         let srx = std::fs::read_to_string(dir.join("segment.srx"))?;
-        let sentence_tokenizer = super::sentences::SrxSentenceTokenizer::new(&srx, "fr").map_err(io::Error::other)?;
+        let sentence_tokenizer =
+            super::sentences::SrxSentenceTokenizer::new(&srx, "fr").map_err(io::Error::other)?;
         let analyzer = Arc::new(Analyzer::from_parts(tagger.clone(), sentence_tokenizer));
         let synthesizer = Arc::new(FrenchSynthesizer::load(dir)?);
-        let extensions = extend(&Loaded { dir, dictionary: &dictionary, tagger: &tagger, synthesizer: &synthesizer, analyzer: &analyzer });
+        let extensions = extend(&Loaded {
+            dir,
+            dictionary: &dictionary,
+            tagger: &tagger,
+            synthesizer: &synthesizer,
+            analyzer: &analyzer,
+        });
         let factory = |class: &str| extensions.filters.iter().find_map(|f| f(class));
 
         // The disambiguation files are read while the grammar files are.
         let mut disambig_unifier = UnifierConfiguration::default();
         let mut unifier = UnifierConfiguration::default();
         let mut grammar_rules: Vec<GrammarRule> = Vec::new();
-        let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(8);
+        let threads = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .min(8);
         let factory: &(dyn Fn(&str) -> Option<Arc<dyn RuleFilter>> + Sync) = &factory;
         let (disambiguator, grammar) = std::thread::scope(|scope| {
-            let disambiguation = scope.spawn(|| Disambiguator::load(dir, &|class| factory(class), &mut disambig_unifier));
+            let disambiguation = scope
+                .spawn(|| Disambiguator::load(dir, &|class| factory(class), &mut disambig_unifier));
             let grammar = (|| -> io::Result<()> {
                 for path in rule_files {
-                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("rules.xml");
+                    let name = path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("rules.xml");
                     let style = name.contains("style");
-                    let xml = std::fs::read_to_string(path).map_err(|e| io::Error::new(e.kind(), format!("{}: {e}", path.display())))?;
-                    grammar_rules.extend(load_grammar_parallel(&xml, name, style, factory, &mut unifier, threads));
+                    let xml = std::fs::read_to_string(path).map_err(|e| {
+                        io::Error::new(e.kind(), format!("{}: {e}", path.display()))
+                    })?;
+                    grammar_rules.extend(load_grammar_parallel(
+                        &xml,
+                        name,
+                        style,
+                        factory,
+                        &mut unifier,
+                        threads,
+                    ));
                 }
                 Ok(())
             })();
-            (disambiguation.join().expect("disambiguation loader panicked"), grammar)
+            (
+                disambiguation
+                    .join()
+                    .expect("disambiguation loader panicked"),
+                grammar,
+            )
         });
         grammar?;
         let disambiguator = Arc::new(disambiguator?);
-        let Extensions { native_rules, speller, rules_loaded, .. } = extensions;
+        let Extensions {
+            native_rules,
+            speller,
+            rules_loaded,
+            ..
+        } = extensions;
         if let Some(loaded) = rules_loaded {
             loaded(&grammar_rules, &analyzer, &disambiguator);
         }
@@ -158,9 +208,25 @@ impl French {
             GrammarRule::Pattern(p) => CheckRule::Pattern(p),
             GrammarRule::Regex(r) => CheckRule::Regex(r),
         }));
-        let lang = Lang { synthesizer: Some(synthesizer), tagger: Some(tagger), speller };
-        let checker = Checker::new(rules, RuleContext { lang, unifier, disambig_unifier });
-        Ok(French { analyzer, disambiguator, checker, ignore_unknown_proper_nouns: false })
+        let lang = Lang {
+            synthesizer: Some(synthesizer),
+            tagger: Some(tagger),
+            speller,
+        };
+        let checker = Checker::new(
+            rules,
+            RuleContext {
+                lang,
+                unifier,
+                disambig_unifier,
+            },
+        );
+        Ok(French {
+            analyzer,
+            disambiguator,
+            checker,
+            ignore_unknown_proper_nouns: false,
+        })
     }
 
     /// The rule files alone, without native rules, filters or spelling.
@@ -177,7 +243,10 @@ impl French {
     /// Switch rules on or off, starting from LanguageTool's defaults.
     pub fn apply_profile(&mut self, profile: &Profile) {
         self.checker.select(|info, by_default| {
-            let named = |list: &[String]| list.iter().any(|id| *id == info.id || *id == info.full_id());
+            let named = |list: &[String]| {
+                list.iter()
+                    .any(|id| *id == info.id || *id == info.full_id())
+            };
             if named(&profile.off) {
                 false
             } else {
@@ -198,7 +267,10 @@ impl French {
         let sentences = self.analyze(text);
         let mut found = self.checker.check(&sentences);
         if self.ignore_unknown_proper_nouns {
-            found.retain(|m| self.checker.info(m.rule).id != SPELLING_RULE_ID || !looks_like_a_proper_noun(m, &sentences));
+            found.retain(|m| {
+                self.checker.info(m.rule).id != SPELLING_RULE_ID
+                    || !looks_like_a_proper_noun(m, &sentences)
+            });
         }
         (sentences, found)
     }
@@ -213,7 +285,11 @@ pub fn load_french(dir: &Path) -> io::Result<French> {
 /// this project's rules and rule profile. This is what is compared with the
 /// reference implementation.
 pub fn load_french_lt(dir: &Path) -> io::Result<French> {
-    load_full(dir, &[dir.join("grammar.xml"), dir.join("style.xml")], false)
+    load_full(
+        dir,
+        &[dir.join("grammar.xml"), dir.join("style.xml")],
+        false,
+    )
 }
 
 fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Result<French> {
@@ -222,16 +298,27 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
         let mut extensions = Extensions::default();
         let filters = FrenchFilters::new();
         let factory = filters.clone();
-        extensions.filters.push(Box::new(move |class| factory.filter(class)));
+        extensions
+            .filters
+            .push(Box::new(move |class| factory.filter(class)));
         extensions.rules_loaded = Some(Box::new(move |rules, analyzer, disambiguator| {
             filters.set_rules(rules);
-            filters.set_analyzer(Arc::new(FirstSentence { analyzer: analyzer.clone(), disambiguator: disambiguator.clone() }));
+            filters.set_analyzer(Arc::new(FirstSentence {
+                analyzer: analyzer.clone(),
+                disambiguator: disambiguator.clone(),
+            }));
         }));
         // Spelling: the rule itself, the language's spell checker and the
         // filters that ask it about their suggestions.
         let analyzer = loaded.analyzer.clone();
-        let tokenize: Tokenize = Arc::new(move |text: &str| analyzer.word_tokenizer().tokenize(text));
-        let spelling = match FrenchSpelling::load(loaded.dir, loaded.dictionary.clone(), loaded.tagger.clone(), tokenize) {
+        let tokenize: Tokenize =
+            Arc::new(move |text: &str| analyzer.word_tokenizer().tokenize(text));
+        let spelling = match FrenchSpelling::load(
+            loaded.dir,
+            loaded.dictionary.clone(),
+            loaded.tagger.clone(),
+            tokenize,
+        ) {
             Ok(spelling) => Some(spelling),
             Err(e) => {
                 failure = Some(e);
@@ -241,7 +328,9 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
         let speller_rule = spelling.as_ref().map(|s| s.native_rule());
         if let Some(spelling) = spelling {
             extensions.speller = Some(spelling.spell_checker());
-            extensions.filters.push(Box::new(move |class| spelling.filter(class)));
+            extensions
+                .filters
+                .push(Box::new(move |class| spelling.filter(class)));
         }
         match super::native::french_native_rules(loaded.dir, speller_rule) {
             Ok(rules) => extensions.native_rules = rules,
@@ -255,7 +344,11 @@ fn load_full(dir: &Path, rule_files: &[PathBuf], with_profile: bool) -> io::Resu
     let mut french = french;
     release_free_memory();
     if with_profile {
-        if let Some(profile) = dir.parent().map(|p| p.join("grammaria").join("profile.txt")).and_then(|p| std::fs::read_to_string(p).ok()) {
+        if let Some(profile) = dir
+            .parent()
+            .map(|p| p.join("grammaria").join("profile.txt"))
+            .and_then(|p| std::fs::read_to_string(p).ok())
+        {
             french.apply_profile(&Profile::parse(&profile));
         }
     }
@@ -278,17 +371,30 @@ fn looks_like_a_proper_noun(m: &Found, sentences: &[Sentence]) -> bool {
             continue;
         }
         let at = m.from_byte - start;
-        let Some(word) = sentence.text.get(at..(m.to_byte - start).min(sentence.text.len())) else { return false };
+        let Some(word) = sentence
+            .text
+            .get(at..(m.to_byte - start).min(sentence.text.len()))
+        else {
+            return false;
+        };
         let capitalized = word.chars().next().is_some_and(char::is_uppercase)
             && word.chars().skip(1).any(char::is_lowercase)
-            && word.split(['-', '\'', '’']).all(|part| part.chars().skip(1).all(|c| !c.is_uppercase()));
+            && word
+                .split(['-', '\'', '’'])
+                .all(|part| part.chars().skip(1).all(|c| !c.is_uppercase()));
         // A short word in capitals is an acronym (GAFI, EHESS).
         let letters = word.chars().count();
-        let acronym = (2..=6).contains(&letters) && word.chars().all(|c| c.is_alphabetic() && c.is_uppercase());
+        let acronym = (2..=6).contains(&letters)
+            && word.chars().all(|c| c.is_alphabetic() && c.is_uppercase());
         if !capitalized && !acronym {
             return false;
         }
-        let bare = |s: &str| -> String { s.chars().flat_map(char::to_lowercase).map(strip_accent).collect() };
+        let bare = |s: &str| -> String {
+            s.chars()
+                .flat_map(char::to_lowercase)
+                .map(strip_accent)
+                .collect()
+        };
         let target = bare(word);
         if m.suggestions.iter().any(|s| bare(s) == target) {
             return false;
@@ -300,8 +406,15 @@ fn looks_like_a_proper_noun(m: &Found, sentences: &[Sentence]) -> bool {
         // comma, an opening parenthesis or the full stop of an abbreviation
         // ("M. Despréaux"); after anything else (nothing, a quotation mark,
         // a dash, a colon) the capital may just open a sentence.
-        let previous = sentence.tokens.iter().filter(|t| !t.is_whitespace && !t.is_sent_start && t.start_pos < at).last();
-        return previous.is_some_and(|t| t.token.chars().any(char::is_alphanumeric) || matches!(&*t.token, "," | ";" | "(" | "'" | "’" | "."));
+        let previous = sentence
+            .tokens
+            .iter()
+            .filter(|t| !t.is_whitespace && !t.is_sent_start && t.start_pos < at)
+            .last();
+        return previous.is_some_and(|t| {
+            t.token.chars().any(char::is_alphanumeric)
+                || matches!(&*t.token, "," | ";" | "(" | "'" | "’" | ".")
+        });
     }
     false
 }
@@ -351,8 +464,12 @@ impl Profile {
             match (words.next(), words.next()) {
                 (Some("off"), Some(id)) => profile.off.push(id.to_string()),
                 (Some("on"), Some(id)) => profile.on.push(id.to_string()),
-                (Some("unknown-proper-nouns"), Some("ignore")) => profile.unknown_proper_nouns = ProperNouns::Ignore,
-                (Some("unknown-proper-nouns"), Some("report")) => profile.unknown_proper_nouns = ProperNouns::Report,
+                (Some("unknown-proper-nouns"), Some("ignore")) => {
+                    profile.unknown_proper_nouns = ProperNouns::Ignore
+                }
+                (Some("unknown-proper-nouns"), Some("report")) => {
+                    profile.unknown_proper_nouns = ProperNouns::Report
+                }
                 _ => {}
             }
         }

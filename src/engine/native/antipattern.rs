@@ -28,17 +28,32 @@ pub struct TokenTest {
 impl TokenTest {
     /// `new PatternTokenBuilder().token(value)`.
     pub fn token(value: &str) -> TokenTest {
-        TokenTest { text: Text::Literal { value: value.to_string(), case_sensitive: false }, whitespace_before: None }
+        TokenTest {
+            text: Text::Literal {
+                value: value.to_string(),
+                case_sensitive: false,
+            },
+            whitespace_before: None,
+        }
     }
 
     /// `new PatternTokenBuilder().csToken(value)`.
     pub fn cs_token(value: &str) -> TokenTest {
-        TokenTest { text: Text::Literal { value: value.to_string(), case_sensitive: true }, whitespace_before: None }
+        TokenTest {
+            text: Text::Literal {
+                value: value.to_string(),
+                case_sensitive: true,
+            },
+            whitespace_before: None,
+        }
     }
 
     /// `new PatternTokenBuilder().tokenRegex(source)`.
     pub fn token_regex(source: &str) -> TokenTest {
-        TokenTest { text: Text::Regex(re::compile(source, Flags::IGNORE_CASE).expect("valid pattern")), whitespace_before: None }
+        TokenTest {
+            text: Text::Regex(re::compile(source, Flags::IGNORE_CASE).expect("valid pattern")),
+            whitespace_before: None,
+        }
     }
 
     /// `setIsWhiteSpaceBefore(value)`.
@@ -48,12 +63,21 @@ impl TokenTest {
     }
 
     fn matches(&self, token: &Readings) -> bool {
-        if self.whitespace_before.is_some_and(|expected| expected != token.whitespace_before) {
+        if self
+            .whitespace_before
+            .is_some_and(|expected| expected != token.whitespace_before)
+        {
             return false;
         }
         match &self.text {
-            Text::Literal { value, case_sensitive: true } => **value == *token.token,
-            Text::Literal { value, case_sensitive: false } => strtools::equals_ignore_case(value, &token.token),
+            Text::Literal {
+                value,
+                case_sensitive: true,
+            } => **value == *token.token,
+            Text::Literal {
+                value,
+                case_sensitive: false,
+            } => strtools::equals_ignore_case(value, &token.token),
             Text::Regex(regex) => regex.is_full_match(&token.token),
         }
     }
@@ -87,7 +111,11 @@ pub fn immunized_tokens(sentence: &Sentence, patterns: &[AntiPattern]) -> Vec<bo
             continue;
         }
         for start in 0..=n - size {
-            if pattern.order.iter().all(|&k| pattern.tokens[k].matches(sentence.tok(start + k))) {
+            if pattern
+                .order
+                .iter()
+                .all(|&k| pattern.tokens[k].matches(sentence.tok(start + k)))
+            {
                 for k in 0..size {
                     immunized[sentence.non_ws[start + k]] = true;
                 }
@@ -104,17 +132,29 @@ mod tests {
 
     #[test]
     fn immunizes_the_matched_tokens() {
-        let smiley = AntiPattern::new(vec![TokenTest::token_regex("[:;]"), TokenTest::token_regex("[\\(\\)D]").whitespace_before(false)]);
+        let smiley = AntiPattern::new(vec![
+            TokenTest::token_regex("[:;]"),
+            TokenTest::token_regex("[\\(\\)D]").whitespace_before(false),
+        ]);
         let s = plain("Oui :D non : d");
         // SENT_START Oui _ : D _ non _ : _ d
         let flags = immunized_tokens(&s, &[smiley]);
-        assert_eq!(flags, vec![false, false, false, true, true, false, false, false, false, false, false]);
+        assert_eq!(
+            flags,
+            vec![false, false, false, true, true, false, false, false, false, false, false]
+        );
     }
 
     #[test]
     fn literal_tokens() {
         let s = plain("a B");
-        assert_eq!(immunized_tokens(&s, &[AntiPattern::new(vec![TokenTest::token("b")])]), vec![false, false, false, true]);
-        assert_eq!(immunized_tokens(&s, &[AntiPattern::new(vec![TokenTest::cs_token("b")])]), vec![false; 4]);
+        assert_eq!(
+            immunized_tokens(&s, &[AntiPattern::new(vec![TokenTest::token("b")])]),
+            vec![false, false, false, true]
+        );
+        assert_eq!(
+            immunized_tokens(&s, &[AntiPattern::new(vec![TokenTest::cs_token("b")])]),
+            vec![false; 4]
+        );
     }
 }

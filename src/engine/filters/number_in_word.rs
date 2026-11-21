@@ -76,7 +76,17 @@ mod tests {
         }
         let s = sentence(&[(word, &[])]);
         let m = match_over(&s, 1, 1, "");
-        FrenchNumberInWordFilter.accept(m, &args(&[("word", word)]), 1, &s.non_ws_tokens()[1..], &[1], &s, &ctx).map(|m| m.suggestions)
+        FrenchNumberInWordFilter
+            .accept(
+                m,
+                &args(&[("word", word)]),
+                1,
+                &s.non_ws_tokens()[1..],
+                &[1],
+                &s,
+                &ctx,
+            )
+            .map(|m| m.suggestions)
     }
 
     #[test]
@@ -84,7 +94,11 @@ mod tests {
         assert_eq!(suggest("b0njour", true), Some(vec!["bonjour".to_string()]));
         assert_eq!(suggest("bon1jour", true), Some(vec!["bonjour".to_string()]));
         assert_eq!(suggest("b0n", true), Some(vec!["bon".to_string()]));
-        assert_eq!(suggest("b9njour", true), Some(vec!["bonjour".to_string()]), "the speller's suggestions for \"bnjour\"");
+        assert_eq!(
+            suggest("b9njour", true),
+            Some(vec!["bonjour".to_string()]),
+            "the speller's suggestions for \"bnjour\""
+        );
         assert_eq!(suggest("x1yz", true), None);
         assert_eq!(suggest("b0njour", false), None);
     }

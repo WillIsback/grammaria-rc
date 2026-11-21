@@ -14,7 +14,14 @@ pub struct DoublePunctuationRule {
 
 impl DoublePunctuationRule {
     pub fn new() -> DoublePunctuationRule {
-        DoublePunctuationRule { info: rule_info("DOUBLE_PUNCTUATION", messages::DESC_DOUBLE_PUNCT, &PUNCTUATION, "typographical") }
+        DoublePunctuationRule {
+            info: rule_info(
+                "DOUBLE_PUNCTUATION",
+                messages::DESC_DOUBLE_PUNCT,
+                &PUNCTUATION,
+                "typographical",
+            ),
+        }
     }
 }
 
@@ -29,7 +36,12 @@ impl NativeRule for DoublePunctuationRule {
         &self.info
     }
 
-    fn match_sentence(&self, rule: usize, sentence: &Sentence, _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        rule: usize,
+        sentence: &Sentence,
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut matches = Vec::new();
         let n = sentence.len();
         let text: &str = &sentence.text;
@@ -38,8 +50,16 @@ impl NativeRule for DoublePunctuationRule {
         let mut comma_count = 0;
         for i in 1..n {
             let token: &str = &sentence.tok(i).token;
-            let next_token: Option<&str> = if i < n - 1 { Some(&sentence.tok(i + 1).token) } else { None };
-            let prev_prev_token: Option<&str> = if i > 1 { Some(&sentence.tok(i - 2).token) } else { None };
+            let next_token: Option<&str> = if i < n - 1 {
+                Some(&sentence.tok(i + 1).token)
+            } else {
+                None
+            };
+            let prev_prev_token: Option<&str> = if i > 1 {
+                Some(&sentence.tok(i - 2).token)
+            } else {
+                None
+            };
             if token == "." {
                 dot_count += 1;
                 comma_count = 0;
@@ -55,7 +75,14 @@ impl NativeRule for DoublePunctuationRule {
                 && !matches!(prev_prev_token, Some("?" | "!" | "…" | "."))
             {
                 let suggestions = vec![".".to_string(), "…".to_string()];
-                matches.extend(rule_match(rule, prev_char_start(text, start_pos), start_pos + 1, messages::TWO_DOTS, messages::DOUBLE_DOTS_SHORT, suggestions));
+                matches.extend(rule_match(
+                    rule,
+                    prev_char_start(text, start_pos),
+                    start_pos + 1,
+                    messages::TWO_DOTS,
+                    messages::DOUBLE_DOTS_SHORT,
+                    suggestions,
+                ));
                 dot_count = 0;
             } else if comma_count == 2 && next_token != Some(COMMA) {
                 let suggestions = vec![COMMA.to_string()];
@@ -84,15 +111,25 @@ mod tests {
     use super::*;
 
     fn check(text: &str) -> Vec<(usize, usize, Vec<String>)> {
-        DoublePunctuationRule::new().match_sentence(0, &plain(text), &context()).into_iter().map(|m| (m.from_pos, m.to_pos, m.suggestions)).collect()
+        DoublePunctuationRule::new()
+            .match_sentence(0, &plain(text), &context())
+            .into_iter()
+            .map(|m| (m.from_pos, m.to_pos, m.suggestions))
+            .collect()
     }
 
     #[test]
     fn two_dots_or_commas() {
-        assert_eq!(check("Oui.. non"), vec![(3, 5, vec![".".to_string(), "…".to_string()])]);
+        assert_eq!(
+            check("Oui.. non"),
+            vec![(3, 5, vec![".".to_string(), "…".to_string()])]
+        );
         assert_eq!(check("Oui,, non"), vec![(3, 5, vec![",".to_string()])]);
         // The match starts one character before the second mark.
-        assert_eq!(check("Oui.\u{a0}. non"), vec![(4, 7, vec![".".to_string(), "…".to_string()])]);
+        assert_eq!(
+            check("Oui.\u{a0}. non"),
+            vec![(4, 7, vec![".".to_string(), "…".to_string()])]
+        );
     }
 
     #[test]

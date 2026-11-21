@@ -44,7 +44,11 @@ fn tag_end(bytes: &[u8], at: usize) -> Option<usize> {
 }
 
 fn find(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
-    haystack.get(from..)?.windows(needle.len()).position(|w| w == needle).map(|p| p + from)
+    haystack
+        .get(from..)?
+        .windows(needle.len())
+        .position(|w| w == needle)
+        .map(|p| p + from)
 }
 
 /// The prelude (up to the first category) and the children of all the
@@ -84,7 +88,10 @@ fn split(xml: &str) -> Option<(&str, Vec<Unit<'_>>)> {
         let closing = bytes[i + 1] == b'/';
         let self_closing = bytes[end - 2] == b'/';
         let name_start = i + 1 + closing as usize;
-        let name_len = bytes[name_start..end].iter().position(|b| b.is_ascii_whitespace() || *b == b'>' || *b == b'/').unwrap_or(0);
+        let name_len = bytes[name_start..end]
+            .iter()
+            .position(|b| b.is_ascii_whitespace() || *b == b'>' || *b == b'/')
+            .unwrap_or(0);
         let name = &xml[name_start..name_start + name_len];
         match category {
             None => {
@@ -110,14 +117,20 @@ fn split(xml: &str) -> Option<(&str, Vec<Unit<'_>>)> {
                     } else {
                         depth -= 1;
                         if depth == 0 {
-                            units.push(Unit { category: open, body: &xml[child_start..end] });
+                            units.push(Unit {
+                                category: open,
+                                body: &xml[child_start..end],
+                            });
                         }
                     }
                 } else {
                     if depth == 0 {
                         child_start = i;
                         if self_closing {
-                            units.push(Unit { category: open, body: &xml[i..end] });
+                            units.push(Unit {
+                                category: open,
+                                body: &xml[i..end],
+                            });
                         }
                     }
                     if !self_closing {
@@ -144,9 +157,19 @@ pub fn load_grammar_parallel(
     threads: usize,
 ) -> Vec<GrammarRule> {
     // Small files are not worth cutting.
-    let split = if threads > 1 && xml.len() > 1 << 20 { split(xml) } else { None };
+    let split = if threads > 1 && xml.len() > 1 << 20 {
+        split(xml)
+    } else {
+        None
+    };
     let Some((prelude, units)) = split else {
-        return load_grammar(xml, source_file, is_style_file, &|class| factory(class), unifier);
+        return load_grammar(
+            xml,
+            source_file,
+            is_style_file,
+            &|class| factory(class),
+            unifier,
+        );
     };
     // Contiguous groups of children of about the same size.
     let total: usize = units.iter().map(|u| u.body.len()).sum();
@@ -187,12 +210,21 @@ pub fn load_grammar_parallel(
             .map(|piece| {
                 let mut local = base.clone();
                 scope.spawn(move || {
-                    let rules = load_grammar(piece, source_file, is_style_file, &|class| factory(class), &mut local);
+                    let rules = load_grammar(
+                        piece,
+                        source_file,
+                        is_style_file,
+                        &|class| factory(class),
+                        &mut local,
+                    );
                     (rules, local)
                 })
             })
             .collect();
-        handles.into_iter().map(|h| h.join().expect("rule loader panicked")).collect()
+        handles
+            .into_iter()
+            .map(|h| h.join().expect("rule loader panicked"))
+            .collect()
     });
     // Every piece read the same definitions from the prelude.
     if let Some((_, first)) = results.first_mut() {
@@ -222,15 +254,22 @@ mod tests {
         let (prelude, units) = split(xml).expect("regular structure");
         assert!(prelude.ends_with("<unification feature=\"n\"/>\n"));
         assert_eq!(units.len(), 3);
-        assert!(units[0].body.starts_with("<rule id=\"R1\">") && units[0].body.ends_with("</rule>"));
-        assert!(units[1].body.starts_with("<rulegroup id=\"G\">") && units[1].body.ends_with("</rulegroup>"));
+        assert!(
+            units[0].body.starts_with("<rule id=\"R1\">") && units[0].body.ends_with("</rule>")
+        );
+        assert!(
+            units[1].body.starts_with("<rulegroup id=\"G\">")
+                && units[1].body.ends_with("</rulegroup>")
+        );
         assert_eq!(units[2].category, "<category id=\"B\" name=\"b\">");
     }
 
     #[test]
     fn the_french_rule_files_load_the_same_in_parallel() {
         for (name, style) in [("grammar.xml", false), ("style.xml", true)] {
-            let Ok(xml) = std::fs::read_to_string(format!("assets/fr/lt/{name}")) else { return };
+            let Ok(xml) = std::fs::read_to_string(format!("assets/fr/lt/{name}")) else {
+                return;
+            };
             let mut u1 = UnifierConfiguration::default();
             let mut u2 = UnifierConfiguration::default();
             let sequential = load_grammar(&xml, name, style, &none, &mut u1);

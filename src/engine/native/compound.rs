@@ -17,7 +17,10 @@ use super::super::checker::NativeRule;
 use super::super::rule::{RuleContext, RuleInfo, RuleMatch};
 use super::super::strtools;
 use super::super::token::{Sentence, SENTENCE_START};
-use super::{is_java_digit, java_split, java_trim, rule_info, rule_match, to_id, SpecificIdRule, SpecificIds, MISC};
+use super::{
+    is_java_digit, java_split, java_trim, rule_info, rule_match, to_id, SpecificIdRule,
+    SpecificIds, MISC,
+};
 
 /// `AbstractCompoundRule.MAX_TERMS`: the most parts a compound may have.
 const MAX_TERMS: usize = 5;
@@ -58,7 +61,9 @@ impl CompoundRuleData {
                 return Err(format!("Not a compound: {line}"));
             }
             if parts.len() > MAX_TERMS {
-                return Err(format!("Too many compound parts: {line}, maximum allowed: {MAX_TERMS}"));
+                return Err(format!(
+                    "Too many compound parts: {line}, maximum allowed: {MAX_TERMS}"
+                ));
             }
             if data.incorrect_compounds.contains(&line.to_lowercase()) {
                 return Err(format!("Duplicated word: {line}"));
@@ -124,9 +129,18 @@ impl CompoundRule {
     pub fn french(compounds: &str) -> Result<(CompoundRule, Vec<SpecificIdRule>), String> {
         let data = CompoundRuleData::parse(compounds)?;
         // `$match` stands for the compound in the description of each id.
-        let info = rule_info("FR_COMPOUNDS", "Mots avec trait d’union : $match", &MISC, "misspelling");
+        let info = rule_info(
+            "FR_COMPOUNDS",
+            "Mots avec trait d’union : $match",
+            &MISC,
+            "misspelling",
+        );
         let keys = data.entries.iter().map(|compound| {
-            (compound.clone(), to_id(&format!("{}_{}", info.id, compound)), info.description.replace("$match", compound))
+            (
+                compound.clone(),
+                to_id(&format!("{}_{}", info.id, compound)),
+                info.description.replace("$match", compound),
+            )
         });
         let (ids, rules) = SpecificIds::new(keys, &info);
         let rule = CompoundRule {
@@ -151,11 +165,17 @@ impl CompoundRule {
                 return false;
             }
             if !token.contains('-') {
-                let first = token.find(' ').filter(|&i| i > 0).map_or(&token[..], |i| &token[..i]);
+                let first = token
+                    .find(' ')
+                    .filter(|&i| i > 0)
+                    .map_or(&token[..], |i| &token[..i]);
                 return self.data.first_words.contains(first);
             }
             let normalized = normalize(token);
-            let first = normalized.find(' ').filter(|&i| i > 0).map_or(&normalized[..], |i| &normalized[..i]);
+            let first = normalized
+                .find(' ')
+                .filter(|&i| i > 0)
+                .map_or(&normalized[..], |i| &normalized[..i]);
             !first.is_empty() && self.data.first_words.contains(&first.to_lowercase())
         })
     }
@@ -163,7 +183,9 @@ impl CompoundRule {
     /// `couldStartCompound`: the first real token of the queue starts a
     /// compound, or is itself made of several words.
     fn could_start_compound(&self, queue: &[Queued]) -> bool {
-        let Some(first) = queue.iter().find(|q| !q.token.is_empty()) else { return true };
+        let Some(first) = queue.iter().find(|q| !q.token.is_empty()) else {
+            return true;
+        };
         let token = first.token;
         if !token.contains(['-', ' ']) {
             if is_lower_case(token) {
@@ -172,7 +194,9 @@ impl CompoundRule {
             return self.data.first_words.contains(&token.to_lowercase());
         }
         let normalized = normalize(token);
-        normalized.is_empty() || normalized.contains(' ') || self.data.first_words.contains(&normalized.to_lowercase())
+        normalized.is_empty()
+            || normalized.contains(' ')
+            || self.data.first_words.contains(&normalized.to_lowercase())
     }
 
     /// `isMisspelled` of the French rule: the tagger does not know the word.
@@ -185,7 +209,12 @@ impl CompoundRule {
 
     /// `filterReplacements`: drop the suggestions equal to the text and the
     /// misspelt ones.
-    fn filter_replacements(&self, replacements: Vec<String>, original: &str, ctx: &RuleContext) -> Vec<String> {
+    fn filter_replacements(
+        &self,
+        replacements: Vec<String>,
+        original: &str,
+        ctx: &RuleContext,
+    ) -> Vec<String> {
         let mut kept = Vec::with_capacity(replacements.len());
         for replacement in replacements {
             let replacement = collapse_dashes(&replacement);
@@ -256,7 +285,9 @@ fn uncapitalize(s: &str) -> String {
 /// `isNotAllUppercase`: no word of the text is in capitals (a word without
 /// letters counts as capitals, a lone hyphen does not).
 fn is_not_all_uppercase(s: &str) -> bool {
-    java_split(s, ' ').into_iter().all(|part| part == "-" || !strtools::is_all_uppercase(part))
+    java_split(s, ' ')
+        .into_iter()
+        .all(|part| part == "-" || !strtools::is_all_uppercase(part))
 }
 
 /// `mergeCompound`: the parts written as one word.
@@ -308,7 +339,12 @@ impl NativeRule for CompoundRule {
         &self.info
     }
 
-    fn match_sentence(&self, rule: usize, sentence: &Sentence, ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        rule: usize,
+        sentence: &Sentence,
+        ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let data = &self.data;
         let use_first_words = !data.has_digit_patterns;
         if use_first_words && !self.sentence_may_contain_compound(sentence) {
@@ -327,7 +363,13 @@ impl NativeRule for CompoundRule {
         for i in 0..n + MAX_TERMS {
             let token = if i >= n {
                 let start_pos = queue.first().map_or(0, |q| q.start_pos);
-                Queued { token: "", whitespace_before: false, sentence_start: false, start_pos, end_pos: start_pos }
+                Queued {
+                    token: "",
+                    whitespace_before: false,
+                    sentence_start: false,
+                    start_pos,
+                    end_pos: start_pos,
+                }
             } else {
                 let t = sentence.tok(i);
                 if i > 0 && t.immunized {
@@ -375,16 +417,26 @@ impl NativeRule for CompoundRule {
             for k in (0..strings_to_check.len()).rev() {
                 let string_to_check = &strings_to_check[k];
                 let orig_string_to_check = &orig_strings_to_check[k];
-                let contains_digits = data.has_digit_patterns && java_split(string_to_check, ' ').into_iter().any(is_numeric);
+                let contains_digits = data.has_digit_patterns
+                    && java_split(string_to_check, ' ').into_iter().any(is_numeric);
                 let listed = data.incorrect_compounds.contains(string_to_check);
                 // A compound listed with `\d` for its numbers.
-                let digits_pattern = if !listed && contains_digits { Some(digits_to_pattern(string_to_check)) } else { None };
-                let listed_as_pattern = digits_pattern.as_ref().is_some_and(|p| data.incorrect_compounds.contains(p));
+                let digits_pattern = if !listed && contains_digits {
+                    Some(digits_to_pattern(string_to_check))
+                } else {
+                    None
+                };
+                let listed_as_pattern = digits_pattern
+                    .as_ref()
+                    .is_some_and(|p| data.incorrect_compounds.contains(p));
                 if !listed && !listed_as_pattern {
                     continue;
                 }
                 // The first token at which the text read like this.
-                let end_pos = ends[strings_to_check.iter().position(|s| s == string_to_check).unwrap_or(k)];
+                let end_pos = ends[strings_to_check
+                    .iter()
+                    .position(|s| s == string_to_check)
+                    .unwrap_or(k)];
                 let dash = data.dash_suggestion.contains(string_to_check);
                 if dash && !orig_string_to_check.contains(' ') {
                     break; // already written with its hyphens
@@ -395,8 +447,13 @@ impl NativeRule for CompoundRule {
                     replacement.push(orig_string_to_check.replace(' ', "-"));
                     msg = self.with_hyphen_message;
                 }
-                if is_not_all_uppercase(orig_string_to_check) && data.joined_suggestion.contains(string_to_check) {
-                    let uncapitalize_mid_words = data.joined_lower_case_suggestion.iter().any(|s| string_to_check.contains(s.as_str()));
+                if is_not_all_uppercase(orig_string_to_check)
+                    && data.joined_suggestion.contains(string_to_check)
+                {
+                    let uncapitalize_mid_words = data
+                        .joined_lower_case_suggestion
+                        .iter()
+                        .any(|s| string_to_check.contains(s.as_str()));
                     replacement.push(merge_compound(orig_string_to_check, uncapitalize_mid_words));
                     msg = self.without_hyphen_message;
                 }
@@ -409,12 +466,23 @@ impl NativeRule for CompoundRule {
                     msg = self.with_or_without_hyphen_message;
                 }
                 let start_pos = first_match_token.start_pos;
-                let replacement = self.filter_replacements(replacement, &text[start_pos..end_pos], ctx);
+                let replacement =
+                    self.filter_replacements(replacement, &text[start_pos..end_pos], ctx);
                 if replacement.is_empty() {
                     break;
                 }
-                let key = digits_pattern.as_ref().filter(|_| !listed).unwrap_or(string_to_check);
-                let Some(rule_match) = rule_match(self.ids.rule_index(rule, key), start_pos, end_pos, msg, self.short_message, replacement) else {
+                let key = digits_pattern
+                    .as_ref()
+                    .filter(|_| !listed)
+                    .unwrap_or(string_to_check);
+                let Some(rule_match) = rule_match(
+                    self.ids.rule_index(rule, key),
+                    start_pos,
+                    end_pos,
+                    msg,
+                    self.short_message,
+                    replacement,
+                ) else {
                     break;
                 };
                 // Of the matches that start at the same place only the first
@@ -447,9 +515,20 @@ mod tests {
 
     impl WordTagger for Known {
         fn tag_word(&self, word: &str) -> Readings {
-            let known = ["arc-en-ciel", "portefeuille", "rond-point", "Haut-Rhin", "x-ray", "vis-à-vis"];
+            let known = [
+                "arc-en-ciel",
+                "portefeuille",
+                "rond-point",
+                "Haut-Rhin",
+                "x-ray",
+                "vis-à-vis",
+            ];
             let lower = strtools::lowercase_first_char(word);
-            let tag = if known.contains(&word) || known.contains(&lower.as_str()) { Some("N m s") } else { None };
+            let tag = if known.contains(&word) || known.contains(&lower.as_str()) {
+                Some("N m s")
+            } else {
+                None
+            };
             Readings::new(vec![Reading::from_strs(word, tag, tag.map(|_| word))], 0)
         }
     }
@@ -461,7 +540,14 @@ mod tests {
         // The rule sits at index 10, its id rules right after it.
         rule.match_sentence(10, &plain(text), &ctx)
             .into_iter()
-            .map(|m| (ids[m.rule - 11].info().id.clone(), m.from_pos, m.to_pos, m.suggestions))
+            .map(|m| {
+                (
+                    ids[m.rule - 11].info().id.clone(),
+                    m.from_pos,
+                    m.to_pos,
+                    m.suggestions,
+                )
+            })
             .collect()
     }
 
@@ -469,10 +555,22 @@ mod tests {
     fn data_file() {
         let data = CompoundRuleData::parse(DATA).unwrap();
         assert!(data.incorrect_compounds.contains("arc en ciel"));
-        assert!(data.dash_suggestion.contains("arc en ciel") && !data.joined_suggestion.contains("arc en ciel"));
-        assert!(data.joined_suggestion.contains("porte feuille") && !data.dash_suggestion.contains("porte feuille"));
-        assert!(data.joined_suggestion.contains("rond point") && data.dash_suggestion.contains("rond point"));
-        assert_eq!(data.joined_lower_case_suggestion, vec!["webcam espion".to_string()]);
+        assert!(
+            data.dash_suggestion.contains("arc en ciel")
+                && !data.joined_suggestion.contains("arc en ciel")
+        );
+        assert!(
+            data.joined_suggestion.contains("porte feuille")
+                && !data.dash_suggestion.contains("porte feuille")
+        );
+        assert!(
+            data.joined_suggestion.contains("rond point")
+                && data.dash_suggestion.contains("rond point")
+        );
+        assert_eq!(
+            data.joined_lower_case_suggestion,
+            vec!["webcam espion".to_string()]
+        );
         assert!(data.first_words.contains("haut") && data.first_words.contains("arc"));
         assert!(!data.has_digit_patterns);
         assert!(CompoundRuleData::parse("mot\n").is_err());
@@ -483,33 +581,80 @@ mod tests {
     fn compounds_written_apart() {
         assert_eq!(
             check("Un arc en ciel est là."),
-            vec![("FR_COMPOUNDS_ARC_EN_CIEL".to_string(), 3, 14, vec!["arc-en-ciel".to_string()])]
+            vec![(
+                "FR_COMPOUNDS_ARC_EN_CIEL".to_string(),
+                3,
+                14,
+                vec!["arc-en-ciel".to_string()]
+            )]
         );
         // Some of the hyphens are there.
         assert_eq!(
             check("Un arc-en ciel est là."),
-            vec![("FR_COMPOUNDS_ARC_EN_CIEL".to_string(), 3, 14, vec!["arc-en-ciel".to_string()])]
+            vec![(
+                "FR_COMPOUNDS_ARC_EN_CIEL".to_string(),
+                3,
+                14,
+                vec!["arc-en-ciel".to_string()]
+            )]
         );
         assert_eq!(
             check("Mon porte feuille."),
-            vec![("FR_COMPOUNDS_PORTE_FEUILLE".to_string(), 4, 17, vec!["portefeuille".to_string()])]
+            vec![(
+                "FR_COMPOUNDS_PORTE_FEUILLE".to_string(),
+                4,
+                17,
+                vec!["portefeuille".to_string()]
+            )]
         );
         // "rondpoint" is not a word: only the hyphenated spelling is left.
-        assert_eq!(check("Le rond point."), vec![("FR_COMPOUNDS_ROND_POINT".to_string(), 3, 13, vec!["rond-point".to_string()])]);
+        assert_eq!(
+            check("Le rond point."),
+            vec![(
+                "FR_COMPOUNDS_ROND_POINT".to_string(),
+                3,
+                13,
+                vec!["rond-point".to_string()]
+            )]
+        );
         assert!(check("Un arc-en-ciel et un rond-point.").is_empty());
     }
 
     #[test]
     fn case_and_sentence_start() {
         // Compounds are listed with their capitals.
-        assert_eq!(check("Le Haut Rhin."), vec![("FR_COMPOUNDS_HAUT_RHIN".to_string(), 3, 12, vec!["Haut-Rhin".to_string()])]);
+        assert_eq!(
+            check("Le Haut Rhin."),
+            vec![(
+                "FR_COMPOUNDS_HAUT_RHIN".to_string(),
+                3,
+                12,
+                vec!["Haut-Rhin".to_string()]
+            )]
+        );
         assert!(check("Le haut rhin.").is_empty());
         // The first word of the sentence is looked up in lower case; the
         // suggestion keeps what was written.
-        assert_eq!(check("Arc en ciel."), vec![("FR_COMPOUNDS_ARC_EN_CIEL".to_string(), 0, 11, vec!["Arc-en-ciel".to_string()])]);
+        assert_eq!(
+            check("Arc en ciel."),
+            vec![(
+                "FR_COMPOUNDS_ARC_EN_CIEL".to_string(),
+                0,
+                11,
+                vec!["Arc-en-ciel".to_string()]
+            )]
+        );
         assert!(check("Voici Arc en ciel.").is_empty());
         // A one-letter first part: hyphens only.
-        assert_eq!(check("Un x ray."), vec![("FR_COMPOUNDS_X_RAY".to_string(), 3, 8, vec!["x-ray".to_string()])]);
+        assert_eq!(
+            check("Un x ray."),
+            vec![(
+                "FR_COMPOUNDS_X_RAY".to_string(),
+                3,
+                8,
+                vec!["x-ray".to_string()]
+            )]
+        );
     }
 
     #[test]
@@ -518,7 +663,11 @@ mod tests {
         assert_eq!(collapse_dashes("a--b---c-d"), "a-b-c-d");
         assert_eq!(merge_compound("Web-Cam Espion", true), "Webcamespion");
         assert_eq!(merge_compound("Web-Cam Espion", false), "WebCamEspion");
-        assert!(is_not_all_uppercase("arc - en ciel") && !is_not_all_uppercase("ARC en ciel") && !is_not_all_uppercase("arc 12"));
+        assert!(
+            is_not_all_uppercase("arc - en ciel")
+                && !is_not_all_uppercase("ARC en ciel")
+                && !is_not_all_uppercase("arc 12")
+        );
         assert_eq!(digits_to_pattern("les 12 et 3"), "les \\d+ et \\d+");
         assert_eq!(uncapitalize("Été chaud"), "été chaud");
     }

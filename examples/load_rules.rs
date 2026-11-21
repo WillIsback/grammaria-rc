@@ -7,7 +7,9 @@ use grammaria::engine::unifier::UnifierConfiguration;
 use grammaria::engine::xmlrules::{load_disambiguation, load_grammar, GrammarRule};
 
 fn main() {
-    let dir = std::env::args().nth(1).unwrap_or_else(|| "assets/fr/lt".into());
+    let dir = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "assets/fr/lt".into());
     let none = |_: &str| -> Option<Arc<dyn RuleFilter>> { None };
     let mut unifier = UnifierConfiguration::default();
     let mut dis_unifier = UnifierConfiguration::default();
@@ -32,7 +34,12 @@ fn main() {
                     if let Some(FilterRef::Unsupported(c)) = &p.rule.filter {
                         *unsupported.entry(c.clone()).or_default() += 1;
                     }
-                    if p.rule.pattern.tokens.iter().any(|t| !t.text.is_valid() || t.pos.as_ref().is_some_and(|p| p.pos_pattern.as_ref().is_some_and(|m| !m.is_valid()))) {
+                    if p.rule.pattern.tokens.iter().any(|t| {
+                        !t.text.is_valid()
+                            || t.pos.as_ref().is_some_and(|p| {
+                                p.pos_pattern.as_ref().is_some_and(|m| !m.is_valid())
+                            })
+                    }) {
                         invalid += 1;
                     }
                 }

@@ -102,12 +102,20 @@ pub fn split_camel_case(input: &str) -> Vec<String> {
         word.push(c);
     }
     result.push_str(&word);
-    java_split(java_trim(&result), ' ').into_iter().map(str::to_string).collect()
+    java_split(java_trim(&result), ' ')
+        .into_iter()
+        .map(str::to_string)
+        .collect()
 }
 
 /// `StringTools.splitDigitsAtEnd`: `["mot", "12"]` for `mot12`.
 pub fn split_digits_at_end(input: &str) -> Vec<String> {
-    let digits: usize = input.chars().rev().take_while(|c| java_is_digit(*c)).map(char::len_utf8).sum();
+    let digits: usize = input
+        .chars()
+        .rev()
+        .take_while(|c| java_is_digit(*c))
+        .map(char::len_utf8)
+        .sum();
     let (word, number) = input.split_at(input.len() - digits);
     if !word.is_empty() && !number.is_empty() {
         vec![word.to_string(), number.to_string()]
@@ -146,16 +154,23 @@ pub fn java_is_digit(c: char) -> bool {
 /// outside the Basic Multilingual Plane is two surrogates, which are not
 /// letters (`engine::strtools` looks at whole characters).
 pub fn java_is_all_uppercase(s: &str) -> bool {
-    !s.encode_utf16().any(|c| unicode::is_letter(c) && unicode::is_lower_case(c))
+    !s.encode_utf16()
+        .any(|c| unicode::is_letter(c) && unicode::is_lower_case(c))
 }
 
 /// `StringTools.isMixedCase`, on UTF-16 units.
 pub fn java_is_mixed_case(s: &str) -> bool {
     let units: Vec<u16> = s.encode_utf16().collect();
-    let all_uppercase = !units.iter().any(|&c| unicode::is_letter(c) && unicode::is_lower_case(c));
-    let capitalized =
-        units.first().is_some_and(|&c| unicode::is_upper_case(c)) && !units[1..].iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
-    let not_all_lowercase = units.iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
+    let all_uppercase = !units
+        .iter()
+        .any(|&c| unicode::is_letter(c) && unicode::is_lower_case(c));
+    let capitalized = units.first().is_some_and(|&c| unicode::is_upper_case(c))
+        && !units[1..]
+            .iter()
+            .any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
+    let not_all_lowercase = units
+        .iter()
+        .any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
     !all_uppercase && !capitalized && not_all_lowercase
 }
 
@@ -221,7 +236,11 @@ pub fn java_hash_map_order<S: AsRef<str>>(keys: &[S]) -> Vec<usize> {
         let h = java_hash(k) as u32;
         ((h ^ (h >> 16)) as usize) & (capacity - 1)
     };
-    let mut order: Vec<(usize, usize)> = keys.iter().enumerate().map(|(i, k)| (bucket(k.as_ref()), i)).collect();
+    let mut order: Vec<(usize, usize)> = keys
+        .iter()
+        .enumerate()
+        .map(|(i, k)| (bucket(k.as_ref()), i))
+        .collect();
     order.sort();
     order.into_iter().map(|(_, i)| i).collect()
 }
@@ -249,7 +268,10 @@ pub fn is_other_category(c: char) -> bool {
 
 /// `\p{Zs}`: the space separators.
 pub fn is_space_separator(c: char) -> bool {
-    matches!(c as u32, 0x20 | 0xA0 | 0x1680 | 0x2000..=0x200A | 0x202F | 0x205F | 0x3000)
+    matches!(
+        c as u32,
+        0x20 | 0xA0 | 0x1680 | 0x2000..=0x200A | 0x202F | 0x205F | 0x3000
+    )
 }
 
 /// `LevenshteinDistance.getDefaultInstance().apply` (Apache Commons Text):
@@ -320,8 +342,16 @@ mod tests {
         assert!(is_not_word_string("12-3"));
         assert!(!is_not_word_string("a1"));
         assert!(!is_not_word_string(""));
-        assert!(is_latin_script('é') && is_latin_script('œ') && !is_latin_script('1') && !is_latin_script('я'));
-        assert!(!is_latin_script('\u{300}'), "combining marks have the Inherited script");
+        assert!(
+            is_latin_script('é')
+                && is_latin_script('œ')
+                && !is_latin_script('1')
+                && !is_latin_script('я')
+        );
+        assert!(
+            !is_latin_script('\u{300}'),
+            "combining marks have the Inherited script"
+        );
     }
 
     #[test]

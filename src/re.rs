@@ -382,7 +382,11 @@ impl<'a> Parser<'a> {
                     return Ok(atom);
                 }
                 let min: u32 = a.parse().unwrap_or(0);
-                let max: u32 = if open { u32::MAX } else { b.parse().unwrap_or(min) };
+                let max: u32 = if open {
+                    u32::MAX
+                } else {
+                    b.parse().unwrap_or(min)
+                };
                 (min, max)
             }
             _ => return Ok(atom),
@@ -439,19 +443,47 @@ impl<'a> Parser<'a> {
             let inner = self.alt()?;
             Node::Group(Box::new(inner), None)
         } else if self.eat('=') {
-            Node::Look { node: Box::new(self.alt()?), ahead: true, neg: false, width: None, edge: None, head: None }
+            Node::Look {
+                node: Box::new(self.alt()?),
+                ahead: true,
+                neg: false,
+                width: None,
+                edge: None,
+                head: None,
+            }
         } else if self.eat('!') {
-            Node::Look { node: Box::new(self.alt()?), ahead: true, neg: true, width: None, edge: None, head: None }
+            Node::Look {
+                node: Box::new(self.alt()?),
+                ahead: true,
+                neg: true,
+                width: None,
+                edge: None,
+                head: None,
+            }
         } else if self.looking_at("<=") {
             self.i += 2;
             let inner = self.alt()?;
             let (width, edge, head) = (width(&inner), last_filter(&inner), first_filter(&inner));
-            Node::Look { node: Box::new(inner), ahead: false, neg: false, width, edge, head }
+            Node::Look {
+                node: Box::new(inner),
+                ahead: false,
+                neg: false,
+                width,
+                edge,
+                head,
+            }
         } else if self.looking_at("<!") {
             self.i += 2;
             let inner = self.alt()?;
             let (width, edge, head) = (width(&inner), last_filter(&inner), first_filter(&inner));
-            Node::Look { node: Box::new(inner), ahead: false, neg: true, width, edge, head }
+            Node::Look {
+                node: Box::new(inner),
+                ahead: false,
+                neg: true,
+                width,
+                edge,
+                head,
+            }
         } else if self.eat('>') {
             Node::Atomic(Box::new(self.alt()?))
         } else if self.eat('<') {
@@ -692,7 +724,15 @@ impl<'a> Parser<'a> {
             }
             _ => match self.simple_escape(c)? {
                 Some(ClassItem::Range(a, b)) if a == b => Node::Char(a, ci),
-                Some(item) => class_node(ClassSet { neg: false, items: vec![item], and: Vec::new(), ascii: 0 }, ci),
+                Some(item) => class_node(
+                    ClassSet {
+                        neg: false,
+                        items: vec![item],
+                        and: Vec::new(),
+                        ascii: 0,
+                    },
+                    ci,
+                ),
                 None => Node::Char(c, ci),
             },
         };
@@ -772,7 +812,12 @@ impl<'a> Parser<'a> {
                 _ => c,
             };
             // range?
-            if self.peek() == Some('-') && self.c.get(self.i + 1).is_some_and(|&n| n != ']' && n != '[') {
+            if self.peek() == Some('-')
+                && self
+                    .c
+                    .get(self.i + 1)
+                    .is_some_and(|&n| n != ']' && n != '[')
+            {
                 self.i += 1;
                 let mut hi = self.c[self.i];
                 self.i += 1;
@@ -812,8 +857,14 @@ impl<'a> Parser<'a> {
 }
 
 fn prop_by_name(name: &str) -> Prop {
-    let n = name.strip_prefix("Is").or_else(|| name.strip_prefix("In")).unwrap_or(name);
-    let n = n.strip_prefix("gc=").or_else(|| n.strip_prefix("general_category=")).unwrap_or(n);
+    let n = name
+        .strip_prefix("Is")
+        .or_else(|| name.strip_prefix("In"))
+        .unwrap_or(name);
+    let n = n
+        .strip_prefix("gc=")
+        .or_else(|| n.strip_prefix("general_category="))
+        .unwrap_or(n);
     match n {
         "L" | "Letter" | "javaLetter" => Prop::Letter,
         "Alphabetic" | "Alpha" | "javaAlphabetic" | "IsAlphabetic" => Prop::Alphabetic,
@@ -854,7 +905,31 @@ fn prop_by_name(name: &str) -> Prop {
 /// General category P* for the characters that occur in French text.
 fn is_punct(c: char) -> bool {
     if c.is_ascii() {
-        return matches!(c, '!' | '"' | '#' | '%' | '&' | '\'' | '(' | ')' | '*' | ',' | '-' | '.' | '/' | ':' | ';' | '?' | '@' | '[' | '\\' | ']' | '_' | '{' | '}');
+        return matches!(
+            c,
+            '!' | '"'
+                | '#'
+                | '%'
+                | '&'
+                | '\''
+                | '('
+                | ')'
+                | '*'
+                | ','
+                | '-'
+                | '.'
+                | '/'
+                | ':'
+                | ';'
+                | '?'
+                | '@'
+                | '['
+                | '\\'
+                | ']'
+                | '_'
+                | '{'
+                | '}'
+        );
     }
     matches!(c,
         '\u{a1}' | '\u{a7}' | '\u{ab}' | '\u{b6}' | '\u{b7}' | '\u{bb}' | '\u{bf}'
@@ -902,27 +977,69 @@ fn prop_matches(p: Prop, c: char) -> bool {
         Prop::UWord => is_unicode_word_char(c),
         Prop::OpenPunct => is_open_punct(c),
         Prop::ClosePunct => is_close_punct(c),
-        Prop::InitialPunct => matches!(c, '«' | '‘' | '“' | '‛' | '‟' | '‹' | '⸂' | '⸄' | '⸉' | '⸌' | '⸜' | '⸠'),
+        Prop::InitialPunct => matches!(
+            c,
+            '«' | '‘' | '“' | '‛' | '‟' | '‹' | '⸂' | '⸄' | '⸉' | '⸌' | '⸜' | '⸠'
+        ),
         Prop::FinalPunct => matches!(c, '»' | '’' | '”' | '›' | '⸃' | '⸅' | '⸊' | '⸍' | '⸝' | '⸡'),
-        Prop::DashPunct => matches!(c,
-            '-' | '\u{58a}' | '\u{5be}' | '\u{1400}' | '\u{1806}' | '\u{2010}'..='\u{2015}' | '\u{2e17}' | '\u{2e1a}'
-            | '\u{2e3a}' | '\u{2e3b}' | '\u{2e40}' | '\u{301c}' | '\u{3030}' | '\u{30a0}' | '\u{fe31}' | '\u{fe32}'
-            | '\u{fe58}' | '\u{fe63}' | '\u{ff0d}'),
+        Prop::DashPunct => matches!(
+            c,
+            '-' | '\u{58a}' | '\u{5be}' | '\u{1400}' | '\u{1806}' | '\u{2010}'
+                ..='\u{2015}'
+                    | '\u{2e17}'
+                    | '\u{2e1a}'
+                    | '\u{2e3a}'
+                    | '\u{2e3b}'
+                    | '\u{2e40}'
+                    | '\u{301c}'
+                    | '\u{3030}'
+                    | '\u{30a0}'
+                    | '\u{fe31}'
+                    | '\u{fe32}'
+                    | '\u{fe58}'
+                    | '\u{fe63}'
+                    | '\u{ff0d}'
+        ),
         Prop::ConnectorPunct => is_connector_punct(c),
         Prop::Punct => is_punct(c),
         Prop::AsciiPunct => c.is_ascii_punctuation(),
         Prop::Symbol => is_symbol(c),
-        Prop::Separator => c == ' ' || c == '\u{a0}' || c == '\u{1680}' || ('\u{2000}'..='\u{200a}').contains(&c) || c == '\u{2028}' || c == '\u{2029}' || c == '\u{202f}' || c == '\u{205f}' || c == '\u{3000}',
-        Prop::SpaceSeparator => c == ' ' || c == '\u{a0}' || c == '\u{1680}' || ('\u{2000}'..='\u{200a}').contains(&c) || c == '\u{202f}' || c == '\u{205f}' || c == '\u{3000}',
-        Prop::Control => c.is_control() || matches!(c, '\u{ad}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2064}' | '\u{feff}'),
+        Prop::Separator => {
+            c == ' '
+                || c == '\u{a0}'
+                || c == '\u{1680}'
+                || ('\u{2000}'..='\u{200a}').contains(&c)
+                || c == '\u{2028}'
+                || c == '\u{2029}'
+                || c == '\u{202f}'
+                || c == '\u{205f}'
+                || c == '\u{3000}'
+        }
+        Prop::SpaceSeparator => {
+            c == ' '
+                || c == '\u{a0}'
+                || c == '\u{1680}'
+                || ('\u{2000}'..='\u{200a}').contains(&c)
+                || c == '\u{202f}'
+                || c == '\u{205f}'
+                || c == '\u{3000}'
+        }
+        Prop::Control => {
+            c.is_control()
+                || matches!(c, '\u{ad}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{2064}' | '\u{feff}')
+        }
         Prop::Alnum => c.is_alphanumeric(),
         Prop::Graph => c.is_ascii_graphic(),
         Prop::Print => c.is_ascii_graphic() || c == ' ',
         Prop::Blank => c == ' ' || c == '\t',
         Prop::XDigit => c.is_ascii_hexdigit(),
         Prop::White => c.is_whitespace(),
-        Prop::Latin => c.is_alphabetic() && (c as u32) < 0x250 || ('\u{1e00}'..='\u{1eff}').contains(&c),
-        Prop::Greek => ('\u{370}'..='\u{3ff}').contains(&c) || ('\u{1f00}'..='\u{1fff}').contains(&c),
+        Prop::Latin => {
+            c.is_alphabetic() && (c as u32) < 0x250 || ('\u{1e00}'..='\u{1eff}').contains(&c)
+        }
+        Prop::Greek => {
+            ('\u{370}'..='\u{3ff}').contains(&c) || ('\u{1f00}'..='\u{1fff}').contains(&c)
+        }
         Prop::Cyrillic => ('\u{400}'..='\u{52f}').contains(&c),
 
         Prop::Any => true,
@@ -970,11 +1087,12 @@ pub fn is_decimal_digit(c: char) -> bool {
         return c.is_ascii_digit();
     }
     const ZEROS: [u32; 60] = [
-        0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66, 0xde6, 0xe50, 0xed0,
-        0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90, 0x1b50, 0x1bb0, 0x1c40, 0x1c50,
-        0xa620, 0xa8d0, 0xa900, 0xa9d0, 0xa9f0, 0xaa50, 0xabf0, 0xff10, 0x104a0, 0x10d30, 0x11066, 0x110f0,
-        0x11136, 0x111d0, 0x112f0, 0x11450, 0x114d0, 0x11650, 0x116c0, 0x11730, 0x118e0, 0x11950, 0x11c50,
-        0x11d50, 0x11da0, 0x16a60, 0x16ac0, 0x16b50, 0x1e140, 0x1e2f0, 0x1e950, 0x1fbf0,
+        0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66, 0xde6,
+        0xe50, 0xed0, 0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,
+        0x1b50, 0x1bb0, 0x1c40, 0x1c50, 0xa620, 0xa8d0, 0xa900, 0xa9d0, 0xa9f0, 0xaa50, 0xabf0,
+        0xff10, 0x104a0, 0x10d30, 0x11066, 0x110f0, 0x11136, 0x111d0, 0x112f0, 0x11450, 0x114d0,
+        0x11650, 0x116c0, 0x11730, 0x118e0, 0x11950, 0x11c50, 0x11d50, 0x11da0, 0x16a60, 0x16ac0,
+        0x16b50, 0x1e140, 0x1e2f0, 0x1e950, 0x1fbf0,
     ];
     let v = c as u32;
     // Mathematical digits: five runs of ten.
@@ -983,42 +1101,181 @@ pub fn is_decimal_digit(c: char) -> bool {
 
 /// General category Pc.
 fn is_connector_punct(c: char) -> bool {
-    matches!(c, '_' | '\u{203f}' | '\u{2040}' | '\u{2054}' | '\u{fe33}' | '\u{fe34}' | '\u{fe4d}'..='\u{fe4f}' | '\u{ff3f}')
+    matches!(
+        c,
+        '_' | '\u{203f}' | '\u{2040}' | '\u{2054}' | '\u{fe33}' | '\u{fe34}' | '\u{fe4d}'
+            ..='\u{fe4f}' | '\u{ff3f}'
+    )
 }
 
 /// General category Ps (opening brackets; the low quotes `‚` and `„` are Ps).
 fn is_open_punct(c: char) -> bool {
-    matches!(c,
-        '(' | '[' | '{' | '\u{f3a}' | '\u{f3c}' | '\u{169b}' | '\u{201a}' | '\u{201e}' | '\u{2045}' | '\u{207d}'
-        | '\u{208d}' | '\u{2308}' | '\u{230a}' | '\u{2329}' | '\u{2768}' | '\u{276a}' | '\u{276c}' | '\u{276e}'
-        | '\u{2770}' | '\u{2772}' | '\u{2774}' | '\u{27c5}' | '\u{27e6}' | '\u{27e8}' | '\u{27ea}' | '\u{27ec}'
-        | '\u{27ee}' | '\u{2983}' | '\u{2985}' | '\u{2987}' | '\u{2989}' | '\u{298b}' | '\u{298d}' | '\u{298f}'
-        | '\u{2991}' | '\u{2993}' | '\u{2995}' | '\u{2997}' | '\u{29d8}' | '\u{29da}' | '\u{29fc}' | '\u{2e22}'
-        | '\u{2e24}' | '\u{2e26}' | '\u{2e28}' | '\u{2e42}' | '\u{3008}' | '\u{300a}' | '\u{300c}' | '\u{300e}'
-        | '\u{3010}' | '\u{3014}' | '\u{3016}' | '\u{3018}' | '\u{301a}' | '\u{301d}' | '\u{fd3f}' | '\u{fe17}'
-        | '\u{fe35}' | '\u{fe37}' | '\u{fe39}' | '\u{fe3b}' | '\u{fe3d}' | '\u{fe3f}' | '\u{fe41}' | '\u{fe43}'
-        | '\u{fe47}' | '\u{fe59}' | '\u{fe5b}' | '\u{fe5d}' | '\u{ff08}' | '\u{ff3b}' | '\u{ff5b}' | '\u{ff5f}'
-        | '\u{ff62}')
+    matches!(
+        c,
+        '(' | '['
+            | '{'
+            | '\u{f3a}'
+            | '\u{f3c}'
+            | '\u{169b}'
+            | '\u{201a}'
+            | '\u{201e}'
+            | '\u{2045}'
+            | '\u{207d}'
+            | '\u{208d}'
+            | '\u{2308}'
+            | '\u{230a}'
+            | '\u{2329}'
+            | '\u{2768}'
+            | '\u{276a}'
+            | '\u{276c}'
+            | '\u{276e}'
+            | '\u{2770}'
+            | '\u{2772}'
+            | '\u{2774}'
+            | '\u{27c5}'
+            | '\u{27e6}'
+            | '\u{27e8}'
+            | '\u{27ea}'
+            | '\u{27ec}'
+            | '\u{27ee}'
+            | '\u{2983}'
+            | '\u{2985}'
+            | '\u{2987}'
+            | '\u{2989}'
+            | '\u{298b}'
+            | '\u{298d}'
+            | '\u{298f}'
+            | '\u{2991}'
+            | '\u{2993}'
+            | '\u{2995}'
+            | '\u{2997}'
+            | '\u{29d8}'
+            | '\u{29da}'
+            | '\u{29fc}'
+            | '\u{2e22}'
+            | '\u{2e24}'
+            | '\u{2e26}'
+            | '\u{2e28}'
+            | '\u{2e42}'
+            | '\u{3008}'
+            | '\u{300a}'
+            | '\u{300c}'
+            | '\u{300e}'
+            | '\u{3010}'
+            | '\u{3014}'
+            | '\u{3016}'
+            | '\u{3018}'
+            | '\u{301a}'
+            | '\u{301d}'
+            | '\u{fd3f}'
+            | '\u{fe17}'
+            | '\u{fe35}'
+            | '\u{fe37}'
+            | '\u{fe39}'
+            | '\u{fe3b}'
+            | '\u{fe3d}'
+            | '\u{fe3f}'
+            | '\u{fe41}'
+            | '\u{fe43}'
+            | '\u{fe47}'
+            | '\u{fe59}'
+            | '\u{fe5b}'
+            | '\u{fe5d}'
+            | '\u{ff08}'
+            | '\u{ff3b}'
+            | '\u{ff5b}'
+            | '\u{ff5f}'
+            | '\u{ff62}'
+    )
 }
 
 /// General category Pe (closing brackets).
 fn is_close_punct(c: char) -> bool {
-    matches!(c,
-        ')' | ']' | '}' | '\u{f3b}' | '\u{f3d}' | '\u{169c}' | '\u{2046}' | '\u{207e}' | '\u{208e}' | '\u{2309}'
-        | '\u{230b}' | '\u{232a}' | '\u{2769}' | '\u{276b}' | '\u{276d}' | '\u{276f}' | '\u{2771}' | '\u{2773}'
-        | '\u{2775}' | '\u{27c6}' | '\u{27e7}' | '\u{27e9}' | '\u{27eb}' | '\u{27ed}' | '\u{27ef}' | '\u{2984}'
-        | '\u{2986}' | '\u{2988}' | '\u{298a}' | '\u{298c}' | '\u{298e}' | '\u{2990}' | '\u{2992}' | '\u{2994}'
-        | '\u{2996}' | '\u{2998}' | '\u{29d9}' | '\u{29db}' | '\u{29fd}' | '\u{2e23}' | '\u{2e25}' | '\u{2e27}'
-        | '\u{2e29}' | '\u{3009}' | '\u{300b}' | '\u{300d}' | '\u{300f}' | '\u{3011}' | '\u{3015}' | '\u{3017}'
-        | '\u{3019}' | '\u{301b}' | '\u{301e}' | '\u{301f}' | '\u{fd3e}' | '\u{fe18}' | '\u{fe36}' | '\u{fe38}'
-        | '\u{fe3a}' | '\u{fe3c}' | '\u{fe3e}' | '\u{fe40}' | '\u{fe42}' | '\u{fe44}' | '\u{fe48}' | '\u{fe5a}'
-        | '\u{fe5c}' | '\u{fe5e}' | '\u{ff09}' | '\u{ff3d}' | '\u{ff5d}' | '\u{ff60}' | '\u{ff63}')
+    matches!(
+        c,
+        ')' | ']'
+            | '}'
+            | '\u{f3b}'
+            | '\u{f3d}'
+            | '\u{169c}'
+            | '\u{2046}'
+            | '\u{207e}'
+            | '\u{208e}'
+            | '\u{2309}'
+            | '\u{230b}'
+            | '\u{232a}'
+            | '\u{2769}'
+            | '\u{276b}'
+            | '\u{276d}'
+            | '\u{276f}'
+            | '\u{2771}'
+            | '\u{2773}'
+            | '\u{2775}'
+            | '\u{27c6}'
+            | '\u{27e7}'
+            | '\u{27e9}'
+            | '\u{27eb}'
+            | '\u{27ed}'
+            | '\u{27ef}'
+            | '\u{2984}'
+            | '\u{2986}'
+            | '\u{2988}'
+            | '\u{298a}'
+            | '\u{298c}'
+            | '\u{298e}'
+            | '\u{2990}'
+            | '\u{2992}'
+            | '\u{2994}'
+            | '\u{2996}'
+            | '\u{2998}'
+            | '\u{29d9}'
+            | '\u{29db}'
+            | '\u{29fd}'
+            | '\u{2e23}'
+            | '\u{2e25}'
+            | '\u{2e27}'
+            | '\u{2e29}'
+            | '\u{3009}'
+            | '\u{300b}'
+            | '\u{300d}'
+            | '\u{300f}'
+            | '\u{3011}'
+            | '\u{3015}'
+            | '\u{3017}'
+            | '\u{3019}'
+            | '\u{301b}'
+            | '\u{301e}'
+            | '\u{301f}'
+            | '\u{fd3e}'
+            | '\u{fe18}'
+            | '\u{fe36}'
+            | '\u{fe38}'
+            | '\u{fe3a}'
+            | '\u{fe3c}'
+            | '\u{fe3e}'
+            | '\u{fe40}'
+            | '\u{fe42}'
+            | '\u{fe44}'
+            | '\u{fe48}'
+            | '\u{fe5a}'
+            | '\u{fe5c}'
+            | '\u{fe5e}'
+            | '\u{ff09}'
+            | '\u{ff3d}'
+            | '\u{ff5d}'
+            | '\u{ff60}'
+            | '\u{ff63}'
+    )
 }
 
 /// `\w` under `UNICODE_CHARACTER_CLASS`:
 /// `[\p{Alpha}\p{gc=Mn}\p{gc=Me}\p{gc=Mc}\p{Digit}\p{gc=Pc}\p{IsJoin_Control}]`.
 fn is_unicode_word_char(c: char) -> bool {
-    c.is_alphabetic() || is_decimal_digit(c) || is_mark(c) || is_connector_punct(c) || matches!(c, '\u{200c}' | '\u{200d}')
+    c.is_alphabetic()
+        || is_decimal_digit(c)
+        || is_mark(c)
+        || is_connector_punct(c)
+        || matches!(c, '\u{200c}' | '\u{200d}')
 }
 
 /// Minimal and maximal number of chars `node` can match; `None` when there
@@ -1074,11 +1331,18 @@ fn is_java_space(c: char) -> bool {
 }
 
 fn is_hspace(c: char) -> bool {
-    matches!(c, ' ' | '\t' | '\u{a0}' | '\u{1680}' | '\u{180e}' | '\u{2000}'..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}')
+    matches!(
+        c,
+        ' ' | '\t' | '\u{a0}' | '\u{1680}' | '\u{180e}' | '\u{2000}'
+            ..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}'
+    )
 }
 
 fn is_vspace(c: char) -> bool {
-    matches!(c, '\n' | '\u{b}' | '\u{c}' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}')
+    matches!(
+        c,
+        '\n' | '\u{b}' | '\u{c}' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}'
+    )
 }
 
 fn is_line_term(c: char) -> bool {
@@ -1265,7 +1529,12 @@ struct Matcher<'a> {
 const STEP_LIMIT: u32 = 2_000_000;
 
 impl<'a> Matcher<'a> {
-    fn run(&mut self, node: &Node, pos: usize, k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool) -> bool {
+    fn run(
+        &mut self,
+        node: &Node,
+        pos: usize,
+        k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool,
+    ) -> bool {
         self.steps += 1;
         if self.steps > STEP_LIMIT {
             return false;
@@ -1285,7 +1554,9 @@ impl<'a> Matcher<'a> {
                 _ => false,
             },
             Node::LineStart(multi) => {
-                if pos == 0 || (*multi && is_line_term(self.input[pos - 1]) && pos < self.input.len()) {
+                if pos == 0
+                    || (*multi && is_line_term(self.input[pos - 1]) && pos < self.input.len())
+                {
                     k(self, pos)
                 } else {
                     false
@@ -1346,7 +1617,13 @@ impl<'a> Matcher<'a> {
                 ok
             }
             Node::Concat(items) => self.seq(items, pos, k),
-            Node::Alt(alts, index) if alts.len() < 4 || alts.len() > u16::MAX as usize || index.get_or_init(|| Some(Box::new(AltIndex::new(alts)))).is_none() => {
+            Node::Alt(alts, index)
+                if alts.len() < 4
+                    || alts.len() > u16::MAX as usize
+                    || index
+                        .get_or_init(|| Some(Box::new(AltIndex::new(alts))))
+                        .is_none() =>
+            {
                 for a in alts {
                     if self.run(a, pos, k) {
                         return true;
@@ -1355,10 +1632,13 @@ impl<'a> Matcher<'a> {
                 false
             }
             Node::Alt(alts, index) => {
-                let Some(Some(index)) = index.get() else { return false };
+                let Some(Some(index)) = index.get() else {
+                    return false;
+                };
                 let next = self.input.get(pos).copied();
                 if let (Some(c), Some(table)) = (next.filter(char::is_ascii), &index.table) {
-                    let range = table.offsets[c as usize] as usize..table.offsets[c as usize + 1] as usize;
+                    let range =
+                        table.offsets[c as usize] as usize..table.offsets[c as usize + 1] as usize;
                     for &i in &table.list[range] {
                         if self.run(&alts[i as usize], pos, k) {
                             return true;
@@ -1380,10 +1660,16 @@ impl<'a> Matcher<'a> {
             }
             // A repeated single char is counted in a loop: no recursion per
             // repetition, however long the run (`[^)]*` over a paragraph).
-            Node::Repeat(inner, min, max, greed) if matches!(**inner, Node::Char(..) | Node::Class(..) | Node::Any(_)) => {
+            Node::Repeat(inner, min, max, greed)
+                if matches!(**inner, Node::Char(..) | Node::Class(..) | Node::Any(_)) =>
+            {
                 let min = *min as usize;
                 let available = self.input.len() - pos;
-                let cap = if *max == u32::MAX { available } else { (*max as usize).min(available) };
+                let cap = if *max == u32::MAX {
+                    available
+                } else {
+                    (*max as usize).min(available)
+                };
                 if cap < min {
                     return false;
                 }
@@ -1401,7 +1687,10 @@ impl<'a> Matcher<'a> {
                             return true;
                         }
                         self.steps += 1;
-                        if n >= cap || self.steps > STEP_LIMIT || !single_char_matches(inner, input[pos + n]) {
+                        if n >= cap
+                            || self.steps > STEP_LIMIT
+                            || !single_char_matches(inner, input[pos + n])
+                        {
                             return false;
                         }
                         n += 1;
@@ -1458,7 +1747,12 @@ impl<'a> Matcher<'a> {
                 self.caps = saved;
                 false
             }
-            Node::Look { node, ahead: true, neg, .. } => {
+            Node::Look {
+                node,
+                ahead: true,
+                neg,
+                ..
+            } => {
                 let saved = self.caps.clone();
                 let hit = self.run(node, pos, &mut |_, _| true);
                 if *neg {
@@ -1475,11 +1769,20 @@ impl<'a> Matcher<'a> {
                     false
                 }
             }
-            Node::Look { node, ahead: false, neg, width, edge, head } => {
+            Node::Look {
+                node,
+                ahead: false,
+                neg,
+                width,
+                edge,
+                head,
+            } => {
                 let saved = self.caps.clone();
                 let mut hit = false;
                 // The char before the position must be able to end the body.
-                let possible = edge.as_ref().map_or(true, |e| pos > 0 && e.accepts(self.input[pos - 1]));
+                let possible = edge
+                    .as_ref()
+                    .map_or(true, |e| pos > 0 && e.accepts(self.input[pos - 1]));
                 // As in Java, only the starts that the length of the body
                 // allows are tried, nearest first.
                 let (lo, hi) = match width {
@@ -1532,7 +1835,12 @@ impl<'a> Matcher<'a> {
         }
     }
 
-    fn seq(&mut self, items: &[Node], pos: usize, k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool) -> bool {
+    fn seq(
+        &mut self,
+        items: &[Node],
+        pos: usize,
+        k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool,
+    ) -> bool {
         match items.split_first() {
             None => k(self, pos),
             Some((first, rest)) => {
@@ -1545,7 +1853,15 @@ impl<'a> Matcher<'a> {
         }
     }
 
-    fn greedy(&mut self, inner: &Node, min: u32, max: u32, count: u32, pos: usize, k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool) -> bool {
+    fn greedy(
+        &mut self,
+        inner: &Node,
+        min: u32,
+        max: u32,
+        count: u32,
+        pos: usize,
+        k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool,
+    ) -> bool {
         if count < max {
             let ok = self.run(inner, pos, &mut |m, p| {
                 // An empty iteration past the minimum cannot make progress.
@@ -1561,7 +1877,15 @@ impl<'a> Matcher<'a> {
         count >= min && k(self, pos)
     }
 
-    fn lazy(&mut self, inner: &Node, min: u32, max: u32, count: u32, pos: usize, k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool) -> bool {
+    fn lazy(
+        &mut self,
+        inner: &Node,
+        min: u32,
+        max: u32,
+        count: u32,
+        pos: usize,
+        k: &mut dyn FnMut(&mut Matcher<'a>, usize) -> bool,
+    ) -> bool {
         if count >= min && k(self, pos) {
             return true;
         }
@@ -1617,20 +1941,29 @@ impl CharFilter {
                     listed.push(*x);
                     true
                 }
-                Node::Class(set, 0) if !set.neg && set.and.is_empty() => set.items.iter().all(|it| match it {
-                    ClassItem::Range(a, b) if (*b as u32).saturating_sub(*a as u32) < 8 => {
-                        listed.extend((*a..=*b).filter(|c| !c.is_ascii()));
-                        true
-                    }
-                    _ => false,
-                }),
+                Node::Class(set, 0) if !set.neg && set.and.is_empty() => {
+                    set.items.iter().all(|it| match it {
+                        ClassItem::Range(a, b) if (*b as u32).saturating_sub(*a as u32) < 8 => {
+                            listed.extend((*a..=*b).filter(|c| !c.is_ascii()));
+                            true
+                        }
+                        _ => false,
+                    })
+                }
                 _ => false,
             };
             if !known || listed.len() > 24 {
-                return CharFilter { ascii, other: OtherChars::Any };
+                return CharFilter {
+                    ascii,
+                    other: OtherChars::Any,
+                };
             }
         }
-        let other = if listed.is_empty() { OtherChars::None } else { OtherChars::Listed(listed.into()) };
+        let other = if listed.is_empty() {
+            OtherChars::None
+        } else {
+            OtherChars::Listed(listed.into())
+        };
         CharFilter { ascii, other }
     }
 
@@ -1687,7 +2020,10 @@ impl AltIndex {
                 }
             }
             offsets[128] = list.len() as u32;
-            AsciiTable { offsets, list: list.into_boxed_slice() }
+            AsciiTable {
+                offsets,
+                list: list.into_boxed_slice(),
+            }
         });
         AltIndex { filters, table }
     }
@@ -1754,10 +2090,21 @@ fn second_nodes(node: &Node) -> Option<Vec<Node>> {
     match node {
         Node::Group(inner, _) => second_nodes(inner),
         Node::Concat(items) => {
-            let mut rest = items
-                .iter()
-                .filter(|n| !matches!(n, Node::Empty | Node::WordB(_) | Node::UWordB(_) | Node::Look { .. } | Node::LineStart(_) | Node::InputStart));
-            if !matches!(rest.next()?, Node::Char(..) | Node::Class(..) | Node::Any(_)) {
+            let mut rest = items.iter().filter(|n| {
+                !matches!(
+                    n,
+                    Node::Empty
+                        | Node::WordB(_)
+                        | Node::UWordB(_)
+                        | Node::Look { .. }
+                        | Node::LineStart(_)
+                        | Node::InputStart
+                )
+            });
+            if !matches!(
+                rest.next()?,
+                Node::Char(..) | Node::Class(..) | Node::Any(_)
+            ) {
                 return None;
             }
             // Everything from the second item on (a filter may only widen:
@@ -1795,7 +2142,12 @@ fn first_nodes(node: &Node, out: &mut Vec<Node>) -> bool {
                 match it {
                     // Assertions consume nothing: the first char is that of
                     // what follows (ignoring them only widens the filter).
-                    Node::Empty | Node::WordB(_) | Node::UWordB(_) | Node::Look { .. } | Node::LineStart(_) | Node::InputStart => continue,
+                    Node::Empty
+                    | Node::WordB(_)
+                    | Node::UWordB(_)
+                    | Node::Look { .. }
+                    | Node::LineStart(_)
+                    | Node::InputStart => continue,
                     // An optional item: its first chars, or those of what follows.
                     Node::Repeat(inner, 0, _, _) => {
                         if !first_nodes(inner, out) {
@@ -1823,7 +2175,9 @@ fn required(node: &Node) -> Option<Vec<char>> {
             let mut out = Vec::new();
             for it in &set.items {
                 match it {
-                    ClassItem::Range(a, b) if (*b as u32).saturating_sub(*a as u32) < 8 => out.extend(*a..=*b),
+                    ClassItem::Range(a, b) if (*b as u32).saturating_sub(*a as u32) < 8 => {
+                        out.extend(*a..=*b)
+                    }
                     _ => return None,
                 }
             }
@@ -1896,7 +2250,16 @@ fn fold_str(s: &str, ci: u8) -> String {
 
 impl Regex {
     pub fn new(src: &str, flags: Flags) -> Result<Regex, Error> {
-        let mut p = Parser { c: src.chars().collect(), i: 0, flags, uclass: flags.unicode_class, groups: 0, names: Vec::new(), inline_flags: false, _src: src };
+        let mut p = Parser {
+            c: src.chars().collect(),
+            i: 0,
+            flags,
+            uclass: flags.unicode_class,
+            groups: 0,
+            names: Vec::new(),
+            inline_flags: false,
+            _src: src,
+        };
         let node = p.alt()?;
         if p.i < p.c.len() {
             return p.err("unbalanced )");
@@ -1918,7 +2281,16 @@ impl Regex {
         } else {
             (None, 0)
         };
-        Ok(Regex { node, groups: p.groups, names: p.names, literals, fold, inline_flags: p.inline_flags, start: OnceLock::new(), src: src.to_string() })
+        Ok(Regex {
+            node,
+            groups: p.groups,
+            names: p.names,
+            literals,
+            fold,
+            inline_flags: p.inline_flags,
+            start: OnceLock::new(),
+            src: src.to_string(),
+        })
     }
 
     pub fn source(&self) -> &str {
@@ -2005,11 +2377,17 @@ impl Regex {
     }
 
     pub fn full_match_chars(&self, chars: &[char]) -> Option<Captures> {
-        let mut m = Matcher { input: chars, caps: Caps::new(self.groups + 1), steps: 0 };
+        let mut m = Matcher {
+            input: chars,
+            caps: Caps::new(self.groups + 1),
+            steps: 0,
+        };
         let n = chars.len();
         if m.run(&self.node, 0, &mut |_, e| e == n) {
             m.caps[0] = Some((0, n));
-            Some(Captures { spans: m.caps.to_vec() })
+            Some(Captures {
+                spans: m.caps.to_vec(),
+            })
         } else {
             None
         }
@@ -2017,7 +2395,11 @@ impl Regex {
 
     /// `Matcher.find()` from `start`: the leftmost match at or after it.
     pub fn find_chars(&self, chars: &[char], start: usize) -> Option<Captures> {
-        let mut m = Matcher { input: chars, caps: Caps::new(self.groups + 1), steps: 0 };
+        let mut m = Matcher {
+            input: chars,
+            caps: Caps::new(self.groups + 1),
+            steps: 0,
+        };
         for s in start..=chars.len() {
             if !self.may_start_at(chars, s) {
                 continue;
@@ -2029,7 +2411,9 @@ impl Regex {
                 true
             }) {
                 m.caps[0] = Some((s, end.unwrap()));
-                return Some(Captures { spans: m.caps.to_vec() });
+                return Some(Captures {
+                    spans: m.caps.to_vec(),
+                });
             }
             m.caps.fill(None);
         }
@@ -2049,13 +2433,20 @@ impl Regex {
         let (first, second) = self.start.get_or_init(|| {
             let mut nodes = Vec::new();
             let first = first_nodes(&self.node, &mut nodes).then(|| CharFilter::new(&nodes));
-            let second = if first.is_some() { second_nodes(&self.node).map(|nodes| CharFilter::new(&nodes)) } else { None };
+            let second = if first.is_some() {
+                second_nodes(&self.node).map(|nodes| CharFilter::new(&nodes))
+            } else {
+                None
+            };
             (first, second)
         });
         match first {
             None => true,
             Some(first) => {
-                chars.get(s).is_some_and(|&c| first.accepts(c)) && second.as_ref().map_or(true, |second| chars.get(s + 1).is_some_and(|&c| second.accepts(c)))
+                chars.get(s).is_some_and(|&c| first.accepts(c))
+                    && second.as_ref().map_or(true, |second| {
+                        chars.get(s + 1).is_some_and(|&c| second.accepts(c))
+                    })
             }
         }
     }
@@ -2079,14 +2470,20 @@ impl Regex {
         if !self.may_start_at(chars, start) {
             return None;
         }
-        let mut m = Matcher { input: chars, caps: Caps::new(self.groups + 1), steps: 0 };
+        let mut m = Matcher {
+            input: chars,
+            caps: Caps::new(self.groups + 1),
+            steps: 0,
+        };
         let mut end = None;
         if m.run(&self.node, start, &mut |_, e| {
             end = Some(e);
             true
         }) {
             m.caps[0] = Some((start, end.unwrap()));
-            Some(Captures { spans: m.caps.to_vec() })
+            Some(Captures {
+                spans: m.caps.to_vec(),
+            })
         } else {
             None
         }
@@ -2127,7 +2524,9 @@ impl Regex {
         let mut last = 0;
         let mut pos = 0;
         while pos <= chars.len() {
-            let Some(c) = self.find_chars(&chars, pos) else { break };
+            let Some(c) = self.find_chars(&chars, pos) else {
+                break;
+            };
             let (s, e) = c.spans[0].unwrap();
             out.extend(&chars[last..s]);
             let mut i = 0;
@@ -2140,7 +2539,10 @@ impl Regex {
                     '$' if i + 1 < repl.len() && repl[i + 1].is_ascii_digit() => {
                         let mut n = repl[i + 1].to_digit(10).unwrap() as usize;
                         i += 2;
-                        while i < repl.len() && repl[i].is_ascii_digit() && n * 10 + (repl[i] as usize - '0' as usize) <= self.groups {
+                        while i < repl.len()
+                            && repl[i].is_ascii_digit()
+                            && n * 10 + (repl[i] as usize - '0' as usize) <= self.groups
+                        {
                             n = n * 10 + (repl[i] as usize - '0' as usize);
                             i += 1;
                         }
@@ -2149,9 +2551,15 @@ impl Regex {
                         }
                     }
                     '$' if i + 1 < repl.len() && repl[i + 1] == '{' => {
-                        let close = repl[i..].iter().position(|&x| x == '}').map(|p| p + i).unwrap_or(repl.len());
+                        let close = repl[i..]
+                            .iter()
+                            .position(|&x| x == '}')
+                            .map(|p| p + i)
+                            .unwrap_or(repl.len());
                         let name: String = repl[i + 2..close].iter().collect();
-                        if let Some(Some((a, b))) = self.group_index(&name).and_then(|n| c.spans.get(n)) {
+                        if let Some(Some((a, b))) =
+                            self.group_index(&name).and_then(|n| c.spans.get(n))
+                        {
                             out.extend(&chars[*a..*b]);
                         }
                         i = (close + 1).min(repl.len());
@@ -2178,7 +2586,11 @@ impl Regex {
 impl Captures {
     /// Text of group `n`, or `None` when it did not participate.
     pub fn get<'t>(&self, chars: &'t [char], n: usize) -> Option<String> {
-        self.spans.get(n).copied().flatten().map(|(a, b)| chars[a..b].iter().collect())
+        self.spans
+            .get(n)
+            .copied()
+            .flatten()
+            .map(|(a, b)| chars[a..b].iter().collect())
     }
 }
 
@@ -2190,7 +2602,10 @@ pub fn compile(src: &str, flags: Flags) -> Result<Arc<Regex>, Error> {
         return Ok(r.clone());
     }
     let r = Arc::new(Regex::new(src, flags)?);
-    cache.lock().unwrap().insert((src.to_string(), flags), r.clone());
+    cache
+        .lock()
+        .unwrap()
+        .insert((src.to_string(), flags), r.clone());
     Ok(r)
 }
 
@@ -2207,7 +2622,12 @@ pub fn node_size() -> usize {
 /// Puts an already compiled pattern in the shared cache of [`compile`] (or
 /// returns the one that is there).
 pub fn share(src: &str, flags: Flags, regex: Regex) -> Arc<Regex> {
-    static_cache().lock().unwrap().entry((src.to_string(), flags)).or_insert_with(|| Arc::new(regex)).clone()
+    static_cache()
+        .lock()
+        .unwrap()
+        .entry((src.to_string(), flags))
+        .or_insert_with(|| Arc::new(regex))
+        .clone()
 }
 
 #[cfg(test)]
@@ -2260,7 +2680,10 @@ mod tests {
         assert!(!full_i("[a-z&&[^aeiou]]+", "BAT"));
         // Without the flag nothing changes.
         assert!(full("[^a-z].*", "Et"));
-        let ascii_only = Flags { case_insensitive: true, ..Flags::default() };
+        let ascii_only = Flags {
+            case_insensitive: true,
+            ..Flags::default()
+        };
         assert!(!Regex::new("[^a-z]", ascii_only).unwrap().is_full_match("E"));
         assert!(Regex::new("[^é]", ascii_only).unwrap().is_full_match("É"));
     }
@@ -2271,7 +2694,10 @@ mod tests {
         assert!(find("pour", "pourquoi"));
         assert!(find("^(?:i\\.e\\.)$", "i.e."));
         assert!(!find("^(?:i\\.e\\.)$", "x.i.e."));
-        assert!(full("a|ab", "ab"), "matches() must backtrack into the alternation");
+        assert!(
+            full("a|ab", "ab"),
+            "matches() must backtrack into the alternation"
+        );
         assert!(full("(a|ab)(c|bcd)?", "abcd"));
     }
 
@@ -2291,7 +2717,10 @@ mod tests {
     #[test]
     fn flags() {
         assert!(full("(?i)paris", "PARIS"));
-        assert!(!full("(?i)école", "École"), "(?i) alone folds ASCII only, as in Java");
+        assert!(
+            !full("(?i)école", "École"),
+            "(?i) alone folds ASCII only, as in Java"
+        );
         assert!(full("(?iu)école", "École"));
         assert!(full("a(?i:b)c", "aBc"));
         assert!(!full("a(?i:b)c", "aBC"));
@@ -2351,7 +2780,10 @@ mod tests {
         assert!(!find("(?U)x\\b", "xé") && !find("(?U)x\\b", "x١"));
         assert!(full("(?U)(?i)é", "É"), "(?U) implies Unicode case folding");
         assert!(full("(?U:\\s)\\s", "\u{202f} "));
-        assert!(!full("(?U:\\s)\\s", " \u{202f}"), "the flag ends with its group");
+        assert!(
+            !full("(?U:\\s)\\s", " \u{202f}"),
+            "the flag ends with its group"
+        );
         // \b in plain mode: letters and decimal digits.
         assert!(find("m\\b", "m²"));
         assert!(!find("m\\b", "mé"));
@@ -2371,12 +2803,21 @@ mod tests {
         // properties also hold for some numbers and symbols.
         assert!(full("\\p{L}+", "éßªǅ"));
         assert!(!full("\\p{L}", "Ⅷ") && !full("\\p{L}", "ⓐ") && full("\\p{IsAlphabetic}", "ⓐ"));
-        assert!(full("\\p{Ll}+", "éßĸ") && !full("\\p{Ll}", "ª") && !full("\\p{Ll}", "ⓐ") && !full("\\p{Ll}", "ⅷ"));
+        assert!(
+            full("\\p{Ll}+", "éßĸ")
+                && !full("\\p{Ll}", "ª")
+                && !full("\\p{Ll}", "ⓐ")
+                && !full("\\p{Ll}", "ⅷ")
+        );
         assert!(full("\\p{Lu}+", "ÉŒ") && !full("\\p{Lu}", "Ⅷ") && !full("\\p{Lu}", "ǅ"));
         assert!(full("\\p{Lo}", "ª") && full("\\p{Lt}", "ǅ"));
         assert!(find("3\\b", "3ⓐ") && !find("3\\b", "3a"));
         // A combining mark is part of the word it follows, not of a symbol.
-        assert!(!find("e\\b", "e\u{301}t") && find("\\bx", "\u{2764}\u{fe0f}x") && !find("\\bx", "e\u{301}x"));
+        assert!(
+            !find("e\\b", "e\u{301}t")
+                && find("\\bx", "\u{2764}\u{fe0f}x")
+                && !find("\\bx", "e\u{301}x")
+        );
     }
 
     #[test]
@@ -2397,7 +2838,11 @@ mod tests {
     fn find_skips_impossible_starts() {
         let r = Regex::new("[.!?]\\s+", Flags::default()).unwrap();
         let chars: Vec<char> = "Oui. Non !  Si".chars().collect();
-        let all: Vec<(usize, usize)> = r.find_all(&chars).iter().map(|c| c.spans[0].unwrap()).collect();
+        let all: Vec<(usize, usize)> = r
+            .find_all(&chars)
+            .iter()
+            .map(|c| c.spans[0].unwrap())
+            .collect();
         assert_eq!(all, vec![(3, 5), (9, 12)]);
         assert!(find("x*", ""), "an empty match is still found");
         assert!(find("\\bfin", "la fin"));
@@ -2405,41 +2850,132 @@ mod tests {
         // the second char is filtered too
         let r2 = Regex::new("\\p{L}[.!?]\\s+", Flags::default()).unwrap();
         let chars2: Vec<char> = "abc. d! e".chars().collect();
-        assert_eq!(r2.find_all(&chars2).iter().map(|c| c.spans[0].unwrap()).collect::<Vec<_>>(), vec![(2, 5), (5, 8)]);
-        assert!(find("a\\b.", "xa b") && !find("a\\b.", "xab") && find("ab?c", "ac") && find("a(?=b).", "ab"));
-        assert!(Regex::new("ab", Flags::default()).unwrap().match_at_chars(&['a'], 0).is_none());
-        assert!(Regex::new("a", Flags::default()).unwrap().match_at_chars(&['a'], 1).is_none());
-        assert!(Regex::new("a*", Flags::default()).unwrap().match_at_chars(&['a'], 1).is_some());
+        assert_eq!(
+            r2.find_all(&chars2)
+                .iter()
+                .map(|c| c.spans[0].unwrap())
+                .collect::<Vec<_>>(),
+            vec![(2, 5), (5, 8)]
+        );
+        assert!(
+            find("a\\b.", "xa b")
+                && !find("a\\b.", "xab")
+                && find("ab?c", "ac")
+                && find("a(?=b).", "ab")
+        );
+        assert!(Regex::new("ab", Flags::default())
+            .unwrap()
+            .match_at_chars(&['a'], 0)
+            .is_none());
+        assert!(Regex::new("a", Flags::default())
+            .unwrap()
+            .match_at_chars(&['a'], 1)
+            .is_none());
+        assert!(Regex::new("a*", Flags::default())
+            .unwrap()
+            .match_at_chars(&['a'], 1)
+            .is_some());
         // long alternations skip the alternatives that cannot start here
-        assert!(full("(?iu)(alpha|beta|gamma|delta|épsilon)s?", "ÉPSILONS") && !full("alpha|beta|gamma|delta", "epsilon"));
-        assert!(full("(a|b|c|d|)x", "x") && full("(?:ab|a|b|c)c", "ac") && find("\\b(un|deux|trois|quatre)\\b", "j'en ai trois ici"));
-        assert!(full("(?iu)(is|si|ki|as|os|us)", "ıſ") && full("(?iu)(k|l|m|n)", "\u{212a}") && full("(?iu)(é|è|ê|ë)t", "Ét"));
+        assert!(
+            full("(?iu)(alpha|beta|gamma|delta|épsilon)s?", "ÉPSILONS")
+                && !full("alpha|beta|gamma|delta", "epsilon")
+        );
+        assert!(
+            full("(a|b|c|d|)x", "x")
+                && full("(?:ab|a|b|c)c", "ac")
+                && find("\\b(un|deux|trois|quatre)\\b", "j'en ai trois ici")
+        );
+        assert!(
+            full("(?iu)(is|si|ki|as|os|us)", "ıſ")
+                && full("(?iu)(k|l|m|n)", "\u{212a}")
+                && full("(?iu)(é|è|ê|ë)t", "Ét")
+        );
         let months = "(?iu)\\b(janv|févr|mars|avr|mai|juin|juil|août|sept|oct|nov|déc|lundi|mardi|mercredi|jeudi|vendredi)\\.";
-        assert!(find(months, "le 3 Févr. au soir") && find(months, "en AOÛT. Puis") && !find(months, "en été. Puis"));
+        assert!(
+            find(months, "le 3 Févr. au soir")
+                && find(months, "en AOÛT. Puis")
+                && !find(months, "en été. Puis")
+        );
         // a look-behind checks the char before the position first
-        assert!(find("(?<=\\b[a-z]{1,100}\\.)X", "abc.X") && !find("(?<=\\b[a-z]{1,100}\\.)X", "abc. X"));
-        assert!(find("(?<=a|)X", "X") && find("(?<![.!?] ?)X", "a X") && !find("(?<![.!?] ?)X", "a. X"));
-        assert!(find("(?<=\\([a-z]{1,100}\\. )X", "(abc. X") && !find("(?<=\\([a-z]{1,100}\\. )X", "abc. X"));
+        assert!(
+            find("(?<=\\b[a-z]{1,100}\\.)X", "abc.X")
+                && !find("(?<=\\b[a-z]{1,100}\\.)X", "abc. X")
+        );
+        assert!(
+            find("(?<=a|)X", "X") && find("(?<![.!?] ?)X", "a X") && !find("(?<![.!?] ?)X", "a. X")
+        );
+        assert!(
+            find("(?<=\\([a-z]{1,100}\\. )X", "(abc. X")
+                && !find("(?<=\\([a-z]{1,100}\\. )X", "abc. X")
+        );
         // single-char repeats: greedy, lazy, possessive, bounded
-        assert!(full("a*a", "aaa") && full("a*?a", "aaa") && !full("a*+a", "aaa") && full("[ab]{2,3}b", "abab"));
-        assert!(!full("a{2,3}", "a") && !full("a{2,3}", "aaaa") && full("a{2,3}?a", "aaaa") && full(".{0,2}?b", "aab"));
+        assert!(
+            full("a*a", "aaa")
+                && full("a*?a", "aaa")
+                && !full("a*+a", "aaa")
+                && full("[ab]{2,3}b", "abab")
+        );
+        assert!(
+            !full("a{2,3}", "a")
+                && !full("a{2,3}", "aaaa")
+                && full("a{2,3}?a", "aaaa")
+                && full(".{0,2}?b", "aab")
+        );
         let lazy_greedy = Regex::new("(a+?)(a*)", Flags::default()).unwrap();
-        assert_eq!(lazy_greedy.full_match_chars(&['a', 'a', 'a']).unwrap().spans, vec![Some((0, 3)), Some((0, 1)), Some((1, 3))]);
+        assert_eq!(
+            lazy_greedy
+                .full_match_chars(&['a', 'a', 'a'])
+                .unwrap()
+                .spans,
+            vec![Some((0, 3)), Some((0, 1)), Some((1, 3))]
+        );
         let long: Vec<char> = "x".repeat(200_000).chars().collect();
         let to_paren = Regex::new("[^)\\r\\n]*\\)", Flags::default()).unwrap();
-        assert!(to_paren.match_at_chars(&long, 0).is_none(), "no deep recursion on a long run");
+        assert!(
+            to_paren.match_at_chars(&long, 0).is_none(),
+            "no deep recursion on a long run"
+        );
         // more groups than the inline capture slots hold
         let many = Regex::new("(a)(b)(c)(d)(e)(f)(g)(h)\\8\\1", Flags::default()).unwrap();
-        let m = many.full_match_chars(&"abcdefghha".chars().collect::<Vec<_>>()).unwrap();
+        let m = many
+            .full_match_chars(&"abcdefghha".chars().collect::<Vec<_>>())
+            .unwrap();
         assert_eq!(m.spans.len(), 9);
         assert_eq!(m.spans[8], Some((7, 8)));
         assert_eq!(r.required_chars(), Some(vec!['.', '!', '?']));
-        assert_eq!(Regex::new("\\p{L}[.!?…]\u{a0}+\\s+", Flags::default()).unwrap().required_chars(), Some(vec!['\u{a0}']));
-        assert_eq!(Regex::new("\\p{L}*", Flags::default()).unwrap().required_chars(), None);
-        assert_eq!(Regex::new("ab|c", Flags::default()).unwrap().required_chars(), Some(vec!['a', 'c']));
-        assert_eq!(Regex::new("ab?|c{2,4}", Flags::default()).unwrap().max_width(), Some(4));
-        assert_eq!(Regex::new("[^)]*\\)", Flags::default()).unwrap().max_width(), None);
-        assert!(r.may_start_at(&chars, 3) && !r.may_start_at(&chars, 2) && !r.may_start_at(&chars, 13));
+        assert_eq!(
+            Regex::new("\\p{L}[.!?…]\u{a0}+\\s+", Flags::default())
+                .unwrap()
+                .required_chars(),
+            Some(vec!['\u{a0}'])
+        );
+        assert_eq!(
+            Regex::new("\\p{L}*", Flags::default())
+                .unwrap()
+                .required_chars(),
+            None
+        );
+        assert_eq!(
+            Regex::new("ab|c", Flags::default())
+                .unwrap()
+                .required_chars(),
+            Some(vec!['a', 'c'])
+        );
+        assert_eq!(
+            Regex::new("ab?|c{2,4}", Flags::default())
+                .unwrap()
+                .max_width(),
+            Some(4)
+        );
+        assert_eq!(
+            Regex::new("[^)]*\\)", Flags::default())
+                .unwrap()
+                .max_width(),
+            None
+        );
+        assert!(
+            r.may_start_at(&chars, 3) && !r.may_start_at(&chars, 2) && !r.may_start_at(&chars, 13)
+        );
     }
 
     #[test]
@@ -2447,7 +2983,10 @@ mod tests {
         let pv = |p: &str| Regex::new(p, Flags::default()).unwrap().possible_values();
         assert_eq!(pv("une?"), Some(vec!["un".to_string(), "une".to_string()]));
         assert_eq!(pv("(le|la)s?").map(|v| v.len()), Some(4));
-        assert_eq!(pv("tout|toute"), Some(vec!["tout".to_string(), "toute".to_string()]));
+        assert_eq!(
+            pv("tout|toute"),
+            Some(vec!["tout".to_string(), "toute".to_string()])
+        );
         assert_eq!(pv("[mts]on"), None);
         assert_eq!(pv("a+"), None);
         assert_eq!(pv("a.c"), None);
@@ -2466,7 +3005,11 @@ mod tests {
     }
     #[test]
     fn case_insensitive_negated_class() {
-        let ci = Flags { case_insensitive: true, unicode_case: true, ..Flags::default() };
+        let ci = Flags {
+            case_insensitive: true,
+            unicode_case: true,
+            ..Flags::default()
+        };
         let re = Regex::new("[^a-z].*|qui", ci).unwrap();
         assert!(!re.is_full_match("faiblesse"));
         assert!(!re.is_full_match("Faiblesse"));

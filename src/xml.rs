@@ -36,7 +36,10 @@ pub enum Event {
 impl Event {
     /// Look up an attribute value by name.
     pub fn attr<'a>(attrs: &'a [(String, String)], name: &str) -> Option<&'a str> {
-        attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+        attrs
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
     }
 }
 
@@ -82,7 +85,10 @@ impl<'a> Parser<'a> {
                 return;
             }
             if self.starts_with("<?") {
-                self.pos = self.find_from(self.pos, "?>").map(|i| i + 2).unwrap_or(self.bytes.len());
+                self.pos = self
+                    .find_from(self.pos, "?>")
+                    .map(|i| i + 2)
+                    .unwrap_or(self.bytes.len());
             } else if self.starts_with("<!--") {
                 match self.find_from(self.pos + 4, "-->") {
                     Some(i) => self.pos = i + 3,
@@ -111,7 +117,9 @@ impl<'a> Parser<'a> {
             } else if self.bytes[i..].starts_with(b"<!--") {
                 // A comment of the internal subset: its quotes and brackets
                 // do not count.
-                i = self.src[i..].find("-->").map_or(self.bytes.len(), |end| i + end + 3);
+                i = self.src[i..]
+                    .find("-->")
+                    .map_or(self.bytes.len(), |end| i + end + 3);
                 continue;
             } else {
                 match c {
@@ -129,7 +137,9 @@ impl<'a> Parser<'a> {
         let mut rest = &self.src[start..i.min(self.src.len())];
         while let Some(open) = rest.find("<!--") {
             subset.push_str(&rest[..open]);
-            rest = rest[open..].find("-->").map_or("", |end| &rest[open + end + 3..]);
+            rest = rest[open..]
+                .find("-->")
+                .map_or("", |end| &rest[open + end + 3..]);
         }
         subset.push_str(rest);
         self.parse_entities(&subset);
@@ -214,7 +224,9 @@ impl<'a> Parser<'a> {
     }
 
     fn find_from(&self, from: usize, pat: &str) -> Option<usize> {
-        self.src[from.min(self.src.len())..].find(pat).map(|i| i + from)
+        self.src[from.min(self.src.len())..]
+            .find(pat)
+            .map(|i| i + from)
     }
 
     fn skip_ws(&mut self) {
@@ -360,7 +372,10 @@ impl<'a> Parser<'a> {
                         i += 1;
                     } else {
                         let vstart = i;
-                        while i < self.bytes.len() && !self.bytes[i].is_ascii_whitespace() && self.bytes[i] != b'>' {
+                        while i < self.bytes.len()
+                            && !self.bytes[i].is_ascii_whitespace()
+                            && self.bytes[i] != b'>'
+                        {
                             i += 1;
                         }
                         aval = self.decode_entities(&self.src[vstart..i]);
@@ -480,10 +495,16 @@ pub enum DomItem {
 
 impl Node {
     pub fn attr(&self, name: &str) -> Option<&str> {
-        self.attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+        self.attrs
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.as_str())
     }
 
-    pub fn children_named<'a, 'b>(&'a self, name: &'b str) -> impl Iterator<Item = &'a Node> + use<'a, 'b> {
+    pub fn children_named<'a, 'b>(
+        &'a self,
+        name: &'b str,
+    ) -> impl Iterator<Item = &'a Node> + use<'a, 'b> {
         let name = name.to_string();
         self.children.iter().filter_map(move |c| match c {
             DomItem::Node(n) if n.name == name => Some(n),
@@ -492,7 +513,10 @@ impl Node {
     }
 
     /// All descendant elements with `name` (depth-first order).
-    pub fn descendants_named<'a, 'b>(&'a self, name: &'b str) -> impl Iterator<Item = &'a Node> + use<'a, 'b> {
+    pub fn descendants_named<'a, 'b>(
+        &'a self,
+        name: &'b str,
+    ) -> impl Iterator<Item = &'a Node> + use<'a, 'b> {
         let name = name.to_string();
         fn rec<'a>(n: &'a Node, name: &str, out: &mut Vec<&'a Node>) {
             for c in &n.children {
@@ -537,7 +561,11 @@ pub fn parse_dom(src: &str) -> Node {
     }];
     loop {
         match p.next_event() {
-            Event::Start { name, attrs, self_closing } => {
+            Event::Start {
+                name,
+                attrs,
+                self_closing,
+            } => {
                 let node = Node {
                     name,
                     attrs,

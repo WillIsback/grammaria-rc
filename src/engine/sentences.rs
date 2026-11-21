@@ -42,7 +42,11 @@ pub struct SrxDocument {
 impl SrxDocument {
     /// `Srx2SaxParser.parse`.
     pub fn parse(xml: &str) -> Result<SrxDocument, String> {
-        let mut doc = SrxDocument { cascade: true, language_rules: Vec::new(), language_maps: Vec::new() };
+        let mut doc = SrxDocument {
+            cascade: true,
+            language_rules: Vec::new(),
+            language_maps: Vec::new(),
+        };
         let mut parser = Parser::new(xml);
         // The element whose text is being read ("beforebreak"/"afterbreak").
         let mut element: Option<String> = None;
@@ -52,24 +56,35 @@ impl SrxDocument {
         loop {
             match parser.next_event() {
                 Event::Eof => break,
-                Event::Start { name, attrs, self_closing } => {
+                Event::Start {
+                    name,
+                    attrs,
+                    self_closing,
+                } => {
                     match name.as_str() {
                         "header" => doc.cascade = Event::attr(&attrs, "cascade") == Some("yes"),
                         "languagerule" => {
-                            let rule_name = Event::attr(&attrs, "languagerulename").unwrap_or_default().to_string();
+                            let rule_name = Event::attr(&attrs, "languagerulename")
+                                .unwrap_or_default()
+                                .to_string();
                             doc.language_rules.push((rule_name, Vec::new()));
                         }
                         "languagemap" => {
-                            let pattern = Event::attr(&attrs, "languagepattern").unwrap_or_default();
-                            let rule_name = Event::attr(&attrs, "languagerulename").unwrap_or_default();
+                            let pattern =
+                                Event::attr(&attrs, "languagepattern").unwrap_or_default();
+                            let rule_name =
+                                Event::attr(&attrs, "languagerulename").unwrap_or_default();
                             // As in the Java map of rule names, the last list of that name wins.
                             let index = doc
                                 .language_rules
                                 .iter()
                                 .rposition(|(n, _)| n == rule_name)
-                                .ok_or_else(|| format!("SRX: unknown language rule '{rule_name}'"))?;
-                            let re = Regex::new(pattern, Flags::default())
-                                .map_err(|e| format!("SRX: bad language pattern '{pattern}': {}", e.0))?;
+                                .ok_or_else(|| {
+                                    format!("SRX: unknown language rule '{rule_name}'")
+                                })?;
+                            let re = Regex::new(pattern, Flags::default()).map_err(|e| {
+                                format!("SRX: bad language pattern '{pattern}': {}", e.0)
+                            })?;
                             doc.language_maps.push((re, index));
                         }
                         "rule" => breaking = Event::attr(&attrs, "break") != Some("no"),
@@ -77,8 +92,15 @@ impl SrxDocument {
                     }
                     if self_closing {
                         if name == "rule" {
-                            let (_, rules) = doc.language_rules.last_mut().ok_or("SRX: rule outside a language rule")?;
-                            rules.push(SrxRule { breaking, before: String::new(), after: String::new() });
+                            let (_, rules) = doc
+                                .language_rules
+                                .last_mut()
+                                .ok_or("SRX: rule outside a language rule")?;
+                            rules.push(SrxRule {
+                                breaking,
+                                before: String::new(),
+                                after: String::new(),
+                            });
                         }
                         element = None;
                     } else {
@@ -88,7 +110,10 @@ impl SrxDocument {
                 Event::End { name } => {
                     element = None;
                     if name == "rule" {
-                        let (_, rules) = doc.language_rules.last_mut().ok_or("SRX: rule outside a language rule")?;
+                        let (_, rules) = doc
+                            .language_rules
+                            .last_mut()
+                            .ok_or("SRX: rule outside a language rule")?;
                         rules.push(SrxRule {
                             breaking,
                             before: std::mem::take(&mut before),
@@ -164,7 +189,9 @@ pub fn finitize(pattern: &str, infinity: usize) -> String {
         let re = |src: &str| Regex::new(src, Flags::default()).expect("valid pattern");
         Patterns {
             star: re("(?<=(?<!\\\\)(?:\\\\\\\\){0,100})\\*"),
-            plus: re("(?<=(?<!\\\\)(?:\\\\\\\\){0,100})(?<![\\?\\*\\+]|\\{[0-9],?[0-9]?\\}?\\})\\+"),
+            plus: re(
+                "(?<=(?<!\\\\)(?:\\\\\\\\){0,100})(?<![\\?\\*\\+]|\\{[0-9],?[0-9]?\\}?\\})\\+",
+            ),
             range: re("(?<=(?<!\\\\)(?:\\\\\\\\){0,100})\\{\\s*([0-9]+)\\s*,\\s*\\}"),
         }
     });
@@ -206,14 +233,20 @@ impl Occurrences {
     /// Does a needed character occur at all?
     #[inline]
     fn any(&self, needs: &Needs) -> bool {
-        needs.as_ref().map_or(true, |slots| slots.iter().any(|&s| self.first[s as usize] != ABSENT))
+        needs.as_ref().map_or(true, |slots| {
+            slots.iter().any(|&s| self.first[s as usize] != ABSENT)
+        })
     }
 
     /// Does a needed character occur before `position`? (For a pattern that
     /// must match text ending there.)
     #[inline]
     fn any_before(&self, needs: &Needs, position: usize) -> bool {
-        needs.as_ref().map_or(true, |slots| slots.iter().any(|&s| (self.first[s as usize] as usize) < position))
+        needs.as_ref().map_or(true, |slots| {
+            slots
+                .iter()
+                .any(|&s| (self.first[s as usize] as usize) < position)
+        })
     }
 
     /// Does a needed character occur at `position` or after it? (For a
@@ -221,7 +254,9 @@ impl Occurrences {
     #[inline]
     fn any_from(&self, needs: &Needs, position: usize) -> bool {
         needs.as_ref().map_or(true, |slots| {
-            slots.iter().any(|&s| self.last[s as usize] != ABSENT && self.last[s as usize] as usize >= position)
+            slots.iter().any(|&s| {
+                self.last[s as usize] != ABSENT && self.last[s as usize] as usize >= position
+            })
         })
     }
 }
@@ -281,7 +316,11 @@ impl RuleMatcher<'_> {
             if next > chars.len() {
                 return false;
             }
-            let Some(m) = self.rule.before.find_chars(&chars[self.from..], next - self.from) else {
+            let Some(m) = self
+                .rule
+                .before
+                .find_chars(&chars[self.from..], next - self.from)
+            else {
                 return false;
             };
             let (s, e) = m.spans[0].unwrap_or((0, 0));
@@ -290,7 +329,9 @@ impl RuleMatcher<'_> {
             // afterMatcher.region(beforeMatcher.end(), text.length()); lookingAt()
             match &self.rule.after {
                 None => return true,
-                Some(after) if after.match_at_chars(&chars[self.last..], 0).is_some() => return true,
+                Some(after) if after.match_at_chars(&chars[self.last..], 0).is_some() => {
+                    return true
+                }
                 _ => {}
             }
         }
@@ -320,10 +361,21 @@ impl Segmenter {
     pub fn new(document: &SrxDocument, language_code: &str) -> Result<Segmenter, String> {
         let compile = |src: &str| {
             // LanguageTool: DEFAULT_PATTERN_FLAGS_PARAMETER = UNICODE_CHARACTER_CLASS
-            Regex::new(&format!("(?U){src}"), Flags::default()).map_err(|e| format!("SRX: bad pattern '{src}': {}", e.0))
+            Regex::new(&format!("(?U){src}"), Flags::default())
+                .map_err(|e| format!("SRX: bad pattern '{src}': {}", e.0))
         };
-        let optional = |src: &str| if src.is_empty() { Ok(None) } else { compile(src).map(Some) };
-        let mut seg = Segmenter { breaks: Vec::new(), exceptions: Vec::new(), special: Vec::new() };
+        let optional = |src: &str| {
+            if src.is_empty() {
+                Ok(None)
+            } else {
+                compile(src).map(Some)
+            }
+        };
+        let mut seg = Segmenter {
+            breaks: Vec::new(),
+            exceptions: Vec::new(),
+            special: Vec::new(),
+        };
         for (_, rules) in document.language_rule_list(language_code) {
             for rule in rules {
                 // A filter only, taken from the patterns as written.
@@ -332,13 +384,27 @@ impl Segmenter {
                 let after_needs = after.as_ref().and_then(|r| seg.needs_of(r));
                 let needs = [before_needs, after_needs];
                 if rule.breaking {
-                    seg.breaks.push(BreakRule { before: compile(&rule.before)?, after, exceptions: seg.exceptions.len(), needs });
+                    seg.breaks.push(BreakRule {
+                        before: compile(&rule.before)?,
+                        after,
+                        exceptions: seg.exceptions.len(),
+                        needs,
+                    });
                 } else {
                     // RuleManager.createExceptionPatternString
                     let before = finitize(&rule.before, MAX_LOOKBEHIND_CONSTRUCT_LENGTH);
-                    let before = if before.is_empty() { None } else { Some(compile(&format!("(?<={before})"))?) };
+                    let before = if before.is_empty() {
+                        None
+                    } else {
+                        Some(compile(&format!("(?<={before})"))?)
+                    };
                     let after_unbounded = after.as_ref().is_some_and(|r| r.max_width().is_none());
-                    seg.exceptions.push(ExceptionRule { before, after, needs, after_unbounded });
+                    seg.exceptions.push(ExceptionRule {
+                        before,
+                        after,
+                        needs,
+                        after_unbounded,
+                    });
                 }
             }
         }
@@ -370,14 +436,23 @@ impl Segmenter {
     /// (`!SrxTextIterator.isException`, whose pattern is the alternation of
     /// `(?:(?<=before)(?=after))` over those rules, looked up at the break
     /// position with transparent bounds.)
-    fn exception_at(&self, rule: &BreakRule, position: usize, chars: &[char], active: &[usize], seen: &Occurrences) -> bool {
+    fn exception_at(
+        &self,
+        rule: &BreakRule,
+        position: usize,
+        chars: &[char],
+        active: &[usize],
+        seen: &Occurrences,
+    ) -> bool {
         for &i in active {
             if i >= rule.exceptions {
                 break;
             }
             let exception = &self.exceptions[i];
             // What the patterns need must lie on the right side of the position.
-            if !seen.any_before(&exception.needs[0], position) || !seen.any_from(&exception.needs[1], position) {
+            if !seen.any_before(&exception.needs[0], position)
+                || !seen.any_from(&exception.needs[1], position)
+            {
                 continue;
             }
             // Both sides must match; the order does not change the outcome,
@@ -387,10 +462,20 @@ impl Segmenter {
             if after.is_some_and(|after| !after.may_start_at(chars, position)) {
                 continue;
             }
-            let before_fails = || exception.before.as_ref().is_some_and(|before| before.match_at_chars(chars, position).is_none());
-            let after_fails = || after.is_some_and(|after| after.match_at_chars(chars, position).is_none());
+            let before_fails = || {
+                exception
+                    .before
+                    .as_ref()
+                    .is_some_and(|before| before.match_at_chars(chars, position).is_none())
+            };
+            let after_fails =
+                || after.is_some_and(|after| after.match_at_chars(chars, position).is_none());
             let (first, second): (&dyn Fn() -> bool, &dyn Fn() -> bool) =
-                if exception.after_unbounded { (&before_fails, &after_fails) } else { (&after_fails, &before_fails) };
+                if exception.after_unbounded {
+                    (&before_fails, &after_fails)
+                } else {
+                    (&after_fails, &before_fails)
+                };
             if first() || second() {
                 continue;
             }
@@ -402,7 +487,10 @@ impl Segmenter {
     /// Split `text` into segments (`SrxTextIterator`): the byte ranges of the
     /// segments, which cover the text.
     pub fn split(&self, text: &str) -> Vec<(usize, usize)> {
-        let mut seen = Occurrences { first: [ABSENT; SLOTS], last: [ABSENT; SLOTS] };
+        let mut seen = Occurrences {
+            first: [ABSENT; SLOTS],
+            last: [ABSENT; SLOTS],
+        };
         let mut chars: Vec<char> = Vec::with_capacity(text.len());
         for c in text.chars() {
             if c.is_ascii() {
@@ -425,7 +513,12 @@ impl Segmenter {
             if !rule.needs.iter().all(|n| seen.any(n)) {
                 continue;
             }
-            let mut matcher = RuleMatcher { rule, from: 0, first: None, last: 0 };
+            let mut matcher = RuleMatcher {
+                rule,
+                from: 0,
+                first: None,
+                last: 0,
+            };
             if matcher.find(&chars) {
                 matchers.push(matcher);
             }
@@ -438,7 +531,9 @@ impl Segmenter {
                 // getMinMatcher(): the first matcher with the smallest break position
                 let mut min: Option<usize> = None;
                 for (i, m) in matchers.iter().enumerate() {
-                    if min.map_or(true, |j: usize| m.break_position() < matchers[j].break_position()) {
+                    if min.map_or(true, |j: usize| {
+                        m.break_position() < matchers[j].break_position()
+                    }) {
                         min = Some(i);
                     }
                 }
@@ -451,12 +546,19 @@ impl Segmenter {
                         end = matchers[i].break_position();
                         if end > start {
                             let active = active_exceptions.get_or_insert_with(|| {
-                                (0..self.exceptions.len()).filter(|&k| self.exceptions[k].needs.iter().all(|n| seen.any(n))).collect()
+                                (0..self.exceptions.len())
+                                    .filter(|&k| {
+                                        self.exceptions[k].needs.iter().all(|n| seen.any(n))
+                                    })
+                                    .collect()
                             });
-                            found = !self.exception_at(matchers[i].rule, end, &chars, active, &seen);
+                            found =
+                                !self.exception_at(matchers[i].rule, end, &chars, active, &seen);
                             if found {
                                 // cutMatchers(): matchers that began before the end of the segment start again there
-                                matchers.retain_mut(|m| m.start_position() >= end || m.find_from(end, &chars));
+                                matchers.retain_mut(|m| {
+                                    m.start_position() >= end || m.find_from(end, &chars)
+                                });
                             }
                         }
                     }
@@ -516,7 +618,10 @@ impl SrxSentenceTokenizer {
     /// `tokenize(text)` with `setSingleLineBreaksMarksParagraph(false)`, as
     /// LanguageTool does by default: the sentences, which cover the text.
     pub fn tokenize<'t>(&self, text: &'t str) -> Vec<&'t str> {
-        self.ranges(text, false).into_iter().map(|(a, b)| &text[a..b]).collect()
+        self.ranges(text, false)
+            .into_iter()
+            .map(|(a, b)| &text[a..b])
+            .collect()
     }
 
     /// Byte ranges of the sentences. `single_line_breaks` is
@@ -579,11 +684,21 @@ mod tests {
         let doc = SrxDocument::parse(SRX).unwrap();
         assert!(doc.cascade);
         let lists = doc.language_rule_list("fr_two");
-        assert_eq!(lists.iter().map(|(n, _)| *n).collect::<Vec<_>>(), ["Important", "TwoBreaks", "French"]);
+        assert_eq!(
+            lists.iter().map(|(n, _)| *n).collect::<Vec<_>>(),
+            ["Important", "TwoBreaks", "French"]
+        );
         let french = lists[2].1;
         assert_eq!(french.len(), 6);
         assert!(!french[0].breaking && french[4].breaking);
-        assert_eq!(french[5], SrxRule { breaking: true, before: String::new(), after: "<0\\}".into() });
+        assert_eq!(
+            french[5],
+            SrxRule {
+                breaking: true,
+                before: String::new(),
+                after: "<0\\}".into()
+            }
+        );
         assert_eq!(doc.language_rule_list("fr_one").len(), 2);
         assert_eq!(doc.language_rule_list("xx").len(), 2);
     }
@@ -598,32 +713,61 @@ mod tests {
 
     #[test]
     fn breaks_after_sentence_punctuation() {
-        assert_eq!(split("Il dort. Elle mange ! Vrai ?"), ["Il dort. ", "Elle mange ! ", "Vrai ?"]);
+        assert_eq!(
+            split("Il dort. Elle mange ! Vrai ?"),
+            ["Il dort. ", "Elle mange ! ", "Vrai ?"]
+        );
         assert_eq!(split("Il dort.Elle mange."), ["Il dort.Elle mange."]);
         assert_eq!(split("Fin. "), ["Fin. "]);
         assert_eq!(split(""), Vec::<&str>::new());
-        assert_eq!(split("É. È."), ["É. ", "È."], "positions are chars, ranges are bytes");
-        assert_eq!(split("Oui.\u{202f}Non."), ["Oui.\u{202f}", "Non."], "\\s is Unicode white space");
+        assert_eq!(
+            split("É. È."),
+            ["É. ", "È."],
+            "positions are chars, ranges are bytes"
+        );
+        assert_eq!(
+            split("Oui.\u{202f}Non."),
+            ["Oui.\u{202f}", "Non."],
+            "\\s is Unicode white space"
+        );
     }
 
     #[test]
     fn no_break_rules_hold_the_break_back() {
         assert_eq!(split("Voir M. Dupont. Fin."), ["Voir M. Dupont. ", "Fin."]);
-        assert_eq!(split("Des pommes, etc. Puis rien."), ["Des pommes, etc. Puis rien."]);
-        assert_eq!(split("Il dit (cf. Hugo) que. Oui."), ["Il dit (cf. Hugo) que. ", "Oui."]);
+        assert_eq!(
+            split("Des pommes, etc. Puis rien."),
+            ["Des pommes, etc. Puis rien."]
+        );
+        assert_eq!(
+            split("Il dit (cf. Hugo) que. Oui."),
+            ["Il dit (cf. Hugo) que. ", "Oui."]
+        );
         assert_eq!(split("Quoi ? dit-il. Rien."), ["Quoi ? dit-il. ", "Rien."]);
         // a lower-case letter earlier on the line, then "p" or "al"
-        assert_eq!(split("Il plut. plus tard. Fin."), ["Il plut. plus tard. ", "Fin."]);
+        assert_eq!(
+            split("Il plut. plus tard. Fin."),
+            ["Il plut. plus tard. ", "Fin."]
+        );
         assert_eq!(split("IL PLUT. plus tard."), ["IL PLUT. ", "plus tard."]);
     }
 
     #[test]
     fn exceptions_look_at_the_right_side_of_the_position() {
         // The parenthesis rule needs a "(" before the position and a ")" after it.
-        assert_eq!(split("Un. Deux (cf. Hugo). Trois. Fin"), ["Un. ", "Deux (cf. Hugo). ", "Trois. ", "Fin"]);
+        assert_eq!(
+            split("Un. Deux (cf. Hugo). Trois. Fin"),
+            ["Un. ", "Deux (cf. Hugo). ", "Trois. ", "Fin"]
+        );
         assert_eq!(split("(a. b) Un. Deux"), ["(a. b) Un. ", "Deux"]);
-        assert_eq!(split("Un. Deux (a) trois. Fin"), ["Un. ", "Deux (a) trois. ", "Fin"]);
-        assert_eq!(split("Un (a. b. c) deux. Fin (x"), ["Un (a. b. c) deux. ", "Fin (x"]);
+        assert_eq!(
+            split("Un. Deux (a) trois. Fin"),
+            ["Un. ", "Deux (a) trois. ", "Fin"]
+        );
+        assert_eq!(
+            split("Un (a. b. c) deux. Fin (x"),
+            ["Un (a. b. c) deux. ", "Fin (x"]
+        );
     }
 
     #[test]
@@ -639,6 +783,9 @@ mod tests {
         let t = SrxSentenceTokenizer::new(SRX, "fr").unwrap();
         // "fr_one" has no paragraph rule in this file: only the sentence rules apply.
         assert_eq!(t.ranges("Un\n\nDeux. Trois", true), [(0, 10), (10, 15)]);
-        assert_eq!(t.ranges("Un\n\nDeux. Trois", false), [(0, 4), (4, 10), (10, 15)]);
+        assert_eq!(
+            t.ranges("Un\n\nDeux. Trois", false),
+            [(0, 4), (4, 10), (10, 15)]
+        );
     }
 }

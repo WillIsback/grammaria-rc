@@ -32,7 +32,10 @@ use super::super::strtools;
 use super::super::token::{Readings, Sentence};
 use super::fsa_builder::fsa_from_lines;
 use super::morfologik_speller::MorfologikMultiSpeller;
-use super::strings::{is_latin_script, is_other_category, java_is_letter, java_split, remove_diacritics, split_camel_case, split_digits_at_end};
+use super::strings::{
+    is_latin_script, is_other_category, java_is_letter, java_split, remove_diacritics,
+    split_camel_case, split_digits_at_end,
+};
 use super::urls::{is_email, is_url};
 use super::wordlist::{load_words, read_resource, speller_lines};
 use super::Tokenize;
@@ -48,8 +51,8 @@ const MESSAGE: &str = "Faute de frappe possible trouvée.";
 const SHORT_MESSAGE: &str = "Faute de frappe";
 
 const TOKEN_AT_START: [&str; 25] = [
-    "non", "en", "a", "le", "la", "les", "pour", "de", "du", "des", "un", "une", "mon", "ma", "mes", "ton", "ta", "tes", "son", "sa", "ses", "leur", "leurs",
-    "ce", "cet",
+    "non", "en", "a", "le", "la", "les", "pour", "de", "du", "des", "un", "une", "mon", "ma",
+    "mes", "ton", "ta", "tes", "son", "sa", "ses", "leur", "leurs", "ce", "cet",
 ];
 const PREFIX_WITH_WHITESPACE: [&str; 59] = [
     "agro",
@@ -137,16 +140,51 @@ fn splits() -> &'static [Split] {
         };
         vec![
             // APOSTROF_INICI_VERBS / VERB_INDSUBJ, and so on in Java's order.
-            split("^([lnts])(h?[aeiouàéèíòóú].*[^è])$", "V .*(ind|sub).*", 2, "'"),
-            split("^(m)(h?[aeiouàéèíòóú].*[^è])$", "V .* [123] s|V .* [23] p", 2, "'"),
+            split(
+                "^([lnts])(h?[aeiouàéèíòóú].*[^è])$",
+                "V .*(ind|sub).*",
+                2,
+                "'",
+            ),
+            split(
+                "^(m)(h?[aeiouàéèíòóú].*[^è])$",
+                "V .* [123] s|V .* [23] p",
+                2,
+                "'",
+            ),
             split("^(c)([eiéèê].*)$", "V .* 3 s", 2, "'"),
-            split("^([lntsmd]|nous|vous)(h?[aeiouàéèíòóú].*[^è])$", "V.* inf", 2, "'"),
-            split("^([ld])(h?[aeiouàéèíòóú]...+)$", "[NJZ] .* (s|sp)|V .inf|V .*ppa.* s", 2, "'"),
-            split("^(d)(h?[aeiouàéèíòóú].+)$", "[NJZ] .* (p|sp)|V .*ppa.* p", 2, "'"),
-            split("^([\\p{L}]+)[’']?(moi|toi|le|la|lui|nous|vous|les|leur|y|en)$", "V.* imp .*", 1, "-"),
+            split(
+                "^([lntsmd]|nous|vous)(h?[aeiouàéèíòóú].*[^è])$",
+                "V.* inf",
+                2,
+                "'",
+            ),
+            split(
+                "^([ld])(h?[aeiouàéèíòóú]...+)$",
+                "[NJZ] .* (s|sp)|V .inf|V .*ppa.* s",
+                2,
+                "'",
+            ),
+            split(
+                "^(d)(h?[aeiouàéèíòóú].+)$",
+                "[NJZ] .* (p|sp)|V .*ppa.* p",
+                2,
+                "'",
+            ),
+            split(
+                "^([\\p{L}]+)[’']?(moi|toi|le|la|lui|nous|vous|les|leur|y|en)$",
+                "V.* imp .*",
+                1,
+                "-",
+            ),
             split("^([\\p{L}]+[^e])[’']?(je)$", "V .*(ind).* 1 s", 1, "-"),
             split("^([\\p{L}]+)[’']?(tu)$", "V .*(ind).* 2 s", 1, "-"),
-            split("^([\\p{L}]+[^aeiou])[’']?(il|elle|ce|on)$", "V .*(ind).* 3 s", 1, "-"),
+            split(
+                "^([\\p{L}]+[^aeiou])[’']?(il|elle|ce|on)$",
+                "V .*(ind).* 3 s",
+                1,
+                "-",
+            ),
             split("^([\\p{L}]+)[’']?(nous)$", "V .*(ind).* 1 p", 1, "-"),
             split("^([\\p{L}]+)[’']?(vous)$", "V .*(ind).* 2 p", 1, "-"),
             split("^([\\p{L}]+)[’']?(ils|elles)$", "V .*(ind).* 3 p", 1, "-"),
@@ -179,13 +217,22 @@ impl IgnoredPhrases {
             return ignored;
         }
         // A pattern token matches when one reading of the token has its text.
-        let has_text = |t: &Readings, text: &str| &*t.token == text || t.readings.iter().any(|r| &*r.token == text);
+        let has_text = |t: &Readings, text: &str| {
+            &*t.token == text || t.readings.iter().any(|r| &*r.token == text)
+        };
         for i in 0..tokens.len() {
             let first = tokens[i];
             let mut check = |text: &str| {
-                let Some(candidates) = self.by_first.get(text) else { return };
+                let Some(candidates) = self.by_first.get(text) else {
+                    return;
+                };
                 for rest in candidates {
-                    if i + rest.len() < tokens.len() && rest.iter().enumerate().all(|(k, text)| has_text(tokens[i + 1 + k], text)) {
+                    if i + rest.len() < tokens.len()
+                        && rest
+                            .iter()
+                            .enumerate()
+                            .all(|(k, text)| has_text(tokens[i + 1 + k], text))
+                    {
                         for flag in &mut ignored[i..=i + rest.len()] {
                             *flag = true;
                         }
@@ -241,7 +288,12 @@ impl FrenchSpellerRule {
     ///
     /// `tagger` stands for `FrenchTagger.INSTANCE` and `tokenize` for the
     /// language's word tokenizer.
-    pub fn load(assets: &Path, dictionary: Arc<Dictionary>, tagger: Arc<dyn WordTagger>, tokenize: Tokenize) -> std::io::Result<FrenchSpellerRule> {
+    pub fn load(
+        assets: &Path,
+        dictionary: Arc<Dictionary>,
+        tagger: Arc<dyn WordTagger>,
+        tokenize: Tokenize,
+    ) -> std::io::Result<FrenchSpellerRule> {
         let read = |name: &str| read_resource(&assets.join(name));
         let spelling = read("hunspell/spelling.txt");
         let spelling_custom = read("hunspell/spelling_custom.txt");
@@ -256,13 +308,19 @@ impl FrenchSpellerRule {
 
         // Building the word-list dictionary and tokenizing the entries to
         // ignore are independent: they run side by side.
-        let workers = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).clamp(1, 4);
+        let workers = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .clamp(1, 4);
         let chunk_size = ignore_words.len().div_ceil(workers).max(1);
         let (plain_text, tokenized) = std::thread::scope(|scope| {
             // `initSpeller`: the existing plain-text dictionaries, chained.
             let fsa = scope.spawn(|| {
                 let mut chained = String::new();
-                for content in [&spelling, &spelling_custom, &spelling_global].into_iter().flatten() {
+                for content in [&spelling, &spelling_custom, &spelling_global]
+                    .into_iter()
+                    .flatten()
+                {
                     chained.push_str(content);
                 }
                 let lines = speller_lines(&chained);
@@ -275,12 +333,22 @@ impl FrenchSpellerRule {
             let tokenize = &tokenize;
             let handles: Vec<_> = ignore_words
                 .chunks(chunk_size)
-                .map(|part| scope.spawn(move || part.iter().map(|line| tokenize(line)).collect::<Vec<Vec<String>>>()))
+                .map(|part| {
+                    scope.spawn(move || {
+                        part.iter()
+                            .map(|line| tokenize(line))
+                            .collect::<Vec<Vec<String>>>()
+                    })
+                })
                 .collect();
-            let tokenized: Vec<Vec<String>> = handles.into_iter().flat_map(|h| h.join().expect("tokenizer thread panicked")).collect();
+            let tokenized: Vec<Vec<String>> = handles
+                .into_iter()
+                .flat_map(|h| h.join().expect("tokenizer thread panicked"))
+                .collect();
             (fsa.join().expect("dictionary thread panicked"), tokenized)
         });
-        let plain_text = plain_text?.map(|fsa| Arc::new(Dictionary::new(fsa, dictionary.metadata.clone())));
+        let plain_text =
+            plain_text?.map(|fsa| Arc::new(Dictionary::new(fsa, dictionary.metadata.clone())));
         let speller1 = MorfologikMultiSpeller::new(dictionary.clone(), plain_text.clone(), 1);
         let speller2 = MorfologikMultiSpeller::new(dictionary.clone(), plain_text.clone(), 2);
         let speller3 = MorfologikMultiSpeller::new(dictionary, plain_text, 3);
@@ -311,7 +379,8 @@ impl FrenchSpellerRule {
             rule.add_ignore_words(line, tokens);
         }
         for name in ["hunspell/prohibit.txt", "hunspell/prohibit_custom.txt"] {
-            rule.words_to_be_prohibited.extend(load_words(read(name).as_deref()));
+            rule.words_to_be_prohibited
+                .extend(load_words(read(name).as_deref()));
         }
         Ok(rule)
     }
@@ -321,8 +390,12 @@ impl FrenchSpellerRule {
     /// `tokens` is the entry cut by the word tokenizer.
     fn add_ignore_words(&mut self, line: String, tokens: Vec<String>) {
         if tokens.len() > 1 {
-            self.phrases
-                .add(tokens.into_iter().filter(|t| !super::strings::java_trim(t).is_empty()).collect());
+            self.phrases.add(
+                tokens
+                    .into_iter()
+                    .filter(|t| !super::strings::java_trim(t).is_empty())
+                    .collect(),
+            );
         } else {
             self.words_to_be_ignored.insert(line);
         }
@@ -345,7 +418,9 @@ impl FrenchSpellerRule {
     /// `isIgnoredNoCase` (`ignoreWordsWithLength` is 0 for French).
     fn is_ignored_no_case(&self, word: &str) -> bool {
         self.words_to_be_ignored.contains(word)
-            || (!strtools::is_mixed_case(word) && self.converts_case && self.words_to_be_ignored.contains(&word.to_lowercase()))
+            || (!strtools::is_mixed_case(word)
+                && self.converts_case
+                && self.words_to_be_ignored.contains(&word.to_lowercase()))
     }
 
     /// `ignoreWord(String)` of `SpellingCheckRule` and `MorfologikSpellerRule`.
@@ -359,7 +434,9 @@ impl FrenchSpellerRule {
         }
         let ignored = match word.strip_suffix('.') {
             // e.g. word at end of sentence
-            Some(without_dot) if !self.words_to_be_ignored.contains(word) => self.is_ignored_no_case(without_dot),
+            Some(without_dot) if !self.words_to_be_ignored.contains(word) => {
+                self.is_ignored_no_case(without_dot)
+            }
             _ => self.is_ignored_no_case(word),
         };
         ignored || is_speller_emoji(word)
@@ -431,7 +508,12 @@ impl FrenchSpellerRule {
         let text: &str = &sentence.text;
         matches
             .into_iter()
-            .filter(|m| m.from < m.to && text.is_char_boundary(m.from) && m.to <= text.len() && text.is_char_boundary(m.to))
+            .filter(|m| {
+                m.from < m.to
+                    && text.is_char_boundary(m.from)
+                    && m.to <= text.len()
+                    && text.is_char_boundary(m.to)
+            })
             .map(|m| RuleMatch {
                 rule,
                 from_pos: m.from,
@@ -448,7 +530,14 @@ impl FrenchSpellerRule {
 
     /// `createWrongSplitMatch`: a match over two tokens; it replaces the
     /// previous match when that one started at the same place.
-    fn create_wrong_split_match(so_far: &mut Vec<Pending>, pos: usize, covered_word: &str, suggestion1: &str, suggestion2: &str, prev_pos: usize) -> Pending {
+    fn create_wrong_split_match(
+        so_far: &mut Vec<Pending>,
+        pos: usize,
+        covered_word: &str,
+        suggestion1: &str,
+        suggestion2: &str,
+        prev_pos: usize,
+    ) -> Pending {
         if so_far.last().is_some_and(|prev| prev.from == prev_pos) {
             so_far.pop();
         }
@@ -460,7 +549,14 @@ impl FrenchSpellerRule {
     }
 
     /// `getRuleMatches`: the match for one misspelled word, if any.
-    fn get_rule_matches(&self, word: &str, start_pos: usize, so_far: &mut Vec<Pending>, idx: usize, tokens: &[&Readings]) -> Option<Pending> {
+    fn get_rule_matches(
+        &self,
+        word: &str,
+        start_pos: usize,
+        so_far: &mut Vec<Pending>,
+        idx: usize,
+        tokens: &[&Readings],
+    ) -> Option<Pending> {
         let speller = &self.speller1;
         let misspelled = |w: &str| speller.is_misspelled(w);
         let frequency = |w: &str| speller.frequency(w);
@@ -479,7 +575,10 @@ impl FrenchSpellerRule {
 
         if idx > 0 && tokens[idx].whitespace_before {
             let prev_word: &str = &tokens[idx - 1].token;
-            if !prev_word.is_empty() && !has_digit(prev_word) && frequency(prev_word) < MAX_FREQUENCY_FOR_SPLITTING {
+            if !prev_word.is_empty()
+                && !has_digit(prev_word)
+                && frequency(prev_word) < MAX_FREQUENCY_FOR_SPLITTING
+            {
                 let prev_start_pos = tokens[idx - 1].start_pos;
                 let (sugg1a, last) = split_last_char(prev_word);
                 let sugg1b = format!("{last}{word}");
@@ -489,7 +588,14 @@ impl FrenchSpellerRule {
                     && !misspelled(&sugg1b)
                     && frequency(sugg1a) + frequency(&sugg1b) > frequency(prev_word)
                 {
-                    rule_match = Some(Self::create_wrong_split_match(so_far, start_pos, word, sugg1a, &sugg1b, prev_start_pos));
+                    rule_match = Some(Self::create_wrong_split_match(
+                        so_far,
+                        start_pos,
+                        word,
+                        sugg1a,
+                        &sugg1b,
+                        prev_start_pos,
+                    ));
                     before_suggestion_str = format!("{prev_word} ");
                 }
                 let (first, sugg2b) = split_first_char(word);
@@ -498,11 +604,20 @@ impl FrenchSpellerRule {
                     match &mut rule_match {
                         None => {
                             if frequency(&sugg2a) + frequency(sugg2b) > frequency(prev_word) {
-                                rule_match = Some(Self::create_wrong_split_match(so_far, start_pos, word, &sugg2a, sugg2b, prev_start_pos));
+                                rule_match = Some(Self::create_wrong_split_match(
+                                    so_far,
+                                    start_pos,
+                                    word,
+                                    &sugg2a,
+                                    sugg2b,
+                                    prev_start_pos,
+                                ));
                                 before_suggestion_str = format!("{prev_word} ");
                             }
                         }
-                        Some(m) => m.suggestions.push(format!("{sugg2a} {sugg2b}").trim().to_string()),
+                        Some(m) => m
+                            .suggestions
+                            .push(format!("{sugg2a} {sugg2b}").trim().to_string()),
                     }
                 }
                 let sugg = format!("{prev_word}{word}");
@@ -528,7 +643,10 @@ impl FrenchSpellerRule {
         }
         if rule_match.is_none() && idx < tokens.len() - 1 && tokens[idx + 1].whitespace_before {
             let next_word: &str = &tokens[idx + 1].token;
-            if !next_word.is_empty() && !has_digit(next_word) && frequency(next_word) < MAX_FREQUENCY_FOR_SPLITTING {
+            if !next_word.is_empty()
+                && !has_digit(next_word)
+                && frequency(next_word) < MAX_FREQUENCY_FOR_SPLITTING
+            {
                 let next_start_pos = tokens[idx + 1].start_pos;
                 let (sugg1a, last) = split_last_char(word);
                 let sugg1b = format!("{last}{next_word}");
@@ -538,7 +656,14 @@ impl FrenchSpellerRule {
                     && !misspelled(&sugg1b)
                     && frequency(sugg1a) + frequency(&sugg1b) > frequency(next_word)
                 {
-                    rule_match = Some(Self::create_wrong_split_match(so_far, next_start_pos, next_word, sugg1a, &sugg1b, start_pos));
+                    rule_match = Some(Self::create_wrong_split_match(
+                        so_far,
+                        next_start_pos,
+                        next_word,
+                        sugg1a,
+                        &sugg1b,
+                        start_pos,
+                    ));
                     after_suggestion_str = format!(" {next_word}");
                 }
                 let (first, sugg2b) = split_first_char(next_word);
@@ -547,11 +672,20 @@ impl FrenchSpellerRule {
                     match &mut rule_match {
                         None => {
                             if frequency(&sugg2a) + frequency(sugg2b) > frequency(next_word) {
-                                rule_match = Some(Self::create_wrong_split_match(so_far, next_start_pos, next_word, &sugg2a, sugg2b, start_pos));
+                                rule_match = Some(Self::create_wrong_split_match(
+                                    so_far,
+                                    next_start_pos,
+                                    next_word,
+                                    &sugg2a,
+                                    sugg2b,
+                                    start_pos,
+                                ));
                                 after_suggestion_str = format!(" {next_word}");
                             }
                         }
-                        Some(m) => m.suggestions.push(format!("{sugg2a} {sugg2b}").trim().to_string()),
+                        Some(m) => m
+                            .suggestions
+                            .push(format!("{sugg2a} {sugg2b}").trim().to_string()),
                     }
                 }
                 let sugg = format!("{word}{next_word}");
@@ -587,12 +721,20 @@ impl FrenchSpellerRule {
         // (`^(\d[\.,\d]*|\P{L}+)(.*)$`), unless it starts with characters of
         // `pStartsWithNumbersBulletsExceptions` (`^([\p{C}\-\$%&]+)(.*)$`).
         if let Some(split_at) = starts_with_numbers_bullets(word) {
-            let is_exception = word.chars().next().is_some_and(|c| is_other_category(c) || matches!(c, '-' | '$' | '%' | '&'));
+            let is_exception = word
+                .chars()
+                .next()
+                .is_some_and(|c| is_other_category(c) || matches!(c, '-' | '$' | '%' | '&'));
             if !is_exception {
                 let (first_part, second_part) = word.split_at(split_at);
-                let multitoken_is_misspelled = (self.tokenize)(second_part).iter().any(|t| misspelled(t));
-                if (!multitoken_is_misspelled || self.is_ignored_no_case(second_part)) && !self.is_prohibited(second_part) {
-                    rule_match.suggestions.push(format!("{first_part} {second_part}"));
+                let multitoken_is_misspelled =
+                    (self.tokenize)(second_part).iter().any(|t| misspelled(t));
+                if (!multitoken_is_misspelled || self.is_ignored_no_case(second_part))
+                    && !self.is_prohibited(second_part)
+                {
+                    rule_match
+                        .suggestions
+                        .push(format!("{first_part} {second_part}"));
                     prevent_further_suggestions = true;
                 } else {
                     before_suggestion_str = format!("{first_part} ");
@@ -603,9 +745,9 @@ impl FrenchSpellerRule {
         if !prevent_further_suggestions {
             // `appendLazySuggestions` + `joinBeforeAfterSuggestions`.
             for suggestion in self.calc_speller_suggestions(clean_word).iter() {
-                rule_match
-                    .suggestions
-                    .push(format!("{before_suggestion_str}{suggestion}{after_suggestion_str}"));
+                rule_match.suggestions.push(format!(
+                    "{before_suggestion_str}{suggestion}{after_suggestion_str}"
+                ));
             }
         }
         Some(rule_match)
@@ -613,7 +755,12 @@ impl FrenchSpellerRule {
 
     /// `calcSpellerSuggestions` (cached by word).
     fn calc_speller_suggestions(&self, word: &str) -> Arc<Vec<String>> {
-        if let Some(found) = self.suggestions.lock().unwrap_or_else(|e| e.into_inner()).get(word) {
+        if let Some(found) = self
+            .suggestions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(word)
+        {
             return found.clone();
         }
         let computed = Arc::new(self.compute_speller_suggestions(word));
@@ -627,10 +774,16 @@ impl FrenchSpellerRule {
 
     fn compute_speller_suggestions(&self, word: &str) -> Vec<String> {
         let words_of = |speller: &MorfologikMultiSpeller| -> Vec<String> {
-            speller.weighted_suggestions_from_default_dicts(word).iter().map(|s| s.word.clone()).collect()
+            speller
+                .weighted_suggestions_from_default_dicts(word)
+                .iter()
+                .map(|s| s.word.clone())
+                .collect()
         };
         let mut default_suggestions = words_of(&self.speller1);
-        let only_case_differs = default_suggestions.first().is_some_and(|first| strtools::equals_ignore_case(word, first));
+        let only_case_differs = default_suggestions
+            .first()
+            .is_some_and(|first| strtools::equals_ignore_case(word, first));
         let length = strtools::utf16_len(word);
         if length >= 3 && (only_case_differs || default_suggestions.is_empty()) {
             // speller1 uses a maximum edit distance of 1, it won't find
@@ -679,13 +832,17 @@ impl FrenchSpellerRule {
             }
         }
         let parts = split_camel_case(word);
-        if parts.len() > 1 && char_len(&parts[0]) > 1 && parts.iter().all(|part| !self.speller1.is_misspelled(part)) {
+        if parts.len() > 1
+            && char_len(&parts[0]) > 1
+            && parts.iter().all(|part| !self.speller1.is_misspelled(part))
+        {
             return vec![parts.join(" ")];
         }
         let parts = split_digits_at_end(word);
         if parts.len() > 1
             && self.tagger.tag_word(&parts[0]).is_tagged()
-            && (char_len(&parts[0]) > 2 || SPLIT_DIGITS_AT_END.contains(&parts[0].to_lowercase().as_str()))
+            && (char_len(&parts[0]) > 2
+                || SPLIT_DIGITS_AT_END.contains(&parts[0].to_lowercase().as_str()))
         {
             return vec![parts.join(" ")];
         }
@@ -707,10 +864,18 @@ impl FrenchSpellerRule {
         };
         let group1 = caps.get(&chars, 1).unwrap_or_default();
         let group2 = caps.get(&chars, 2).unwrap_or_default();
-        let new_suggestion = if split.position == 1 { &group1 } else { &group2 };
+        let new_suggestion = if split.position == 1 {
+            &group1
+        } else {
+            &group2
+        };
         let readings = self.tagger.tag_word(new_suggestion);
         // `matchPostagRegexp`: an untagged reading counts as "UNKNOWN".
-        if readings.readings.iter().any(|r| split.postag.is_full_match(r.pos().unwrap_or("UNKNOWN"))) {
+        if readings
+            .readings
+            .iter()
+            .any(|r| split.postag.is_full_match(r.pos().unwrap_or("UNKNOWN")))
+        {
             new_suggestions.push(format!("{group1}{}{group2}", split.separator));
             return new_suggestions;
         }
@@ -768,7 +933,11 @@ fn order_suggestions(suggestions: Vec<String>, word: &str) -> Vec<String> {
         // set at the top of the list the suggestions that only differ in
         // diacritics
         let mut pos_new_sugg = 0;
-        while new_suggestions.len() > pos_new_sugg && strtools::equals_ignore_case(&remove_diacritics(&new_suggestions[pos_new_sugg]), &word_without_diacritics)
+        while new_suggestions.len() > pos_new_sugg
+            && strtools::equals_ignore_case(
+                &remove_diacritics(&new_suggestions[pos_new_sugg]),
+                &word_without_diacritics,
+            )
         {
             pos_new_sugg += 1;
         }
@@ -782,7 +951,10 @@ fn order_suggestions(suggestions: Vec<String>, word: &str) -> Vec<String> {
             continue;
         }
         // move words with apostrophe or hyphen to second position
-        let clean_suggestion: String = suggestion.chars().filter(|c| !matches!(c, '\'' | '-')).collect();
+        let clean_suggestion: String = suggestion
+            .chars()
+            .filter(|c| !matches!(c, '\'' | '-'))
+            .collect();
         if i > 1 && total > 2 && strtools::equals_ignore_case(&clean_suggestion, word) {
             if pos_new_sugg == 0 {
                 pos_new_sugg = 1;
@@ -802,9 +974,12 @@ fn is_speller_emoji(word: &str) -> bool {
     if !word.chars().any(|c| c as u32 > 0xFFFF) {
         return false;
     }
-    !word
-        .chars()
-        .all(|c| java_is_letter(c) || c.is_ascii_digit() || is_punctuation(c) || super::strings::is_space_separator(c))
+    !word.chars().all(|c| {
+        java_is_letter(c)
+            || c.is_ascii_digit()
+            || is_punctuation(c)
+            || super::strings::is_space_separator(c)
+    })
 }
 
 /// `\p{P}`, as far as a word can tell.
@@ -826,7 +1001,9 @@ fn starts_with_numbers_bullets(word: &str) -> Option<usize> {
             .find(|(_, c)| !(c.is_ascii_digit() || matches!(c, '.' | ',')))
             .map(|(i, _)| i)
     } else if !java_is_letter(first) {
-        word.char_indices().find(|(_, c)| java_is_letter(*c)).map(|(i, _)| i)
+        word.char_indices()
+            .find(|(_, c)| java_is_letter(*c))
+            .map(|(i, _)| i)
     } else {
         return None;
     };
@@ -872,7 +1049,12 @@ impl NativeRule for FrenchSpellerNativeRule {
         self.0.info()
     }
 
-    fn match_sentence(&self, rule: usize, sentence: &Sentence, _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_sentence(
+        &self,
+        rule: usize,
+        sentence: &Sentence,
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         self.0.match_sentence(rule, sentence)
     }
 }
@@ -888,16 +1070,28 @@ mod tests {
     #[test]
     fn order_of_french_suggestions() {
         // Suggestions that only differ by diacritics come first.
-        assert_eq!(order_suggestions(s(&["près", "tués", "très"]), "tres"), s(&["très", "près", "tués"]));
+        assert_eq!(
+            order_suggestions(s(&["près", "tués", "très"]), "tres"),
+            s(&["très", "près", "tués"])
+        );
         // "prefix word" splits and one-letter first parts are dropped.
         assert_eq!(
-            order_suggestions(s(&["anti virus", "antivirus", "l antivirus", "a virus"]), "antivirrus"),
+            order_suggestions(
+                s(&["anti virus", "antivirus", "l antivirus", "a virus"]),
+                "antivirrus"
+            ),
             s(&["a virus", "antivirus"])
         );
         // A split after a determiner moves up.
-        assert_eq!(order_suggestions(s(&["lamaison", "la maison"]), "lamaisson"), s(&["la maison", "lamaison"]));
+        assert_eq!(
+            order_suggestions(s(&["lamaison", "la maison"]), "lamaisson"),
+            s(&["la maison", "lamaison"])
+        );
         // A final è is not French.
-        assert_eq!(order_suggestions(s(&["informè", "informé", "koinè"]), "informe"), s(&["informé", "koinè"]));
+        assert_eq!(
+            order_suggestions(s(&["informè", "informé", "koinè"]), "informe"),
+            s(&["informé", "koinè"])
+        );
         // From the third suggestion on, a form with apostrophe or hyphen that
         // is otherwise the word goes to the second place.
         assert_eq!(
@@ -926,27 +1120,48 @@ mod tests {
             .map(|(i, t)| Readings::untagged(t, i))
             .collect();
         let refs: Vec<&Readings> = tokens.iter().collect();
-        assert_eq!(phrases.mark(&refs), [false, true, true, false, true, true, true, false]);
+        assert_eq!(
+            phrases.mark(&refs),
+            [false, true, true, false, true, true, true, false]
+        );
     }
 
     #[test]
     fn words_checked_alone() {
-        let Some(tools) = super::super::testing::tools() else { return };
+        let Some(tools) = super::super::testing::tools() else {
+            return;
+        };
         let rule = &tools.spelling.rule;
         for known in ["maison", "Alexi", "Entra", "LanguageTool", ""] {
             assert!(!rule.is_misspelled(known), "{known}");
             assert!(rule.spelling_suggestions(known).is_empty(), "{known}");
         }
-        let first = |word: &str, n: usize| rule.spelling_suggestions(word).into_iter().take(n).collect::<Vec<_>>();
+        let first = |word: &str, n: usize| {
+            rule.spelling_suggestions(word)
+                .into_iter()
+                .take(n)
+                .collect::<Vec<_>>()
+        };
         assert!(rule.is_misspelled("connaisance"));
         assert_eq!(first("connaisance", 9), ["connaissance", "connaissances"]);
         // Morfologik's own ranking, quirks included.
         assert_eq!(
             first("annuyant", 9),
-            ["ennuyant", "annulant", "ennuyait", "ennuyante", "ennuyants", "ennoyant", "ennuyât"]
+            [
+                "ennuyant",
+                "annulant",
+                "ennuyait",
+                "ennuyante",
+                "ennuyants",
+                "ennoyant",
+                "ennuyât"
+            ]
         );
         // A missing apostrophe or hyphen comes first.
-        assert_eq!(first("lhomme", 9), ["l'homme", "homme", "Lomme", "chômé", "chôme"]);
+        assert_eq!(
+            first("lhomme", 9),
+            ["l'homme", "homme", "Lomme", "chômé", "chôme"]
+        );
         assert_eq!(first("Mangezle", 9), ["Mangez-le", "Mangez le"]);
         assert_eq!(first("dit'il", 9), ["dit-il", "DIT-il", "détail"]);
         // Through the suggestions of the part to tag ("urri" -> "erre").
@@ -964,7 +1179,9 @@ mod tests {
 
     #[test]
     fn sentences() {
-        let Some(tools) = super::super::testing::tools() else { return };
+        let Some(tools) = super::super::testing::tools() else {
+            return;
+        };
         let check = |text: &str| -> Vec<(String, Vec<String>)> {
             let sentence = tools.analyse(text);
             tools
@@ -972,57 +1189,124 @@ mod tests {
                 .rule
                 .match_sentence(0, &sentence)
                 .into_iter()
-                .map(|m| (m.original_error_str, m.suggestions.into_iter().take(5).collect()))
+                .map(|m| {
+                    (
+                        m.original_error_str,
+                        m.suggestions.into_iter().take(5).collect(),
+                    )
+                })
                 .collect()
         };
         let m = |covered: &str, suggestions: &[&str]| (covered.to_string(), s(suggestions));
-        assert_eq!(check("La connaisance est utile."), [m("connaisance", &["connaissance", "connaissances"])]);
+        assert_eq!(
+            check("La connaisance est utile."),
+            [m("connaisance", &["connaissance", "connaissances"])]
+        );
         // The suggestions of the first word are capitalised.
-        assert_eq!(check("connaisance utile pour tous."), [m("connaisance", &["Connaissance", "Connaissances"])]);
-        assert_eq!(check("•Premierement il faut partir."), [m("Premierement", &["Premièrement"])]);
-        assert_eq!(check("CONNAISANCE DES RISQUES."), [m("CONNAISANCE", &["CONNAISSANCE"])]);
+        assert_eq!(
+            check("connaisance utile pour tous."),
+            [m("connaisance", &["Connaissance", "Connaissances"])]
+        );
+        assert_eq!(
+            check("•Premierement il faut partir."),
+            [m("Premierement", &["Premièrement"])]
+        );
+        assert_eq!(
+            check("CONNAISANCE DES RISQUES."),
+            [m("CONNAISANCE", &["CONNAISSANCE"])]
+        );
         // A space in the wrong place: the match covers both tokens.
         assert_eq!(
             check("Il a un ordi nateur tout neuf."),
-            [m("ordi nateur", &["ordinateur", "ordi batteur", "ordi nageur", "ordi dateur", "ordi natter"])]
+            [m(
+                "ordi nateur",
+                &[
+                    "ordinateur",
+                    "ordi batteur",
+                    "ordi nageur",
+                    "ordi dateur",
+                    "ordi natter"
+                ]
+            )]
         );
-        assert_eq!(check("Elle a pris le déj euner tôt."), [m("déj euner", &["déjeuner"])]);
-        assert_eq!(check("Les enfa nts jouent dehors."), [m("enfa nts", &["enfants"])]);
+        assert_eq!(
+            check("Elle a pris le déj euner tôt."),
+            [m("déj euner", &["déjeuner"])]
+        );
+        assert_eq!(
+            check("Les enfa nts jouent dehors."),
+            [m("enfa nts", &["enfants"])]
+        );
         assert_eq!(
             check("C'est un texte avec im portant détail."),
-            [m("im portant", &["important", "IM portant", "il portant", "km portant", "cm portant"])]
+            [m(
+                "im portant",
+                &[
+                    "important",
+                    "IM portant",
+                    "il portant",
+                    "km portant",
+                    "cm portant"
+                ]
+            )]
         );
         // Multi-word entries of the word lists.
         assert_eq!(check("Nous avons vu Joe Biden et Entra hier."), []);
         // A word glued to a number.
         assert_eq!(
             check("Le 2eme jour, il a mangé 3pommes."),
-            [m("2eme", &["2 été", "2 même", "2 me", "2 âme", "2 ère"]), m("3pommes", &["3 pommes"])]
+            [
+                m("2eme", &["2 été", "2 même", "2 me", "2 âme", "2 ère"]),
+                m("3pommes", &["3 pommes"])
+            ]
         );
         assert_eq!(
             check("Il habite à Paris en frrance depuis lontemps."),
             [
-                m("frrance", &["France", "franque", "errance", "francs", "franc"]),
+                m(
+                    "frrance",
+                    &["France", "franque", "errance", "francs", "franc"]
+                ),
                 m("lontemps", &["longtemps"])
             ]
         );
-        assert_eq!(check("J'ai lu le New Yrok Times."), [m("Yrok", &["York", "Grok"])]);
+        assert_eq!(
+            check("J'ai lu le New Yrok Times."),
+            [m("Yrok", &["York", "Grok"])]
+        );
     }
 
     #[test]
     fn tokens_that_are_not_checked() {
-        let Some(tools) = super::super::testing::tools() else { return };
+        let Some(tools) = super::super::testing::tools() else {
+            return;
+        };
         let rule = &tools.spelling.rule;
         let token = |text: &str| Readings::untagged(text, 0);
         assert!(!rule.can_be_ignored(&token("connaisance"), false));
-        assert!(rule.can_be_ignored(&token("connaisance"), true), "part of a multi-word entry");
+        assert!(
+            rule.can_be_ignored(&token("connaisance"), true),
+            "part of a multi-word entry"
+        );
         assert!(rule.can_be_ignored(&token("https://example.org/pagge"), false));
         assert!(rule.can_be_ignored(&token("jean.dupond@exemple.fr"), false));
-        assert!(rule.can_be_ignored(&token("1234"), false), "no Latin letter");
-        assert!(rule.can_be_ignored(&token("Привет"), false), "no Latin letter");
+        assert!(
+            rule.can_be_ignored(&token("1234"), false),
+            "no Latin letter"
+        );
+        assert!(
+            rule.can_be_ignored(&token("Привет"), false),
+            "no Latin letter"
+        );
         assert!(rule.can_be_ignored(&token("AFPA"), false), "in ignore.txt");
-        assert!(!rule.can_be_ignored(&token("afpa"), false), "the list has the word in capitals only");
-        assert!(rule.can_be_ignored(&token("Wesh"), false), "the list has the lowercase form");
+        assert!(
+            !rule.can_be_ignored(&token("afpa"), false),
+            "the list has the word in capitals only"
+        );
+        assert!(
+            rule.can_be_ignored(&token("Wesh"), false),
+            "the list has the lowercase form"
+        );
         let mut flagged = token("connaisance");
         flagged.ignored_by_speller = true;
         assert!(rule.can_be_ignored(&flagged, false));

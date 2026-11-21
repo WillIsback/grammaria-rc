@@ -22,8 +22,8 @@ use super::super::strtools;
 use super::super::token::{Readings, Sentence};
 use super::speller_rule::FrenchSpellerRule;
 use super::strings::{
-    is_anagram, is_not_word_string, is_space_separator, java_hash_map_order, java_is_letter, java_split, java_trim, levenshtein, remove_diacritics,
-    split_non_empty, substring_before,
+    is_anagram, is_not_word_string, is_space_separator, java_hash_map_order, java_is_letter,
+    java_split, java_trim, levenshtein, remove_diacritics, split_non_empty, substring_before,
 };
 use super::wordlist::{java_lines, prepare_line_for_speller, read_resource};
 
@@ -76,10 +76,14 @@ impl MultitokenEntries {
     /// The files of `FrenchMultitokenSpeller`: `multiwords.txt`,
     /// `spelling_global.txt` and `hyphenated_words.txt`.
     pub fn french(assets: &Path) -> MultitokenEntries {
-        let contents: Vec<String> = ["multiwords.txt", "spelling_global.txt", "hyphenated_words.txt"]
-            .iter()
-            .filter_map(|name| read_resource(&assets.join(name)))
-            .collect();
+        let contents: Vec<String> = [
+            "multiwords.txt",
+            "spelling_global.txt",
+            "hyphenated_words.txt",
+        ]
+        .iter()
+        .filter_map(|name| read_resource(&assets.join(name)))
+        .collect();
         let contents: Vec<&str> = contents.iter().map(String::as_str).collect();
         MultitokenEntries::new(&contents)
     }
@@ -94,7 +98,8 @@ impl MultitokenEntries {
                 if line_original.is_empty() || line_original.starts_with('#') {
                     continue; // ignore comments
                 }
-                let line = prepare_line_for_speller(java_trim(substring_before(line_original, '#')));
+                let line =
+                    prepare_line_for_speller(java_trim(substring_before(line_original, '#')));
                 if line.is_empty() {
                     continue;
                 }
@@ -102,12 +107,17 @@ impl MultitokenEntries {
                 if !normalized_key.contains(' ') {
                     continue;
                 }
-                let Some(first_char) = normalized_key.chars().next() else { continue };
+                let Some(first_char) = normalized_key.chars().next() else {
+                    continue;
+                };
                 let (keys, index) = by_char.entry(first_char).or_default();
                 let at = *index.entry(normalized_key.clone()).or_insert_with(|| {
                     keys.push(Key {
                         length: len16(&normalized_key),
-                        parts: split_non_empty(&normalized_key, ' ').into_iter().map(str::to_string).collect(),
+                        parts: split_non_empty(&normalized_key, ' ')
+                            .into_iter()
+                            .map(str::to_string)
+                            .collect(),
                         normalized: normalized_key.clone(),
                         candidates: Vec::new(),
                     });
@@ -116,7 +126,9 @@ impl MultitokenEntries {
                 if !keys[at].candidates.contains(&line) {
                     keys[at].candidates.push(line.clone());
                 }
-                let list = no_spaces.entry(normalized_key.replace(' ', "")).or_default();
+                let list = no_spaces
+                    .entry(normalized_key.replace(' ', ""))
+                    .or_default();
                 if !list.contains(&line) {
                     list.push(line);
                 }
@@ -128,7 +140,10 @@ impl MultitokenEntries {
                 let names: Vec<&str> = keys.iter().map(|k| k.normalized.as_str()).collect();
                 let order = java_hash_map_order(&names);
                 let mut slots: Vec<Option<Key>> = keys.into_iter().map(Some).collect();
-                (c, order.into_iter().filter_map(|i| slots[i].take()).collect())
+                (
+                    c,
+                    order.into_iter().filter_map(|i| slots[i].take()).collect(),
+                )
             })
             .collect();
         MultitokenEntries {
@@ -145,7 +160,10 @@ impl MultitokenSpeller {
     }
 
     /// `spelling_rule` is the language's default spelling rule.
-    pub fn new(spelling_rule: Arc<FrenchSpellerRule>, entries: MultitokenEntries) -> MultitokenSpeller {
+    pub fn new(
+        spelling_rule: Arc<FrenchSpellerRule>,
+        entries: MultitokenEntries,
+    ) -> MultitokenSpeller {
         MultitokenSpeller {
             spelling_rule,
             suggestions_map: entries.suggestions_map,
@@ -155,7 +173,11 @@ impl MultitokenSpeller {
     }
 
     /// `getSuggestions(originalWord, areTokensAcceptedBySpeller)`.
-    pub fn suggestions(&self, original_word: &str, are_tokens_accepted_by_speller: bool) -> Arc<Vec<String>> {
+    pub fn suggestions(
+        &self,
+        original_word: &str,
+        are_tokens_accepted_by_speller: bool,
+    ) -> Arc<Vec<String>> {
         // `WHITESPACE_AND_SEP`: runs of space separators become one space.
         let mut normalized_word = String::with_capacity(original_word.len());
         let mut in_space = false;
@@ -170,10 +192,16 @@ impl MultitokenSpeller {
                 in_space = false;
             }
         }
-        if let Some(found) = self.cache.lock().unwrap_or_else(|e| e.into_inner()).get(&normalized_word) {
+        if let Some(found) = self
+            .cache
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&normalized_word)
+        {
             return found.clone();
         }
-        let computed = Arc::new(self.compute_suggestions(&normalized_word, are_tokens_accepted_by_speller));
+        let computed =
+            Arc::new(self.compute_suggestions(&normalized_word, are_tokens_accepted_by_speller));
         let mut cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
         if cache.len() >= 20_000 {
             cache.clear();
@@ -182,7 +210,11 @@ impl MultitokenSpeller {
         computed
     }
 
-    fn compute_suggestions(&self, original_word: &str, are_tokens_accepted_by_speller: bool) -> Vec<String> {
+    fn compute_suggestions(
+        &self,
+        original_word: &str,
+        are_tokens_accepted_by_speller: bool,
+    ) -> Vec<String> {
         let word = original_word.replace("- ", "-").replace(" -", "-");
         if self.discard_run_on_words(&word) {
             return Vec::new();
@@ -190,7 +222,10 @@ impl MultitokenSpeller {
         let normalized_word = normalize_key(&word);
         let mut weighted_candidates: Vec<(&str, i32)> = Vec::new();
         let normalized_word_no_spaces = normalized_word.replace(' ', "");
-        if let Some(candidates) = self.suggestions_map_no_spaces_key.get(&normalized_word_no_spaces) {
+        if let Some(candidates) = self
+            .suggestions_map_no_spaces_key
+            .get(&normalized_word_no_spaces)
+        {
             if stop_searching(candidates, original_word) {
                 return Vec::new();
             }
@@ -199,7 +234,11 @@ impl MultitokenSpeller {
         let Some(first_char) = normalized_word.chars().next() else {
             return Vec::new();
         };
-        if let Some(keys) = self.suggestions_map.get(&first_char).filter(|_| weighted_candidates.is_empty()) {
+        if let Some(keys) = self
+            .suggestions_map
+            .get(&first_char)
+            .filter(|_| weighted_candidates.is_empty())
+        {
             let word_parts = split_non_empty(&normalized_word, ' ');
             let min_length = len16(&word) - MAX_LENGTH_DIFF;
             let max_length = len16(&word) + MAX_LENGTH_DIFF;
@@ -210,7 +249,8 @@ impl MultitokenSpeller {
                 if stop_searching(&key.candidates, original_word) {
                     return Vec::new();
                 }
-                let distances = distances_per_word(&key.parts, &word_parts, &key.normalized, &normalized_word);
+                let distances =
+                    distances_per_word(&key.parts, &word_parts, &key.normalized, &normalized_word);
                 let total_distance: i32 = distances.iter().sum();
                 if total_distance < 1 {
                     weighted_candidates.extend(key.candidates.iter().map(|c| (c.as_str(), 0)));
@@ -224,17 +264,23 @@ impl MultitokenSpeller {
                 if key.length < 7 {
                     continue;
                 }
-                let exceeds_max_distance_per_token = distances.iter().enumerate().any(|(i, &distance)| {
-                    let word_part = word_parts.get(i).copied().unwrap_or("");
-                    let candidate_part = key.parts.get(i).map(String::as_str).unwrap_or("");
-                    let max_distance = if len16(word_part) > 5 && len16(candidate_part) > 4 { 2 } else { 1 };
-                    distance > max_distance
-                });
+                let exceeds_max_distance_per_token =
+                    distances.iter().enumerate().any(|(i, &distance)| {
+                        let word_part = word_parts.get(i).copied().unwrap_or("");
+                        let candidate_part = key.parts.get(i).map(String::as_str).unwrap_or("");
+                        let max_distance = if len16(word_part) > 5 && len16(candidate_part) > 4 {
+                            2
+                        } else {
+                            1
+                        };
+                        distance > max_distance
+                    });
                 if exceeds_max_distance_per_token {
                     continue;
                 }
                 if total_distance <= max_edit_distance(&key.normalized, &normalized_word) {
-                    weighted_candidates.extend(key.candidates.iter().map(|c| (c.as_str(), total_distance)));
+                    weighted_candidates
+                        .extend(key.candidates.iter().map(|c| (c.as_str(), total_distance)));
                 }
             }
         }
@@ -243,7 +289,9 @@ impl MultitokenSpeller {
         }
         weighted_candidates.sort_by_key(|c| c.1);
         let weight_first_candidate = weighted_candidates[0].1;
-        if are_tokens_accepted_by_speller && weighted_candidates[0].0.to_uppercase() == original_word {
+        if are_tokens_accepted_by_speller
+            && weighted_candidates[0].0.to_uppercase() == original_word
+        {
             // don't correct all-uppercase words
             return Vec::new();
         }
@@ -270,7 +318,11 @@ impl MultitokenSpeller {
             return false;
         }
         let misspelled = |w: &str| self.spelling_rule.is_misspelled(w);
-        let cut = parts[0].char_indices().next_back().map(|(i, _)| i).unwrap_or(0);
+        let cut = parts[0]
+            .char_indices()
+            .next_back()
+            .map(|(i, _)| i)
+            .unwrap_or(0);
         let sugg1a = &parts[0][..cut];
         let sugg1b = format!("{}{}", &parts[0][cut..], parts[1]);
         if !misspelled(sugg1a) && !misspelled(&sugg1b) {
@@ -288,17 +340,21 @@ fn stop_searching(candidates: &[String], original_word: &str) -> bool {
     if candidates.iter().any(|c| c == original_word) {
         return true;
     }
-    candidates
-        .iter()
-        .any(|c| *c == c.to_lowercase() && strtools::convert_to_title_case_iterating_chars(c) == original_word)
+    candidates.iter().any(|c| {
+        *c == c.to_lowercase()
+            && strtools::convert_to_title_case_iterating_chars(c) == original_word
+    })
 }
 
 /// `maxEditDistance`: the longer the part that differs, the more edits are
 /// tolerated; a wrong first letter costs most of the allowance.
 fn max_edit_distance(normalized_candidate: &str, normalized_word: &str) -> i32 {
     let total_length = len16(normalized_word);
-    let correct_length = total_length - number_of_correct_chars(normalized_candidate, normalized_word);
-    let first_char_wrong: f32 = first_character_distances(normalized_candidate, normalized_word).iter().sum();
+    let correct_length =
+        total_length - number_of_correct_chars(normalized_candidate, normalized_word);
+    let first_char_wrong: f32 = first_character_distances(normalized_candidate, normalized_word)
+        .iter()
+        .sum();
     if correct_length <= 7 {
         return (2.0f32 - first_char_wrong) as i32;
     }
@@ -309,7 +365,11 @@ fn max_edit_distance(normalized_candidate: &str, normalized_word: &str) -> i32 {
 /// number of tokens (more than one), one for the whole text otherwise.
 fn distances_per_word(parts1: &[String], parts2: &[&str], s1: &str, s2: &str) -> Vec<i32> {
     if parts1.len() == parts2.len() && parts1.len() > 1 {
-        parts1.iter().zip(parts2).map(|(a, b)| levenshtein_distance(a, b)).collect()
+        parts1
+            .iter()
+            .zip(parts2)
+            .map(|(a, b)| levenshtein_distance(a, b))
+            .collect()
     } else {
         vec![levenshtein_distance(s1, s2)]
     }
@@ -322,7 +382,12 @@ fn first_character_distances(s1: &str, s2: &str) -> Vec<f32> {
         parts1
             .iter()
             .zip(&parts2)
-            .map(|(a, b)| char_distance(a.chars().next().unwrap_or(' '), b.chars().next().unwrap_or(' ')))
+            .map(|(a, b)| {
+                char_distance(
+                    a.chars().next().unwrap_or(' '),
+                    b.chars().next().unwrap_or(' '),
+                )
+            })
             .collect()
     } else {
         vec![0.0]
@@ -421,12 +486,16 @@ impl RuleFilter for MultitokenSpellerFilter {
         // Only English, German, Portuguese and Dutch ask the speller whether
         // it accepts the tokens.
         let are_tokens_accepted_by_speller = false;
-        let suggestions = self.speller.suggestions(&underlined_error, are_tokens_accepted_by_speller);
+        let suggestions = self
+            .speller
+            .suggestions(&underlined_error, are_tokens_accepted_by_speller);
         if suggestions.is_empty() {
             return None;
         }
         let mut replacements: Vec<String> = Vec::new();
-        if strtools::utf16_len(&underlined_error) > 4 && strtools::is_all_uppercase(&underlined_error) {
+        if strtools::utf16_len(&underlined_error) > 4
+            && strtools::is_all_uppercase(&underlined_error)
+        {
             for replacement in suggestions.iter() {
                 let new_replacement = replacement.to_uppercase();
                 if !replacements.contains(&new_replacement) && underlined_error != new_replacement {
@@ -449,7 +518,9 @@ impl RuleFilter for MultitokenSpellerFilter {
                     } else {
                         replacement.clone()
                     };
-                    if !replacements.contains(&new_replacement) && underlined_error != new_replacement {
+                    if !replacements.contains(&new_replacement)
+                        && underlined_error != new_replacement
+                    {
                         replacements.push(new_replacement);
                     }
                 }
@@ -472,20 +543,44 @@ mod tests {
     #[test]
     fn distances() {
         assert_eq!(levenshtein_distance("new york", "newyork"), 0);
-        assert_eq!(levenshtein_distance("tokyo", "tokio"), 0, "y and i are the same letter");
-        assert_eq!(levenshtein_distance("york", "yrok"), 1, "an anagram of the same length");
+        assert_eq!(
+            levenshtein_distance("tokyo", "tokio"),
+            0,
+            "y and i are the same letter"
+        );
+        assert_eq!(
+            levenshtein_distance("york", "yrok"),
+            1,
+            "an anagram of the same length"
+        );
         assert_eq!(levenshtein_distance("knight", "night"), 1);
         assert_eq!(
-            distances_per_word(&["dark".to_string(), "knight".to_string()], &["derk", "knight"], "dark knight", "derk knight"),
+            distances_per_word(
+                &["dark".to_string(), "knight".to_string()],
+                &["derk", "knight"],
+                "dark knight",
+                "derk knight"
+            ),
             [1, 0]
         );
         assert_eq!(
-            distances_per_word(&["dark".to_string(), "knight".to_string()], &["darkknight"], "dark knight", "darkknight"),
+            distances_per_word(
+                &["dark".to_string(), "knight".to_string()],
+                &["darkknight"],
+                "dark knight",
+                "darkknight"
+            ),
             [0]
         );
-        assert_eq!(number_of_correct_chars("dark knight rises", "derk knight rises"), 11);
+        assert_eq!(
+            number_of_correct_chars("dark knight rises", "derk knight rises"),
+            11
+        );
         // 17 characters, 11 of them in correct tokens: 6 <= 7.
-        assert_eq!(max_edit_distance("dark knight rises", "derk knight rises"), 2);
+        assert_eq!(
+            max_edit_distance("dark knight rises", "derk knight rises"),
+            2
+        );
         // Two tokens, the first letter of one is wrong.
         assert_eq!(max_edit_distance("dark knight", "bark knight"), 1);
         // Nothing right over 11 characters: 2 + 0.25 * 4 - 0.6 * 2 = 1.8.
@@ -494,11 +589,19 @@ mod tests {
 
     #[test]
     fn suggestions_for_names() {
-        let Some(tools) = super::super::testing::tools() else { return };
-        let speller = MultitokenSpeller::french(std::path::Path::new("assets/fr/lt"), tools.spelling.rule.clone());
+        let Some(tools) = super::super::testing::tools() else {
+            return;
+        };
+        let speller = MultitokenSpeller::french(
+            std::path::Path::new("assets/fr/lt"),
+            tools.spelling.rule.clone(),
+        );
         let suggest = |text: &str| speller.suggestions(text, false).to_vec();
         assert_eq!(suggest("The Derk Knight Rises"), ["The Dark Knight Rises"]);
-        assert_eq!(suggest("Rocky Mountains Naional Park"), ["Rocky Mountain National Park"]);
+        assert_eq!(
+            suggest("Rocky Mountains Naional Park"),
+            ["Rocky Mountain National Park"]
+        );
         assert_eq!(suggest("Christina Aguillera"), ["Christina Aguilera"]);
         assert_eq!(suggest("Alfred Hitchkock"), ["Alfred Hitchcock"]);
         assert_eq!(suggest("General Motor"), ["General Motors"]);

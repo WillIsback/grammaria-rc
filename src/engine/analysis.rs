@@ -40,12 +40,15 @@ impl Analyzer {
     pub fn new(dictionary: Arc<dyn WordDictionary>, assets_dir: &Path) -> io::Result<Analyzer> {
         let tagger = Arc::new(FrenchTagger::new(dictionary, assets_dir)?);
         let srx = std::fs::read_to_string(assets_dir.join("segment.srx"))?;
-        let sentence_tokenizer =
-            SrxSentenceTokenizer::new(&srx, "fr").map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let sentence_tokenizer = SrxSentenceTokenizer::new(&srx, "fr")
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(Analyzer::from_parts(tagger, sentence_tokenizer))
     }
 
-    pub fn from_parts(tagger: Arc<FrenchTagger>, sentence_tokenizer: SrxSentenceTokenizer) -> Analyzer {
+    pub fn from_parts(
+        tagger: Arc<FrenchTagger>,
+        sentence_tokenizer: SrxSentenceTokenizer,
+    ) -> Analyzer {
         let for_tokenizer = tagger.clone();
         Analyzer {
             tagger,
@@ -95,7 +98,11 @@ impl Analyzer {
             if sentence.as_bytes()[byte..].starts_with(token.as_bytes()) {
                 byte += token.len();
             } else {
-                byte += sentence[byte..].chars().take(token.chars().count()).map(char::len_utf8).sum::<usize>();
+                byte += sentence[byte..]
+                    .chars()
+                    .take(token.chars().count())
+                    .map(char::len_utf8)
+                    .sum::<usize>();
             }
         }
 
@@ -109,7 +116,10 @@ impl Analyzer {
         }
 
         let mut token_array = Vec::with_capacity(tokens.len() + 1);
-        token_array.push(Readings::new(vec![Reading::from_strs("", Some(SENTENCE_START), None)], 0));
+        token_array.push(Readings::new(
+            vec![Reading::from_strs("", Some(SENTENCE_START), None)],
+            0,
+        ));
         let mut soft = soft_hyphen_tokens.into_iter().peekable();
         for (i, token) in tokens.iter().enumerate() {
             let mut readings = self.tagger.tag_token(token);
@@ -184,7 +194,9 @@ impl Analyzer {
 /// of a text takes a `PARA_END` reading, whitespace or not, and so does its
 /// pre-disambiguation twin.
 pub fn mark_as_paragraph_end(sentence: &mut Sentence) {
-    let Some(last) = sentence.tokens.len().checked_sub(1) else { return };
+    let Some(last) = sentence.tokens.len().checked_sub(1) else {
+        return;
+    };
     sentence.tokens[last].set_paragraph_end();
     if let Some(twin) = sentence.pre_disambig.get_mut(last) {
         twin.set_paragraph_end();
@@ -217,7 +229,11 @@ peut-être\tpeut-être\tA
 
     fn analyzer() -> Analyzer {
         let dict = Arc::new(TextDictionary::from_text(DUMP.to_string()));
-        let tagger = Arc::new(FrenchTagger::with_manual_data(dict, ManualTagger::default(), ManualTagger::default()));
+        let tagger = Arc::new(FrenchTagger::with_manual_data(
+            dict,
+            ManualTagger::default(),
+            ManualTagger::default(),
+        ));
         Analyzer::from_parts(tagger, SrxSentenceTokenizer::new(SRX, "fr").unwrap())
     }
 
@@ -232,8 +248,17 @@ peut-être\tpeut-être\tA
         let texts: Vec<&str> = s.tokens.iter().map(|t| &*t.token).collect();
         assert_eq!(texts, ["", "Il", " ", "dort", ".", " "]);
         assert!(s.tokens[0].is_sent_start);
-        assert_eq!(s.tokens.iter().map(|t| t.start_pos).collect::<Vec<_>>(), [0, 0, 2, 3, 7, 8]);
-        assert_eq!(s.tokens.iter().map(|t| t.whitespace_before).collect::<Vec<_>>(), [false, false, false, true, false, false]);
+        assert_eq!(
+            s.tokens.iter().map(|t| t.start_pos).collect::<Vec<_>>(),
+            [0, 0, 2, 3, 7, 8]
+        );
+        assert_eq!(
+            s.tokens
+                .iter()
+                .map(|t| t.whitespace_before)
+                .collect::<Vec<_>>(),
+            [false, false, false, true, false, false]
+        );
         // SENT_END goes to the last token that is not whitespace, and the
         // period is looked up twice (it has no lower case).
         assert_eq!(tags(&s.tokens[4]), ["M fin", "M fin", SENTENCE_END]);
@@ -248,9 +273,15 @@ peut-être\tpeut-être\tA
         let s = a.raw_sentence("l’été peut\u{2010}être");
         let texts: Vec<&str> = s.tokens.iter().map(|t| &*t.token).collect();
         assert_eq!(texts, ["", "l'", "été", " ", "peut-être"]);
-        assert_eq!(s.tokens.iter().map(|t| t.start_pos).collect::<Vec<_>>(), [0, 0, 4, 9, 10]);
+        assert_eq!(
+            s.tokens.iter().map(|t| t.start_pos).collect::<Vec<_>>(),
+            [0, 0, 4, 9, 10]
+        );
         assert_eq!(tags(&s.tokens[4]), ["A", SENTENCE_END]);
-        assert_eq!(&s.text[s.tokens[2].start_pos..s.tokens[2].start_pos + 5], "été");
+        assert_eq!(
+            &s.text[s.tokens[2].start_pos..s.tokens[2].start_pos + 5],
+            "été"
+        );
     }
 
     #[test]
@@ -282,15 +313,25 @@ peut-être\tpeut-être\tA
     #[test]
     fn analyze_raw_splits_and_marks_the_paragraph_end() {
         let a = analyzer();
-        assert_eq!(a.sentences("Il dort. Il dort.\n\nIl dort"), ["Il dort. ", "Il dort.\n\n", "Il dort"]);
+        assert_eq!(
+            a.sentences("Il dort. Il dort.\n\nIl dort"),
+            ["Il dort. ", "Il dort.\n\n", "Il dort"]
+        );
         assert_eq!(a.sentence_ranges("Il dort. Il"), [(0, 9), (9, 11)]);
         let sentences = a.analyze_raw("Il dort. Il dort.\n");
         assert_eq!(sentences.len(), 2);
         assert!(!sentences[0].tokens.last().unwrap().is_para_end);
         let last = sentences[1].tokens.last().unwrap();
         assert_eq!(&*last.token, "\n");
-        assert_eq!(tags(last), [PARAGRAPH_END], "PARA_END goes to the very last token");
-        assert_eq!(tags(&sentences[1].tokens[4]), ["M fin", "M fin", SENTENCE_END]);
+        assert_eq!(
+            tags(last),
+            [PARAGRAPH_END],
+            "PARA_END goes to the very last token"
+        );
+        assert_eq!(
+            tags(&sentences[1].tokens[4]),
+            ["M fin", "M fin", SENTENCE_END]
+        );
         assert!(a.analyze_raw("").is_empty());
     }
 
@@ -306,6 +347,9 @@ peut-être\tpeut-être\tA
         });
         assert_eq!(seen, ["Il dort. ", "Il dort."]);
         let last = &out[1];
-        assert!(last.tokens.last().unwrap().is_para_end && last.pre_disambig.last().unwrap().is_para_end);
+        assert!(
+            last.tokens.last().unwrap().is_para_end
+                && last.pre_disambig.last().unwrap().is_para_end
+        );
     }
 }

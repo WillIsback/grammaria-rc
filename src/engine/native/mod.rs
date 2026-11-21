@@ -39,7 +39,10 @@ pub mod uppercase_sentence_start;
 ///
 /// `assets` is LanguageTool's French resource directory (`compounds.txt`,
 /// `replace.txt`, `replace_custom.txt`, `synonyms.txt`).
-pub fn french_native_rules(assets: &Path, speller: Option<Box<dyn NativeRule>>) -> io::Result<Vec<Box<dyn NativeRule>>> {
+pub fn french_native_rules(
+    assets: &Path,
+    speller: Option<Box<dyn NativeRule>>,
+) -> io::Result<Vec<Box<dyn NativeRule>>> {
     let read = |name: &str| std::fs::read_to_string(assets.join(name));
     let read_optional = |name: &str| match std::fs::read_to_string(assets.join(name)) {
         Ok(text) => Ok(text),
@@ -51,24 +54,40 @@ pub fn french_native_rules(assets: &Path, speller: Option<Box<dyn NativeRule>>) 
     let mut rules: Vec<Box<dyn NativeRule>> = Vec::new();
     rules.push(Box::new(comma_whitespace::CommaWhitespaceRule::new(false)));
     rules.push(Box::new(double_punctuation::DoublePunctuationRule::new()));
-    rules.push(Box::new(unpaired_brackets::GenericUnpairedBracketsRule::new(&["[", "(", "{"], &["]", ")", "}"])));
+    rules.push(Box::new(
+        unpaired_brackets::GenericUnpairedBracketsRule::new(&["[", "(", "{"], &["]", ")", "}"]),
+    ));
     // MorfologikFrenchSpellerRule
     rules.extend(speller);
-    rules.push(Box::new(uppercase_sentence_start::UppercaseSentenceStartRule::new()));
+    rules.push(Box::new(
+        uppercase_sentence_start::UppercaseSentenceStartRule::new(),
+    ));
     rules.push(Box::new(multiple_whitespace::MultipleWhitespaceRule::new()));
-    rules.push(Box::new(sentence_whitespace::SentenceWhitespaceRule::new(1)));
+    rules.push(Box::new(sentence_whitespace::SentenceWhitespaceRule::new(
+        1,
+    )));
     rules.push(Box::new(long_sentence::LongSentenceRule::new(40)));
     rules.push(Box::new(long_paragraph::LongParagraphRule::new()));
-    let (compound, ids) = compound::CompoundRule::french(&read("compounds.txt")?).map_err(invalid)?;
+    let (compound, ids) =
+        compound::CompoundRule::french(&read("compounds.txt")?).map_err(invalid)?;
     rules.push(Box::new(compound));
     rules.extend(ids.into_iter().map(|r| Box::new(r) as Box<dyn NativeRule>));
-    rules.push(Box::new(question_whitespace::QuestionWhitespaceRule::new(true)));
-    rules.push(Box::new(question_whitespace::QuestionWhitespaceRule::new(false)));
-    let (replace, ids) =
-        simple_replace::SimpleReplaceRule::french(&[&read("replace.txt")?, &read_optional("replace_custom.txt")?]).map_err(invalid)?;
+    rules.push(Box::new(question_whitespace::QuestionWhitespaceRule::new(
+        true,
+    )));
+    rules.push(Box::new(question_whitespace::QuestionWhitespaceRule::new(
+        false,
+    )));
+    let (replace, ids) = simple_replace::SimpleReplaceRule::french(&[
+        &read("replace.txt")?,
+        &read_optional("replace_custom.txt")?,
+    ])
+    .map_err(invalid)?;
     rules.push(Box::new(replace));
     rules.extend(ids.into_iter().map(|r| Box::new(r) as Box<dyn NativeRule>));
-    rules.push(Box::new(repeated_words::FrenchRepeatedWordsRule::new(&read("synonyms.txt")?).map_err(invalid)?));
+    rules.push(Box::new(
+        repeated_words::FrenchRepeatedWordsRule::new(&read("synonyms.txt")?).map_err(invalid)?,
+    ));
     Ok(rules)
 }
 
@@ -78,16 +97,42 @@ pub(crate) struct Category {
     pub name: &'static str,
 }
 
-pub(crate) const CASING: Category = Category { id: "CASING", name: messages::CATEGORY_CASE };
-pub(crate) const TYPOS: Category = Category { id: "TYPOS", name: messages::CATEGORY_TYPO };
-pub(crate) const PUNCTUATION: Category = Category { id: "PUNCTUATION", name: messages::CATEGORY_PUNCTUATION };
-pub(crate) const TYPOGRAPHY: Category = Category { id: "TYPOGRAPHY", name: messages::CATEGORY_TYPOGRAPHY };
-pub(crate) const REPETITIONS_STYLE: Category = Category { id: "REPETITIONS_STYLE", name: messages::CATEOGRY_REPETITIONS_STYLE };
-pub(crate) const STYLE: Category = Category { id: "STYLE", name: messages::CATEGORY_STYLE };
-pub(crate) const MISC: Category = Category { id: "MISC", name: messages::CATEGORY_MISC };
+pub(crate) const CASING: Category = Category {
+    id: "CASING",
+    name: messages::CATEGORY_CASE,
+};
+pub(crate) const TYPOS: Category = Category {
+    id: "TYPOS",
+    name: messages::CATEGORY_TYPO,
+};
+pub(crate) const PUNCTUATION: Category = Category {
+    id: "PUNCTUATION",
+    name: messages::CATEGORY_PUNCTUATION,
+};
+pub(crate) const TYPOGRAPHY: Category = Category {
+    id: "TYPOGRAPHY",
+    name: messages::CATEGORY_TYPOGRAPHY,
+};
+pub(crate) const REPETITIONS_STYLE: Category = Category {
+    id: "REPETITIONS_STYLE",
+    name: messages::CATEOGRY_REPETITIONS_STYLE,
+};
+pub(crate) const STYLE: Category = Category {
+    id: "STYLE",
+    name: messages::CATEGORY_STYLE,
+};
+pub(crate) const MISC: Category = Category {
+    id: "MISC",
+    name: messages::CATEGORY_MISC,
+};
 
 /// The metadata of a Java rule: default on, no sub-id.
-pub(crate) fn rule_info(id: &str, description: &str, category: &Category, issue_type: &str) -> RuleInfo {
+pub(crate) fn rule_info(
+    id: &str,
+    description: &str,
+    category: &Category,
+    issue_type: &str,
+) -> RuleInfo {
     RuleInfo {
         id: id.to_string(),
         description: description.to_string(),
@@ -101,7 +146,14 @@ pub(crate) fn rule_info(id: &str, description: &str, category: &Category, issue_
 /// `new RuleMatch(rule, sentence, fromPos, toPos, message, shortMessage)`
 /// followed by `setSuggestedReplacements`. `None` when the span is empty,
 /// where Java throws.
-pub(crate) fn rule_match(rule: usize, from: usize, to: usize, message: &str, short_message: &str, suggestions: Vec<String>) -> Option<RuleMatch> {
+pub(crate) fn rule_match(
+    rule: usize,
+    from: usize,
+    to: usize,
+    message: &str,
+    short_message: &str,
+    suggestions: Vec<String>,
+) -> Option<RuleMatch> {
     if to <= from {
         return None;
     }
@@ -127,7 +179,13 @@ pub struct SpecificIdRule {
 impl SpecificIdRule {
     /// A rule that differs from `parent` by its id and description only.
     pub(crate) fn new(id: String, description: String, parent: &RuleInfo) -> SpecificIdRule {
-        SpecificIdRule { info: RuleInfo { id, description, ..parent.clone() } }
+        SpecificIdRule {
+            info: RuleInfo {
+                id,
+                description,
+                ..parent.clone()
+            },
+        }
     }
 }
 
@@ -151,7 +209,10 @@ pub(crate) struct SpecificIds {
 impl SpecificIds {
     /// `keys` with the id and description of each; keys that share an id
     /// share the rule (and the description of the first).
-    pub(crate) fn new(keys: impl Iterator<Item = (String, String, String)>, parent: &RuleInfo) -> (SpecificIds, Vec<SpecificIdRule>) {
+    pub(crate) fn new(
+        keys: impl Iterator<Item = (String, String, String)>,
+        parent: &RuleInfo,
+    ) -> (SpecificIds, Vec<SpecificIdRule>) {
         let mut by_key = std::collections::HashMap::new();
         let mut by_id: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         let mut rules = Vec::new();
@@ -221,9 +282,10 @@ pub(crate) fn is_java_digit(c: char) -> bool {
         return c.is_ascii_digit();
     }
     const ZEROS: [u32; 36] = [
-        0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66, 0xde6, 0xe50, 0xed0, 0xf20, 0x1040, 0x1090,
-        0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90, 0x1b50, 0x1bb0, 0x1c40, 0x1c50, 0xa620, 0xa8d0, 0xa900, 0xa9d0, 0xa9f0, 0xaa50,
-        0xabf0, 0xff10,
+        0x660, 0x6f0, 0x7c0, 0x966, 0x9e6, 0xa66, 0xae6, 0xb66, 0xbe6, 0xc66, 0xce6, 0xd66, 0xde6,
+        0xe50, 0xed0, 0xf20, 0x1040, 0x1090, 0x17e0, 0x1810, 0x1946, 0x19d0, 0x1a80, 0x1a90,
+        0x1b50, 0x1bb0, 0x1c40, 0x1c50, 0xa620, 0xa8d0, 0xa900, 0xa9d0, 0xa9f0, 0xaa50, 0xabf0,
+        0xff10,
     ];
     let c = c as u32;
     ZEROS.iter().any(|&zero| (zero..zero + 10).contains(&c))
@@ -261,13 +323,20 @@ pub(crate) mod testing {
     use super::super::unifier::UnifierConfiguration;
 
     pub fn context() -> RuleContext {
-        RuleContext { lang: Lang::default(), unifier: UnifierConfiguration::default(), disambig_unifier: UnifierConfiguration::default() }
+        RuleContext {
+            lang: Lang::default(),
+            unifier: UnifierConfiguration::default(),
+            disambig_unifier: UnifierConfiguration::default(),
+        }
     }
 
     /// A sentence from its tokens (whitespace tokens included), each
     /// `"token"` or `"token/lemma/TAG"`; a `*` in front immunizes the token.
     pub fn sentence(tokens: &[&str]) -> Sentence {
-        let mut out = vec![Readings::new(vec![Reading::from_strs("", Some(SENTENCE_START), None)], 0)];
+        let mut out = vec![Readings::new(
+            vec![Reading::from_strs("", Some(SENTENCE_START), None)],
+            0,
+        )];
         let mut text = String::new();
         let mut prev: Arc<str> = Arc::from("");
         for spec in tokens {
@@ -281,7 +350,8 @@ pub(crate) mod testing {
                 (Some(lemma), Some(tag)) if !token.is_empty() => (token, Some(lemma), Some(tag)),
                 _ => (spec, None, None),
             };
-            let mut readings = Readings::new(vec![Reading::from_strs(token, tag, lemma)], text.len());
+            let mut readings =
+                Readings::new(vec![Reading::from_strs(token, tag, lemma)], text.len());
             readings.set_whitespace_before(&prev);
             readings.immunized = immunized;
             prev = readings.token.clone();
@@ -330,7 +400,11 @@ mod tests {
     #[test]
     fn rules_come_in_languagetool_order() {
         let rules = french_rules();
-        let ids: Vec<&str> = rules.iter().filter(|r| !r.never_matches()).map(|r| r.info().id.as_str()).collect();
+        let ids: Vec<&str> = rules
+            .iter()
+            .filter(|r| !r.never_matches())
+            .map(|r| r.info().id.as_str())
+            .collect();
         assert_eq!(
             ids,
             [
@@ -350,36 +424,88 @@ mod tests {
             ]
         );
         // The ids of a rule's matches follow it.
-        let compounds = rules.iter().position(|r| r.info().id == "FR_COMPOUNDS").unwrap();
-        let next = rules.iter().position(|r| r.info().id == "FRENCH_WHITESPACE_STRICT").unwrap();
+        let compounds = rules
+            .iter()
+            .position(|r| r.info().id == "FR_COMPOUNDS")
+            .unwrap();
+        let next = rules
+            .iter()
+            .position(|r| r.info().id == "FRENCH_WHITESPACE_STRICT")
+            .unwrap();
         assert!(next - compounds > 1000);
-        assert!(rules[compounds + 1..next].iter().all(|r| r.never_matches() && r.info().id.starts_with("FR_COMPOUNDS_")));
-        assert!(rules[compounds + 1..next].iter().any(|r| r.info().id == "FR_COMPOUNDS_ARC_EN_CIEL"));
+        assert!(rules[compounds + 1..next]
+            .iter()
+            .all(|r| r.never_matches() && r.info().id.starts_with("FR_COMPOUNDS_")));
+        assert!(rules[compounds + 1..next]
+            .iter()
+            .any(|r| r.info().id == "FR_COMPOUNDS_ARC_EN_CIEL"));
     }
 
     #[test]
     fn matches_through_the_checker() {
         let rules: Vec<CheckRule> = french_rules().into_iter().map(CheckRule::Native).collect();
         let checker = Checker::new(rules, testing::context());
-        let sentences = [testing::plain("bonjour ,un arc en ciel."), testing::plain("Jai faim (oui?")];
-        let found: Vec<(&str, usize, usize, Vec<String>)> =
-            checker.check(&sentences).into_iter().map(|m| (checker.info(m.rule).id.as_str(), m.from, m.to, m.suggestions)).collect();
+        let sentences = [
+            testing::plain("bonjour ,un arc en ciel."),
+            testing::plain("Jai faim (oui?"),
+        ];
+        let found: Vec<(&str, usize, usize, Vec<String>)> = checker
+            .check(&sentences)
+            .into_iter()
+            .map(|m| {
+                (
+                    checker.info(m.rule).id.as_str(),
+                    m.from,
+                    m.to,
+                    m.suggestions,
+                )
+            })
+            .collect();
         let expected: Vec<(&str, usize, usize, Vec<String>)> = vec![
-            ("UPPERCASE_SENTENCE_START", 0, 7, vec!["Bonjour".to_string()]),
+            (
+                "UPPERCASE_SENTENCE_START",
+                0,
+                7,
+                vec!["Bonjour".to_string()],
+            ),
             ("COMMA_PARENTHESIS_WHITESPACE", 7, 9, vec![", ".to_string()]),
-            ("FR_COMPOUNDS_ARC_EN_CIEL", 12, 23, vec!["arc-en-ciel".to_string()]),
-            ("FR_SIMPLE_REPLACE_SIMPLE_JAI", 24, 27, vec!["J'ai".to_string()]),
+            (
+                "FR_COMPOUNDS_ARC_EN_CIEL",
+                12,
+                23,
+                vec!["arc-en-ciel".to_string()],
+            ),
+            (
+                "FR_SIMPLE_REPLACE_SIMPLE_JAI",
+                24,
+                27,
+                vec!["J'ai".to_string()],
+            ),
             ("UNPAIRED_BRACKETS", 33, 34, vec![]),
-            ("FRENCH_WHITESPACE", 34, 38, vec!["oui\u{202f}?".to_string()]),
+            (
+                "FRENCH_WHITESPACE",
+                34,
+                38,
+                vec!["oui\u{202f}?".to_string()],
+            ),
         ];
         assert_eq!(found, expected);
     }
 
     #[test]
     fn ids() {
-        assert_eq!(to_id("FR_COMPOUNDS_arc en ciel"), "FR_COMPOUNDS_ARC_EN_CIEL");
-        assert_eq!(to_id("FR_SIMPLE_REPLACE_SIMPLE_y'en"), "FR_SIMPLE_REPLACE_SIMPLE_Y_Q_EN");
-        assert_eq!(to_id("FR_COMPOUNDS_île de france"), "FR_COMPOUNDS_ÎLE_DE_FRANCE");
+        assert_eq!(
+            to_id("FR_COMPOUNDS_arc en ciel"),
+            "FR_COMPOUNDS_ARC_EN_CIEL"
+        );
+        assert_eq!(
+            to_id("FR_SIMPLE_REPLACE_SIMPLE_y'en"),
+            "FR_SIMPLE_REPLACE_SIMPLE_Y_Q_EN"
+        );
+        assert_eq!(
+            to_id("FR_COMPOUNDS_île de france"),
+            "FR_COMPOUNDS_ÎLE_DE_FRANCE"
+        );
         assert_eq!(to_id(" a1œ "), "A__");
     }
 
@@ -391,7 +517,9 @@ mod tests {
         assert!(java_split(" ", ' ').is_empty());
         assert_eq!(java_trim("\t a \n"), "a");
         assert_eq!(java_trim("\u{a0}a"), "\u{a0}a");
-        assert!(is_java_digit('7') && is_java_digit('٣') && !is_java_digit('a') && !is_java_digit('²'));
+        assert!(
+            is_java_digit('7') && is_java_digit('٣') && !is_java_digit('a') && !is_java_digit('²')
+        );
         assert_eq!(prev_char_start("aé.", 3), 1);
     }
 }

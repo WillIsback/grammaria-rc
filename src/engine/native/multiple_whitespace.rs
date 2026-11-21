@@ -12,7 +12,14 @@ pub struct MultipleWhitespaceRule {
 
 impl MultipleWhitespaceRule {
     pub fn new() -> MultipleWhitespaceRule {
-        MultipleWhitespaceRule { info: rule_info("WHITESPACE_RULE", messages::DESC_WHITESPACEREPETITION, &TYPOGRAPHY, "whitespace") }
+        MultipleWhitespaceRule {
+            info: rule_info(
+                "WHITESPACE_RULE",
+                messages::DESC_WHITESPACEREPETITION,
+                &TYPOGRAPHY,
+                "whitespace",
+            ),
+        }
     }
 }
 
@@ -24,7 +31,9 @@ impl Default for MultipleWhitespaceRule {
 
 /// Whitespace other than a line break or a zero-width character.
 fn is_first_white(token: &Readings) -> bool {
-    (token.is_whitespace || &*token.token == "\u{a0}") && !token.is_linebreak && !token.token.contains(['\u{200b}', '\u{feff}', '\u{2060}'])
+    (token.is_whitespace || &*token.token == "\u{a0}")
+        && !token.is_linebreak
+        && !token.token.contains(['\u{200b}', '\u{feff}', '\u{2060}'])
 }
 
 /// The same, tabs excepted: what may be removed after a first whitespace.
@@ -41,7 +50,12 @@ impl NativeRule for MultipleWhitespaceRule {
         true
     }
 
-    fn match_text(&self, rule: usize, sentences: &[Sentence], _ctx: &RuleContext) -> Vec<RuleMatch> {
+    fn match_text(
+        &self,
+        rule: usize,
+        sentences: &[Sentence],
+        _ctx: &RuleContext,
+    ) -> Vec<RuleMatch> {
         let mut matches = Vec::new();
         let mut pos = 0;
         for sentence in sentences {
@@ -99,7 +113,10 @@ mod tests {
     #[test]
     fn repeated_whitespace() {
         assert_eq!(check(&["Il  dort."]), vec![(2, 4, " ".to_string())]);
-        assert_eq!(check(&["Il dort.  ", "Elle \u{a0} lit."]), vec![(8, 10, " ".to_string()), (14, 18, " ".to_string())]);
+        assert_eq!(
+            check(&["Il dort.  ", "Elle \u{a0} lit."]),
+            vec![(8, 10, " ".to_string()), (14, 18, " ".to_string())]
+        );
         assert!(check(&["Il dort. ", "Elle lit."]).is_empty());
     }
 
@@ -108,7 +125,10 @@ mod tests {
         assert!(check(&["Il\n  dort."]).is_empty());
         assert!(check(&["Il \tdort."]).is_empty());
         assert_eq!(check(&["Il\t  dort."]), vec![(2, 5, "\t".to_string())]);
-        assert_eq!(check(&["Il\n  dort  bien."]), vec![(9, 11, " ".to_string())]);
+        assert_eq!(
+            check(&["Il\n  dort  bien."]),
+            vec![(9, 11, " ".to_string())]
+        );
         // The tab that ends the indentation is skipped.
         assert_eq!(check(&["Il\n \t  dort."]), vec![(5, 7, " ".to_string())]);
     }

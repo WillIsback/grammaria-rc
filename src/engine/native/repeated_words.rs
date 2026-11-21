@@ -41,7 +41,9 @@ pub struct FrenchRepeatedWordsRule {
 /// `word;word;word` for words that are synonyms of one another. `#` starts
 /// a comment.
 fn load_words(text: &str) -> Result<HashMap<String, SynonymsData>, String> {
-    let pattern = |src: &str| re::compile(src, Flags::default()).map_err(|e| format!("invalid pattern {src}: {}", e.0));
+    let pattern = |src: &str| {
+        re::compile(src, Flags::default()).map_err(|e| format!("invalid pattern {src}: {}", e.0))
+    };
     let mut map: HashMap<String, SynonymsData> = HashMap::new();
     for raw in text.lines() {
         let line = java_trim(raw.split('#').next().unwrap_or(""));
@@ -63,7 +65,9 @@ fn load_words(text: &str) -> Result<HashMap<String, SynonymsData>, String> {
                     continue;
                 }
                 if map.contains_key(word) {
-                    return Err(format!("Word found in more than one line. \"{word}\" in line: {line}"));
+                    return Err(format!(
+                        "Word found in more than one line. \"{word}\" in line: {line}"
+                    ));
                 }
                 let data = SynonymsData {
                     synonyms: parts.iter().map(|s| s.to_string()).collect(),
@@ -86,13 +90,30 @@ fn load_words(text: &str) -> Result<HashMap<String, SynonymsData>, String> {
 }
 
 /// Each of `words` gets the others as synonyms.
-fn add_mutual_synonyms(map: &mut HashMap<String, SynonymsData>, words: &[&str], line: &str) -> Result<(), String> {
+fn add_mutual_synonyms(
+    map: &mut HashMap<String, SynonymsData>,
+    words: &[&str],
+    line: &str,
+) -> Result<(), String> {
     for key in words {
         if map.contains_key(*key) {
-            return Err(format!("Word found in more than one line. \"{key}\" in line: {line}"));
+            return Err(format!(
+                "Word found in more than one line. \"{key}\" in line: {line}"
+            ));
         }
-        let synonyms = words.iter().filter(|w| w != &key).map(|w| w.to_string()).collect();
-        map.insert(key.to_string(), SynonymsData { synonyms, postag: None, chunk: None });
+        let synonyms = words
+            .iter()
+            .filter(|w| w != &key)
+            .map(|w| w.to_string())
+            .collect();
+        map.insert(
+            key.to_string(),
+            SynonymsData {
+                synonyms,
+                postag: None,
+                chunk: None,
+            },
+        );
     }
     Ok(())
 }
@@ -125,7 +146,12 @@ impl FrenchRepeatedWordsRule {
     /// The rule over the text of `synonyms.txt`.
     pub fn new(synonyms: &str) -> Result<FrenchRepeatedWordsRule, String> {
         Ok(FrenchRepeatedWordsRule {
-            info: rule_info("FR_REPEATEDWORDS", "Synonymes de mots répétés.", &REPETITIONS_STYLE, "style"),
+            info: rule_info(
+                "FR_REPEATEDWORDS",
+                "Synonymes de mots répétés.",
+                &REPETITIONS_STYLE,
+                "style",
+            ),
             words_to_check: load_words(synonyms)?,
             punctuation: re::compile("\\p{P}", Flags::default()).expect("valid pattern"),
         })
@@ -160,15 +186,21 @@ impl NativeRule for FrenchRepeatedWordsRule {
             let mut lemmas_in_sentence: Vec<&str> = Vec::new();
             // `i` counts the tokens that are not immunized; as in Java it is
             // then used as an index among all the tokens.
-            for (i, atrs) in (0..n).map(|k| sentence.tok(k)).filter(|t| !t.immunized).enumerate() {
+            for (i, atrs) in (0..n)
+                .map(|k| sentence.tok(k))
+                .filter(|t| !t.immunized)
+                .enumerate()
+            {
                 let token: &str = &atrs.token;
                 if !token.is_empty() {
                     word_number += 1;
                 }
                 let is_capitalized = strtools::is_capitalized_word(token);
                 let is_all_uppercase = strtools::is_all_uppercase(token);
-                let is_exception =
-                    token.is_empty() || is_all_uppercase || (is_capitalized && !sent_start) || sentence.tok(i).has_pos_tag_starting_with("Z");
+                let is_exception = token.is_empty()
+                    || is_all_uppercase
+                    || (is_capitalized && !sent_start)
+                    || sentence.tok(i).has_pos_tag_starting_with("Z");
                 if sent_start && !token.is_empty() && !self.punctuation.is_full_match(token) {
                     sent_start = false;
                 }
@@ -177,26 +209,50 @@ impl NativeRule for FrenchRepeatedWordsRule {
                 }
                 let mut lemmas: Vec<&str> = Vec::new();
                 for atr in &atrs.readings {
-                    let Some(lemma) = atr.lemma.as_deref() else { continue };
+                    let Some(lemma) = atr.lemma.as_deref() else {
+                        continue;
+                    };
                     lemmas.push(lemma);
-                    let Some(&seen_at) = words_last_seen.get(lemma) else { continue };
-                    if lemmas_in_sentence.contains(&lemma) || word_number - seen_at > MAX_WORDS_DISTANCE {
+                    let Some(&seen_at) = words_last_seen.get(lemma) else {
+                        continue;
+                    };
+                    if lemmas_in_sentence.contains(&lemma)
+                        || word_number - seen_at > MAX_WORDS_DISTANCE
+                    {
                         continue;
                     }
-                    let Some(data) = self.words_to_check.get(lemma) else { continue };
+                    let Some(data) = self.words_to_check.get(lemma) else {
+                        continue;
+                    };
                     let postag = atr.pos();
-                    if data.postag.as_ref().is_some_and(|re| !postag.is_some_and(|p| re.is_full_match(p))) {
+                    if data
+                        .postag
+                        .as_ref()
+                        .is_some_and(|re| !postag.is_some_and(|p| re.is_full_match(p)))
+                    {
                         continue;
                     }
-                    if data.chunk.as_ref().is_some_and(|re| !atrs.matches_chunk_regex(re)) {
+                    if data
+                        .chunk
+                        .as_ref()
+                        .is_some_and(|re| !atrs.matches_chunk_regex(re))
+                    {
                         continue;
                     }
                     let mut suggestions: Vec<String> = Vec::new();
                     for replacement_lemma in &data.synonyms {
                         let mut replacements: Vec<String> = match (&ctx.lang.synthesizer, postag) {
                             (Some(synthesizer), Some(postag)) => {
-                                let reading = Reading::from_strs(token, Some(postag), Some(replacement_lemma));
-                                synthesizer.synthesize_regexp(&reading, &adjust_postag(postag), true)
+                                let reading = Reading::from_strs(
+                                    token,
+                                    Some(postag),
+                                    Some(replacement_lemma),
+                                );
+                                synthesizer.synthesize_regexp(
+                                    &reading,
+                                    &adjust_postag(postag),
+                                    true,
+                                )
                             }
                             _ => Vec::new(),
                         };
@@ -213,7 +269,14 @@ impl NativeRule for FrenchRepeatedWordsRule {
                             });
                         }
                     }
-                    matches.extend(rule_match(rule, pos + atrs.start_pos, pos + atrs.end_pos(), MESSAGE, SHORT_MESSAGE, suggestions));
+                    matches.extend(rule_match(
+                        rule,
+                        pos + atrs.start_pos,
+                        pos + atrs.end_pos(),
+                        MESSAGE,
+                        SHORT_MESSAGE,
+                        suggestions,
+                    ));
                     break;
                 }
                 for lemma in lemmas {
@@ -237,11 +300,23 @@ mod tests {
 
     fn check(sentences: &[Sentence]) -> Vec<(usize, usize, Vec<String>)> {
         let rule = FrenchRepeatedWordsRule::new(DATA).unwrap();
-        rule.match_text(0, sentences, &context()).into_iter().map(|m| (m.from_pos, m.to_pos, m.suggestions)).collect()
+        rule.match_text(0, sentences, &context())
+            .into_iter()
+            .map(|m| (m.from_pos, m.to_pos, m.suggestions))
+            .collect()
     }
 
     fn facile() -> [&'static str; 8] {
-        ["C'est/ce/R dem m s", " ", "facile/facile/J e s", " ", "à/à/P", " ", "faire/faire/V inf", "."]
+        [
+            "C'est/ce/R dem m s",
+            " ",
+            "facile/facile/J e s",
+            " ",
+            "à/à/P",
+            " ",
+            "faire/faire/V inf",
+            ".",
+        ]
     }
 
     #[test]
@@ -249,7 +324,11 @@ mod tests {
         let words = load_words(DATA).unwrap();
         assert_eq!(words.len(), 5);
         assert_eq!(words["facile"].synonyms, vec!["simple", "commode", "aisé"]);
-        assert!(words["facile"].postag.as_ref().unwrap().is_full_match("J e s"));
+        assert!(words["facile"]
+            .postag
+            .as_ref()
+            .unwrap()
+            .is_full_match("J e s"));
         assert_eq!(words["vite"].synonyms, vec!["rapidement", "promptement"]);
         assert!(words["vite"].postag.is_none());
         assert!(load_words("a=b\na=c\n").is_err());
@@ -258,13 +337,35 @@ mod tests {
 
     #[test]
     fn repeated_word_in_a_later_sentence() {
-        let second = sentence(&["Facile/facile/J e s", " ", "à/à/P", " ", "dire/dire/V inf", "."]);
+        let second = sentence(&[
+            "Facile/facile/J e s",
+            " ",
+            "à/à/P",
+            " ",
+            "dire/dire/V inf",
+            ".",
+        ]);
         assert_eq!(
             check(&[sentence(&facile()), second]),
-            vec![(22, 28, vec!["Simple".to_string(), "Commode".to_string(), "Aisé".to_string()])]
+            vec![(
+                22,
+                28,
+                vec![
+                    "Simple".to_string(),
+                    "Commode".to_string(),
+                    "Aisé".to_string()
+                ]
+            )]
         );
         // Twice in one sentence is not reported, nor is another part of speech.
-        let twice = sentence(&["facile/facile/J e s", " ", "et", " ", "facile/facile/J e s", "."]);
+        let twice = sentence(&[
+            "facile/facile/J e s",
+            " ",
+            "et",
+            " ",
+            "facile/facile/J e s",
+            ".",
+        ]);
         assert!(check(&[twice]).is_empty());
         let noun = sentence(&["Le", " ", "facile/facile/N m s", " ", "plaît", "."]);
         assert!(check(&[sentence(&facile()), noun]).is_empty());

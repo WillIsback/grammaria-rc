@@ -18,7 +18,9 @@ use crate::engine::token::{Readings, Sentence};
 
 /// `Calendar.getDisplayName(DAY_OF_WEEK, LONG, Locale.FRENCH)`, from
 /// `Calendar.SUNDAY` (1) to `Calendar.SATURDAY` (7).
-const DAY_NAMES: [&str; 7] = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const DAY_NAMES: [&str; 7] = [
+    "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
+];
 
 /// Julian day number of a Gregorian (or, before the 1582 reform, Julian)
 /// calendar date. `month` is 1 to 12.
@@ -41,7 +43,11 @@ fn is_gregorian(year: i64, month: i64, day: i64) -> bool {
 }
 
 fn days_in_month(year: i64, month: i64) -> i64 {
-    let leap = if year > 1582 { year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) } else { year % 4 == 0 };
+    let leap = if year > 1582 {
+        year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+    } else {
+        year % 4 == 0
+    };
     match month {
         2 if leap => 29,
         2 => 28,
@@ -62,7 +68,11 @@ impl Date {
     /// Does the date exist? (`Calendar.get` throws otherwise.)
     fn is_valid(self) -> bool {
         let month = self.month0 + 1;
-        if self.year < 1 || !(1..=12).contains(&month) || self.day < 1 || self.day > days_in_month(self.year, month) {
+        if self.year < 1
+            || !(1..=12).contains(&month)
+            || self.day < 1
+            || self.day > days_in_month(self.year, month)
+        {
             return false;
         }
         // The ten days dropped by the Gregorian reform.
@@ -90,13 +100,20 @@ pub(crate) fn civil_from_days(days: i64) -> Today {
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = yoe + era * 400 + i64::from(month <= 2);
-    Today { year, month: month as u32, day: day as u32 }
+    Today {
+        year,
+        month: month as u32,
+        day: day as u32,
+    }
 }
 
 /// `DateFilterHelper.getDayOfWeek(String)`: `Calendar.SUNDAY`...
 fn day_of_week_from_name(day: &str) -> Option<i64> {
     let day = day.to_lowercase();
-    ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"].iter().position(|p| day.starts_with(p)).map(|i| i as i64 + 1)
+    ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"]
+        .iter()
+        .position(|p| day.starts_with(p))
+        .map(|i| i as i64 + 1)
 }
 
 /// `DateFilterHelper.getMonth`: 1 to 12.
@@ -119,7 +136,10 @@ fn month_from_name(month: &str) -> Option<i64> {
         ("déc", 12),
         ("dec", 12),
     ];
-    PREFIXES.iter().find(|(p, _)| mon.starts_with(p)).map(|(_, n)| *n)
+    PREFIXES
+        .iter()
+        .find(|(p, _)| mon.starts_with(p))
+        .map(|(_, n)| *n)
 }
 
 /// `StringTools.trimSpecialCharacters`: keeps letters, digits, whitespace and
@@ -127,7 +147,9 @@ fn month_from_name(month: &str) -> Option<i64> {
 /// punctuation is kept here (Java keeps all of Unicode's); a month name has
 /// no other.
 fn trim_special_characters(s: &str) -> String {
-    s.chars().filter(|c| c.is_alphanumeric() || c.is_whitespace() || c.is_ascii_punctuation()).collect()
+    s.chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace() || c.is_ascii_punctuation())
+        .collect()
 }
 
 /// `StringUtils.isNumeric`.
@@ -149,7 +171,11 @@ fn month0(s: &str, trim: bool) -> Option<i64> {
     if is_numeric(s) {
         return parse_int(s).map(|m| m - 1);
     }
-    let name = if trim { trim_special_characters(s) } else { s.to_string() };
+    let name = if trim {
+        trim_special_characters(s)
+    } else {
+        s.to_string()
+    };
     month_from_name(&name).map(|m| m - 1)
 }
 
@@ -168,7 +194,16 @@ impl DateCheckFilter {
 fn find_new_day_of_month(day: i64, month0: i64, year: i64, wanted_day_of_week: i64) -> Option<i64> {
     for difference in 1..7 {
         for candidate in [day - difference, day + difference] {
-            if candidate > 0 && candidate < 32 && (Date { year, month0, day: candidate }).day_of_week() == Some(wanted_day_of_week) {
+            if candidate > 0
+                && candidate < 32
+                && (Date {
+                    year,
+                    month0,
+                    day: candidate,
+                })
+                .day_of_week()
+                    == Some(wanted_day_of_week)
+            {
                 return Some(candidate);
             }
         }
@@ -196,23 +231,50 @@ impl RuleFilter for DateCheckFilter {
             };
             Some(skip_corrected_reference(token_positions, n))
         };
-        let token_at = |pos: i64| -> Option<&Readings> { usize::try_from(pos).ok().and_then(|p| pattern_tokens.get(p)).copied() };
+        let token_at = |pos: i64| -> Option<&Readings> {
+            usize::try_from(pos)
+                .ok()
+                .and_then(|p| pattern_tokens.get(p))
+                .copied()
+        };
 
         let day_of_week_pos = reference("weekDay", None)?;
         let day_of_week_str = token_at(day_of_week_pos)?.token.replace('\u{ad}', "");
         let full_date_pos = reference("date", Some(-1))?;
         let is_full_date_token = full_date_pos > -1;
-        let (day_pos, year_pos, day_str, month_str, year_str): (i64, i64, String, String, Option<String>) = if is_full_date_token {
+        let (day_pos, year_pos, day_str, month_str, year_str): (
+            i64,
+            i64,
+            String,
+            String,
+            Option<String>,
+        ) = if is_full_date_token {
             // One token "yyyy-mm-dd".
             let token = token_at(full_date_pos)?;
             let parts: Vec<&str> = token.token.split('-').collect();
-            (full_date_pos, full_date_pos, parts.get(2)?.to_string(), parts.get(1)?.to_string(), Some(parts.first()?.to_string()))
+            (
+                full_date_pos,
+                full_date_pos,
+                parts.get(2)?.to_string(),
+                parts.get(1)?.to_string(),
+                Some(parts.first()?.to_string()),
+            )
         } else {
             let day_pos = reference("day", None)?;
             let month_pos = reference("month", None)?;
             let year_pos = reference("year", Some(-1))?;
-            let year_str = if year_pos > -1 { Some(token_at(year_pos)?.token.to_string()) } else { None };
-            (day_pos, year_pos, token_at(day_pos)?.token.to_string(), token_at(month_pos)?.token.to_string(), year_str)
+            let year_str = if year_pos > -1 {
+                Some(token_at(year_pos)?.token.to_string())
+            } else {
+                None
+            };
+            (
+                day_pos,
+                year_pos,
+                token_at(day_pos)?.token.to_string(),
+                token_at(month_pos)?.token.to_string(),
+                year_str,
+            )
         };
 
         let day_of_week_from_string = day_of_week_from_name(&day_of_week_str)?;
@@ -229,11 +291,30 @@ impl RuleFilter for DateCheckFilter {
             return None;
         }
         // The week day is right for this year: the year is the mistake.
-        if (Date { year: current_year, month0, day }).day_of_week() == Some(day_of_week_from_string) {
+        if (Date {
+            year: current_year,
+            month0,
+            day,
+        })
+        .day_of_week()
+            == Some(day_of_week_from_string)
+        {
             let year_token = token_at(year_pos)?;
-            let message = format!("Cette date est incorrecte. Faites-vous référence à l'année \"{current_year}\" ?");
-            let mut rule_match = rebuilt_match(&m, sentence, year_token.start_pos, year_token.end_pos(), message);
-            rule_match.suggestions = vec![if is_full_date_token { format!("{current_year}-{month_str}-{day_str}") } else { current_year.to_string() }];
+            let message = format!(
+                "Cette date est incorrecte. Faites-vous référence à l'année \"{current_year}\" ?"
+            );
+            let mut rule_match = rebuilt_match(
+                &m,
+                sentence,
+                year_token.start_pos,
+                year_token.end_pos(),
+                message,
+            );
+            rule_match.suggestions = vec![if is_full_date_token {
+                format!("{current_year}-{month_str}-{day_str}")
+            } else {
+                current_year.to_string()
+            }];
             return Some(rule_match);
         }
         let real_day = DAY_NAMES[day_of_week_from_date as usize - 1];
@@ -242,12 +323,22 @@ impl RuleFilter for DateCheckFilter {
             .replace("{realDay}", real_day)
             .replace("{day}", DAY_NAMES[day_of_week_from_string as usize - 1])
             .replace("{currentYear}", &current_year.to_string());
-        let (start_index, end_index) = if day_of_week_pos < day_pos { (day_of_week_pos, day_pos) } else { (day_pos, day_of_week_pos) };
+        let (start_index, end_index) = if day_of_week_pos < day_pos {
+            (day_of_week_pos, day_pos)
+        } else {
+            (day_pos, day_of_week_pos)
+        };
         let (start_token, end_token) = (token_at(start_index)?, token_at(end_index)?);
         if end_token.end_pos() <= start_token.start_pos {
             return None;
         }
-        let mut rule_match = rebuilt_match(&m, sentence, start_token.start_pos, end_token.end_pos(), message);
+        let mut rule_match = rebuilt_match(
+            &m,
+            sentence,
+            start_token.start_pos,
+            end_token.end_pos(),
+            message,
+        );
         // The tokens from the week day to the day of the month, one of them
         // replaced.
         let rewrite = |replaced: i64, replacement: &str| -> String {
@@ -257,11 +348,18 @@ impl RuleFilter for DateCheckFilter {
                 if j > start_index && token.whitespace_before {
                     suggestion.push(' ');
                 }
-                suggestion.push_str(if j == replaced { replacement } else { &token.token });
+                suggestion.push_str(if j == replaced {
+                    replacement
+                } else {
+                    &token.token
+                });
             }
             suggestion
         };
-        let suggestion = rewrite(day_of_week_pos, &strtools::preserve_case(real_day, &day_of_week_str));
+        let suggestion = rewrite(
+            day_of_week_pos,
+            &strtools::preserve_case(real_day, &day_of_week_str),
+        );
         if !suggestion.is_empty() {
             rule_match.suggestions = vec![suggestion];
         }
@@ -310,7 +408,10 @@ impl RuleFilter for NewYearDateFilter {
         }
         let today = self.env.today();
         if today.month == 1 && month0 != 11 && year + 1 == today.year {
-            let message = m.message.replace("{year}", &year.to_string()).replace("{realYear}", &today.year.to_string());
+            let message = m
+                .message
+                .replace("{year}", &year.to_string())
+                .replace("{realYear}", &today.year.to_string());
             return Some(rebuilt_match(&m, sentence, m.from_pos, m.to_pos, message));
         }
         None
@@ -324,7 +425,12 @@ mod tests {
     use crate::engine::filters::FrenchFilters;
 
     fn dow(year: i64, month: i64, day: i64) -> Option<i64> {
-        (Date { year, month0: month - 1, day }).day_of_week()
+        (Date {
+            year,
+            month0: month - 1,
+            day,
+        })
+        .day_of_week()
     }
 
     #[test]
@@ -334,7 +440,7 @@ mod tests {
         assert_eq!(dow(2024, 7, 14), Some(1)); // Sunday
         assert_eq!(dow(2026, 11, 20), Some(6)); // Friday
         assert_eq!(dow(1789, 7, 14), Some(3)); // Tuesday
-        // Either side of the Gregorian reform: Thursday, then Friday.
+                                               // Either side of the Gregorian reform: Thursday, then Friday.
         assert_eq!(dow(1582, 10, 4), Some(5));
         assert_eq!(dow(1582, 10, 15), Some(6));
         assert_eq!(dow(1582, 10, 10), None);
@@ -349,9 +455,30 @@ mod tests {
 
     #[test]
     fn civil_dates() {
-        assert_eq!(civil_from_days(0), Today { year: 1970, month: 1, day: 1 });
-        assert_eq!(civil_from_days(19_782), Today { year: 2024, month: 2, day: 29 });
-        assert_eq!(civil_from_days(-1), Today { year: 1969, month: 12, day: 31 });
+        assert_eq!(
+            civil_from_days(0),
+            Today {
+                year: 1970,
+                month: 1,
+                day: 1
+            }
+        );
+        assert_eq!(
+            civil_from_days(19_782),
+            Today {
+                year: 2024,
+                month: 2,
+                day: 29
+            }
+        );
+        assert_eq!(
+            civil_from_days(-1),
+            Today {
+                year: 1969,
+                month: 12,
+                day: 31
+            }
+        );
     }
 
     #[test]
@@ -371,7 +498,11 @@ mod tests {
 
     fn date_filter(year: i64) -> DateCheckFilter {
         let filters = FrenchFilters::new();
-        filters.set_today(Some(Today { year, month: 6, day: 1 }));
+        filters.set_today(Some(Today {
+            year,
+            month: 6,
+            day: 1,
+        }));
         DateCheckFilter::new(filters.env.clone())
     }
 
@@ -383,8 +514,23 @@ mod tests {
         let s = sentence(&[("Lundi", &[]), ("3", &[]), ("mars", &[]), ("2020", &[])]);
         let tokens = s.non_ws_tokens();
         let m = match_over(&s, 1, 4, MESSAGE);
-        let a = args(&[("weekDay", "1"), ("day", "2"), ("month", "3"), ("year", "4")]);
-        let out = date_filter(2021).accept(m.clone(), &a, 1, &tokens[1..], &[1, 1, 1, 1], &s, &bare_context()).unwrap();
+        let a = args(&[
+            ("weekDay", "1"),
+            ("day", "2"),
+            ("month", "3"),
+            ("year", "4"),
+        ]);
+        let out = date_filter(2021)
+            .accept(
+                m.clone(),
+                &a,
+                1,
+                &tokens[1..],
+                &[1, 1, 1, 1],
+                &s,
+                &bare_context(),
+            )
+            .unwrap();
         assert_eq!(out.message, "Le lundi ne correspond pas au mardi.");
         assert_eq!(out.suggestions, ["Mardi 3", "Lundi 2"]);
         assert_eq!(&s.text[out.from_pos..out.to_pos], "Lundi 3");
@@ -392,10 +538,22 @@ mod tests {
         // The right day: no match.
         let s2 = sentence(&[("Mardi", &[]), ("3", &[]), ("mars", &[]), ("2020", &[])]);
         let m2 = match_over(&s2, 1, 4, MESSAGE);
-        assert!(date_filter(2021).accept(m2, &a, 1, &s2.non_ws_tokens()[1..], &[1, 1, 1, 1], &s2, &bare_context()).is_none());
+        assert!(date_filter(2021)
+            .accept(
+                m2,
+                &a,
+                1,
+                &s2.non_ws_tokens()[1..],
+                &[1, 1, 1, 1],
+                &s2,
+                &bare_context()
+            )
+            .is_none());
 
         // 3 mars 2025 was a Monday: writing "2020" in 2025 is a wrong year.
-        let out = date_filter(2025).accept(m, &a, 1, &tokens[1..], &[1, 1, 1, 1], &s, &bare_context()).unwrap();
+        let out = date_filter(2025)
+            .accept(m, &a, 1, &tokens[1..], &[1, 1, 1, 1], &s, &bare_context())
+            .unwrap();
         assert_eq!(out.suggestions, ["2025"]);
         assert_eq!(&s.text[out.from_pos..out.to_pos], "2020");
         assert!(out.message.contains("\"2025\""));
@@ -403,11 +561,38 @@ mod tests {
 
     #[test]
     fn impossible_dates_and_unknown_names_are_left_alone() {
-        let a = args(&[("weekDay", "1"), ("day", "2"), ("month", "3"), ("year", "4")]);
-        for words in [["Lundi", "31", "avril", "2020"], ["Lundi", "3", "brumaire", "2020"], ["Jour", "3", "mars", "2020"]] {
-            let s = sentence(&[(words[0], &[]), (words[1], &[]), (words[2], &[]), (words[3], &[])]);
+        let a = args(&[
+            ("weekDay", "1"),
+            ("day", "2"),
+            ("month", "3"),
+            ("year", "4"),
+        ]);
+        for words in [
+            ["Lundi", "31", "avril", "2020"],
+            ["Lundi", "3", "brumaire", "2020"],
+            ["Jour", "3", "mars", "2020"],
+        ] {
+            let s = sentence(&[
+                (words[0], &[]),
+                (words[1], &[]),
+                (words[2], &[]),
+                (words[3], &[]),
+            ]);
             let m = match_over(&s, 1, 4, MESSAGE);
-            assert!(date_filter(2021).accept(m, &a, 1, &s.non_ws_tokens()[1..], &[1, 1, 1, 1], &s, &bare_context()).is_none(), "{words:?}");
+            assert!(
+                date_filter(2021)
+                    .accept(
+                        m,
+                        &a,
+                        1,
+                        &s.non_ws_tokens()[1..],
+                        &[1, 1, 1, 1],
+                        &s,
+                        &bare_context()
+                    )
+                    .is_none(),
+                "{words:?}"
+            );
         }
     }
 
@@ -417,8 +602,28 @@ mod tests {
         let m = match_over(&s, 1, 3, MESSAGE);
         let a = args(&[("weekDay", "1"), ("day", "2"), ("month", "3")]);
         // Monday in 2025, Tuesday in 2026.
-        assert!(date_filter(2025).accept(m.clone(), &a, 1, &s.non_ws_tokens()[1..], &[1, 1, 1], &s, &bare_context()).is_none());
-        let out = date_filter(2026).accept(m, &a, 1, &s.non_ws_tokens()[1..], &[1, 1, 1], &s, &bare_context()).unwrap();
+        assert!(date_filter(2025)
+            .accept(
+                m.clone(),
+                &a,
+                1,
+                &s.non_ws_tokens()[1..],
+                &[1, 1, 1],
+                &s,
+                &bare_context()
+            )
+            .is_none());
+        let out = date_filter(2026)
+            .accept(
+                m,
+                &a,
+                1,
+                &s.non_ws_tokens()[1..],
+                &[1, 1, 1],
+                &s,
+                &bare_context(),
+            )
+            .unwrap();
         assert_eq!(out.suggestions, ["mardi 3", "lundi 2"]);
     }
 
@@ -430,14 +635,39 @@ mod tests {
         let m = match_over(&s, 1, 3, "{year} au lieu de {realYear} ?");
         let january = args(&[("year", "2013"), ("month", "janvier"), ("day", "3")]);
         let december = args(&[("year", "2013"), ("month", "décembre"), ("day", "3")]);
-        let accept = |a: &HashMap<String, String>| filter.accept(m.clone(), a, 1, &s.non_ws_tokens()[1..], &[1, 1, 1], &s, &bare_context());
+        let accept = |a: &HashMap<String, String>| {
+            filter.accept(
+                m.clone(),
+                a,
+                1,
+                &s.non_ws_tokens()[1..],
+                &[1, 1, 1],
+                &s,
+                &bare_context(),
+            )
+        };
 
-        filters.set_today(Some(Today { year: 2014, month: 1, day: 10 }));
+        filters.set_today(Some(Today {
+            year: 2014,
+            month: 1,
+            day: 10,
+        }));
         assert_eq!(accept(&january).unwrap().message, "2013 au lieu de 2014 ?");
-        assert!(accept(&december).is_none(), "a date in December of last year is plausible");
-        filters.set_today(Some(Today { year: 2014, month: 2, day: 10 }));
+        assert!(
+            accept(&december).is_none(),
+            "a date in December of last year is plausible"
+        );
+        filters.set_today(Some(Today {
+            year: 2014,
+            month: 2,
+            day: 10,
+        }));
         assert!(accept(&january).is_none(), "only in January");
-        filters.set_today(Some(Today { year: 2016, month: 1, day: 10 }));
+        filters.set_today(Some(Today {
+            year: 2016,
+            month: 1,
+            day: 10,
+        }));
         assert!(accept(&january).is_none(), "only for last year");
     }
 }

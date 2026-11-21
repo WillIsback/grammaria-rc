@@ -71,7 +71,9 @@ impl Engine {
     /// French resources (`french.dict`, `grammar.xml`, `disambiguation.xml`,
     /// ...) and `grammaria/` this project's own rule files.
     pub fn load(dir: &Path) -> std::io::Result<Engine> {
-        Ok(Engine { french: load_french(&resource_dir(dir))? })
+        Ok(Engine {
+            french: load_french(&resource_dir(dir))?,
+        })
     }
 
     /// The underlying pipeline (analysis, disambiguation, rules).
@@ -122,7 +124,10 @@ impl Engine {
                 is_style: info.is_style_file,
                 source_file: info.source_file.clone(),
                 url: info.url.clone(),
-                sentence: sentences.get(sentence).map(|s| s.text.trim().to_string()).unwrap_or_default(),
+                sentence: sentences
+                    .get(sentence)
+                    .map(|s| s.text.trim().to_string())
+                    .unwrap_or_default(),
             });
         }
         matches
@@ -145,7 +150,12 @@ impl Engine {
     ///
     /// A `{"ready":true}` line is written first, once the data is loaded. A
     /// malformed header ends the loop: the stream can no longer be framed.
-    pub fn serve<R: BufRead, W: Write>(&self, mut input: R, mut output: W, style: bool) -> std::io::Result<()> {
+    pub fn serve<R: BufRead, W: Write>(
+        &self,
+        mut input: R,
+        mut output: W,
+        style: bool,
+    ) -> std::io::Result<()> {
         writeln!(output, "{{\"ready\":true}}")?;
         output.flush()?;
         let mut header = String::new();
@@ -179,11 +189,24 @@ impl Engine {
                     "{{\"id\":{id},\"matches\":{}}}",
                     self.check_json(&text, style, OffsetUnit::Utf16)
                 )?,
-                Err(_) => writeln!(output, "{{\"id\":{id},\"error\":\"text is not valid UTF-8\"}}")?,
+                Err(_) => writeln!(
+                    output,
+                    "{{\"id\":{id},\"error\":\"text is not valid UTF-8\"}}"
+                )?,
             }
             output.flush()?;
         }
     }
+}
+
+/// A rule message as a reader sees it: the `<suggestion>` markup the engine
+/// keeps internally becomes French quotation marks (with no-break spaces, so
+/// a quote never dangles at a line end). Every message leaving the engine for
+/// a display goes through here.
+pub fn plain_message(message: &str) -> String {
+    message
+        .replace("<suggestion>", "«\u{a0}")
+        .replace("</suggestion>", "\u{a0}»")
 }
 
 pub fn json_escape(s: &str) -> String {
@@ -257,8 +280,8 @@ pub fn matches_json(text: &str, matches: &[Match], unit: OffsetUnit) -> String {
         };
         out.push_str(&format!(
             "{{\"message\":\"{}\",\"shortMessage\":\"{}\",\"replacements\":[{}],\"offset\":{},\"length\":{},\"context\":{{\"text\":\"{}\",\"offset\":{},\"length\":{}}},\"sentence\":\"{}\",\"type\":{{\"typeName\":\"{}\"}},\"rule\":{{\"id\":\"{}\",\"subId\":\"{}\",\"sourceFile\":\"{}\",\"description\":\"{}\",\"issueType\":\"{}\"{},\"category\":{{\"id\":\"{}\",\"name\":\"{}\"}}}}}}",
-            json_escape(&m.message),
-            json_escape(&m.short_message),
+            json_escape(&plain_message(&m.message)),
+            json_escape(&plain_message(&m.short_message)),
             m.suggestions.iter().map(|s| format!("{{\"value\":\"{}\"}}", json_escape(s))).collect::<Vec<_>>().join(","),
             offset,
             length,
@@ -327,6 +350,15 @@ pub fn read_all<R: Read>(mut input: R) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn plain_message_turns_suggestion_markup_into_quotes() {
+        assert_eq!(
+            super::plain_message("Écrivez <suggestion>Peut-être</suggestion>."),
+            "Écrivez «\u{a0}Peut-être\u{a0}»."
+        );
+        assert_eq!(super::plain_message("Rien à changer."), "Rien à changer.");
+    }
+
     use super::*;
 
     fn m(offset: usize, length: usize) -> Match {
@@ -353,7 +385,12 @@ mod tests {
     fn field(json: &str, name: &str, nth: usize) -> usize {
         let key = format!("\"{name}\":");
         let at = json.match_indices(&key).nth(nth).expect("field").0 + key.len();
-        json[at..].chars().take_while(char::is_ascii_digit).collect::<String>().parse().unwrap()
+        json[at..]
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse()
+            .unwrap()
     }
 
     #[test]

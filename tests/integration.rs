@@ -8,7 +8,9 @@ use grammaria::api::{Engine, Match, OffsetUnit};
 fn engine() -> &'static Engine {
     static ENGINE: OnceLock<Engine> = OnceLock::new();
     ENGINE.get_or_init(|| {
-        let dir = std::env::var("GRAMMARIA_DATA").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr"));
+        let dir = std::env::var("GRAMMARIA_DATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fr"));
         Engine::load(&dir).expect("the shipped assets load")
     })
 }
@@ -47,7 +49,11 @@ fn correct_text_is_clean() {
         "Il faut que tu viennes demain, car la réunion est importante.",
     ] {
         let matches = check(text);
-        assert!(matches.is_empty(), "{text}: {:?}", matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>());
+        assert!(
+            matches.is_empty(),
+            "{text}: {:?}",
+            matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>()
+        );
     }
 }
 
@@ -59,7 +65,10 @@ fn offsets_are_bytes_and_utf16_units_on_request() {
     assert_eq!(m.offset, text.find("mange").unwrap());
     let json = engine().check_json(text, true, OffsetUnit::Utf16);
     // "Été" is 5 bytes and 3 UTF-16 units.
-    assert!(json.contains(&format!("\"offset\":{}", m.offset - 2)), "{json}");
+    assert!(
+        json.contains(&format!("\"offset\":{}", m.offset - 2)),
+        "{json}"
+    );
 }
 
 #[test]
@@ -78,7 +87,12 @@ fn analysis_tags_a_simple_sentence() {
         .tokens
         .iter()
         .filter(|t| !t.is_whitespace)
-        .map(|t| (&*t.token, t.readings.iter().filter_map(|r| r.pos()).collect()))
+        .map(|t| {
+            (
+                &*t.token,
+                t.readings.iter().filter_map(|r| r.pos()).collect(),
+            )
+        })
         .collect();
     let tags = |word: &str| &words.iter().find(|w| w.0 == word).expect("token").1;
     assert!(tags("Le").contains(&"D m s"), "{words:?}");
@@ -103,11 +117,38 @@ fn engine_serves_framed_requests_with_utf16_offsets() {
 #[test]
 fn engine_serve_stops_on_a_malformed_header() {
     let mut out = Vec::new();
-    assert!(engine().serve("not a header\n".as_bytes(), &mut out, true).is_err());
+    assert!(engine()
+        .serve("not a header\n".as_bytes(), &mut out, true)
+        .is_err());
 }
 
 #[test]
 fn own_rule_files_are_loaded() {
     let matches = check("Elle semble être totalement ruiné.");
-    assert!(matches.iter().any(|m| m.rule_id.starts_with("GRM_")), "{:?}", matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>());
+    assert!(
+        matches.iter().any(|m| m.rule_id.starts_with("GRM_")),
+        "{:?}",
+        matches.iter().map(|m| &m.full_rule_id).collect::<Vec<_>>()
+    );
+}
+
+/// The engine keeps `<suggestion>` markup in its messages; none of it may
+/// reach the JSON a display reads.
+#[test]
+fn json_messages_carry_no_markup() {
+    let text = "Elle a manger trois pommes. Peut être qu'il viendra. Les enfants mange des pommes. Il faut que tu vient. Je vous serai grée de répondre.";
+    let raw = check(text);
+    assert!(
+        raw.iter().any(|m| m.message.contains("<suggestion>")),
+        "the sample must fire a rule whose message has markup"
+    );
+    let json = engine().check_json(text, true, OffsetUnit::Utf16);
+    assert!(
+        !json.contains("suggestion>"),
+        "markup in the JSON output: {json}"
+    );
+    assert!(
+        json.contains("«\u{a0}"),
+        "suggestions are quoted for the reader"
+    );
 }

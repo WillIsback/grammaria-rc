@@ -15,14 +15,20 @@ use crate::api::json_escape;
 /// Build sentences from one dump line. The `PARA_END` reading is dropped: the
 /// pipeline adds it back after disambiguation, as LanguageTool does.
 pub fn sentences_from_dump(line: &str) -> Vec<Sentence> {
-    parse_dump(line, false).into_iter().map(|(text, tokens)| Sentence::new(Arc::from(text.as_str()), tokens.clone(), tokens)).collect()
+    parse_dump(line, false)
+        .into_iter()
+        .map(|(text, tokens)| Sentence::new(Arc::from(text.as_str()), tokens.clone(), tokens))
+        .collect()
 }
 
 /// Sentences as the rules see them: the disambiguated tokens of one dump
 /// line, with the tagger's output (`raw_line`) as their pre-disambiguation
 /// state, which `raw_pos` rules look at.
 pub fn sentences_from_dumps(line: &str, raw_line: Option<&str>) -> Vec<Sentence> {
-    let mut raw = raw_line.map(|l| parse_dump(l, true)).unwrap_or_default().into_iter();
+    let mut raw = raw_line
+        .map(|l| parse_dump(l, true))
+        .unwrap_or_default()
+        .into_iter();
     parse_dump(line, true)
         .into_iter()
         .map(|(text, tokens)| {
@@ -36,7 +42,9 @@ pub fn sentences_from_dumps(line: &str, raw_line: Option<&str>) -> Vec<Sentence>
 }
 
 fn parse_dump(line: &str, keep_paragraph_end: bool) -> Vec<(String, Vec<Readings>)> {
-    let Some(v) = json::parse(line) else { return Vec::new() };
+    let Some(v) = json::parse(line) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     for s in v.as_arr() {
         let mut tokens: Vec<Readings> = Vec::new();
@@ -52,13 +60,21 @@ fn parse_dump(line: &str, keep_paragraph_end: bool) -> Vec<(String, Vec<Readings
                         .iter()
                         .map(|rd| {
                             let rd = rd.as_arr();
-                            Reading::from_strs(token, rd.get(1).and_then(Value::as_str), rd.first().and_then(Value::as_str))
+                            Reading::from_strs(
+                                token,
+                                rd.get(1).and_then(Value::as_str),
+                                rd.first().and_then(Value::as_str),
+                            )
                         })
                         .filter(|r| keep_paragraph_end || r.pos() != Some(PARAGRAPH_END))
                         .collect()
                 })
                 .unwrap_or_default();
-            let readings = if readings.is_empty() { vec![Reading::from_strs(token, None, None)] } else { readings };
+            let readings = if readings.is_empty() {
+                vec![Reading::from_strs(token, None, None)]
+            } else {
+                readings
+            };
             let mut rs = Readings::new(readings, text.len());
             let flags = parts.get(2).map(Value::as_i64).unwrap_or(0);
             if flags & 4 != 0 {
@@ -68,7 +84,16 @@ fn parse_dump(line: &str, keep_paragraph_end: bool) -> Vec<(String, Vec<Readings
             }
             rs.immunized = flags & 1 != 0;
             rs.ignored_by_speller = flags & 2 != 0;
-            rs.chunk_tags = parts.get(3).map(|c| c.as_arr().iter().filter_map(Value::as_str).map(Arc::from).collect()).unwrap_or_default();
+            rs.chunk_tags = parts
+                .get(3)
+                .map(|c| {
+                    c.as_arr()
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(Arc::from)
+                        .collect()
+                })
+                .unwrap_or_default();
             text.push_str(token);
             prev = Some(rs.token.clone());
             tokens.push(rs);
@@ -86,7 +111,11 @@ pub fn dump_sentences(sentences: &[Sentence], pre_disambig: bool) -> String {
             out.push(',');
         }
         out.push('[');
-        let tokens = if pre_disambig { &s.pre_disambig } else { &s.tokens };
+        let tokens = if pre_disambig {
+            &s.pre_disambig
+        } else {
+            &s.tokens
+        };
         for (ti, t) in tokens.iter().enumerate() {
             if ti > 0 {
                 out.push(',');
@@ -106,9 +135,21 @@ pub fn dump_sentences(sentences: &[Sentence], pre_disambig: bool) -> String {
                     format!("[{lemma},{pos}]")
                 })
                 .collect();
-            let flags = (t.immunized as u8) | ((t.ignored_by_speller as u8) << 1) | ((t.whitespace_before as u8) << 2);
-            let chunks: Vec<String> = t.chunk_tags.iter().map(|c| format!("\"{}\"", json_escape(c))).collect();
-            out.push_str(&format!("[\"{}\",[{}],{},[{}]]", json_escape(&t.token), readings.join(","), flags, chunks.join(",")));
+            let flags = (t.immunized as u8)
+                | ((t.ignored_by_speller as u8) << 1)
+                | ((t.whitespace_before as u8) << 2);
+            let chunks: Vec<String> = t
+                .chunk_tags
+                .iter()
+                .map(|c| format!("\"{}\"", json_escape(c)))
+                .collect();
+            out.push_str(&format!(
+                "[\"{}\",[{}],{},[{}]]",
+                json_escape(&t.token),
+                readings.join(","),
+                flags,
+                chunks.join(",")
+            ));
         }
         out.push(']');
     }

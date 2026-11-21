@@ -35,9 +35,22 @@ mod tests {
     fn removes_matching_suggestions_ignoring_case() {
         let s = sentence(&[("je", &[]), ("manger", &[])]);
         let mut m = match_over(&s, 2, 2, "");
-        m.suggestions = vec!["mange".into(), "mangé".into(), "MANGÈ".into(), "mangeais".into()];
+        m.suggestions = vec![
+            "mange".into(),
+            "mangé".into(),
+            "MANGÈ".into(),
+            "mangeais".into(),
+        ];
         let out = SuggestionsFilter
-            .accept(m, &args(&[("RemoveSuggestionsRegexp", "^.*[éè]$")]), 1, &s.non_ws_tokens()[1..], &[1, 1], &s, &bare_context())
+            .accept(
+                m,
+                &args(&[("RemoveSuggestionsRegexp", "^.*[éè]$")]),
+                1,
+                &s.non_ws_tokens()[1..],
+                &[1, 1],
+                &s,
+                &bare_context(),
+            )
             .unwrap();
         assert_eq!(out.suggestions, ["mange", "mangeais"]);
     }
@@ -46,7 +59,15 @@ mod tests {
     fn a_match_without_suggestions_is_kept() {
         let s = sentence(&[("je", &[])]);
         let m = match_over(&s, 1, 1, "");
-        let out = SuggestionsFilter.accept(m, &args(&[("RemoveSuggestionsRegexp", "^.*[è]$")]), 1, &s.non_ws_tokens()[1..], &[1], &s, &bare_context());
+        let out = SuggestionsFilter.accept(
+            m,
+            &args(&[("RemoveSuggestionsRegexp", "^.*[è]$")]),
+            1,
+            &s.non_ws_tokens()[1..],
+            &[1],
+            &s,
+            &bare_context(),
+        );
         assert!(out.is_some_and(|m| m.suggestions.is_empty()));
     }
 }

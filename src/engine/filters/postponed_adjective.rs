@@ -40,14 +40,38 @@ tag_pattern!(det_fs, "(P\\+)?D f s");
 tag_pattern!(det_mp, "(P\\+)?D m p");
 tag_pattern!(det_fp, "(P\\+)?D f p");
 tag_pattern!(det_cp, "(P\\+)?D e p");
-tag_pattern!(gn_ms, "[NZ] [me] (s|sp)|J [me] (s|sp)|V ppa m s|(P\\+)?D m (s|sp)");
-tag_pattern!(gn_fs, "[NZ] [fe] (s|sp)|J [fe] (s|sp)|V ppa f s|(P\\+)?D f (s|sp)");
-tag_pattern!(gn_mp, "[NZ] [me] (p|sp)|J [me] (p|sp)|V ppa m p|(P\\+)?D m (p|sp)");
-tag_pattern!(gn_fp, "[NZ] [fe] (p|sp)|J [fe] (p|sp)|V ppa f p|(P\\+)?D f (p|sp)");
-tag_pattern!(gn_cp, "[NZ] [fme] (p|sp)|J [fme] (p|sp)|(P\\+)?D [fme] (p|sp)");
-tag_pattern!(gn_cs, "[NZ] [fme] (s|sp)|J [fme] (s|sp)|(P\\+)?D [fme] (s|sp)");
-tag_pattern!(gn_mn, "[NZ] [me] (s|p|sp)|J [me] (s|p|sp)|(P\\+)?D [me] (s|p|sp)");
-tag_pattern!(gn_fn, "[NZ] [fe] (s|p|sp)|J [fe] (s|p|sp)|(P\\+)?D [fe] (s|p|sp)");
+tag_pattern!(
+    gn_ms,
+    "[NZ] [me] (s|sp)|J [me] (s|sp)|V ppa m s|(P\\+)?D m (s|sp)"
+);
+tag_pattern!(
+    gn_fs,
+    "[NZ] [fe] (s|sp)|J [fe] (s|sp)|V ppa f s|(P\\+)?D f (s|sp)"
+);
+tag_pattern!(
+    gn_mp,
+    "[NZ] [me] (p|sp)|J [me] (p|sp)|V ppa m p|(P\\+)?D m (p|sp)"
+);
+tag_pattern!(
+    gn_fp,
+    "[NZ] [fe] (p|sp)|J [fe] (p|sp)|V ppa f p|(P\\+)?D f (p|sp)"
+);
+tag_pattern!(
+    gn_cp,
+    "[NZ] [fme] (p|sp)|J [fme] (p|sp)|(P\\+)?D [fme] (p|sp)"
+);
+tag_pattern!(
+    gn_cs,
+    "[NZ] [fme] (s|sp)|J [fme] (s|sp)|(P\\+)?D [fme] (s|sp)"
+);
+tag_pattern!(
+    gn_mn,
+    "[NZ] [me] (s|p|sp)|J [me] (s|p|sp)|(P\\+)?D [me] (s|p|sp)"
+);
+tag_pattern!(
+    gn_fn,
+    "[NZ] [fe] (s|p|sp)|J [fe] (s|p|sp)|(P\\+)?D [fe] (s|p|sp)"
+);
 tag_pattern!(adjectif, "J .*|V ppa .*|PX.*");
 tag_pattern!(adjectif_ms, "J [me] (s|sp)|V ppa m s");
 tag_pattern!(adjectif_fs, "J [fe] (s|sp)|V ppa f s");
@@ -63,7 +87,10 @@ tag_pattern!(adjectif_m, "J [me] .*|V ppa [me] .*");
 tag_pattern!(adverbe, "A");
 tag_pattern!(conjonction, "C .*");
 tag_pattern!(ponctuation, "_PUNCT");
-tag_pattern!(keep_count, "Y|J .*|N .*|D .*|P.*|V ppa .*|M nonfin|UNKNOWN|Z.*|V.* inf|V ppr");
+tag_pattern!(
+    keep_count,
+    "Y|J .*|N .*|D .*|P.*|V ppa .*|M nonfin|UNKNOWN|Z.*|V.* inf|V ppr"
+);
 tag_pattern!(prepositions, "P.*");
 tag_pattern!(verbe, "V.* (inf|ind|sub|con|ppr|imp).*");
 tag_pattern!(infinitif, "V.* inf");
@@ -81,14 +108,32 @@ fn is_keep_count2(token: &str) -> bool {
 
 /// `STOP_COUNT`.
 fn is_stop_count(token: &str) -> bool {
-    matches!(token, ";" | ":" | "(" | ")" | "[" | "]" | "–" | "—" | "―" | "‒")
+    matches!(
+        token,
+        ";" | ":" | "(" | ")" | "[" | "]" | "–" | "—" | "―" | "‒"
+    )
 }
 
 /// `PREPOSICIO_CANVI_NIVELL`: the prepositions that open a level.
 fn is_level_preposition(token: &str) -> bool {
     matches!(
         token,
-        "d'" | "de" | "des" | "du" | "à" | "au" | "aux" | "en" | "dans" | "sur" | "entre" | "par" | "pour" | "avec" | "sans" | "contre" | "comme"
+        "d'" | "de"
+            | "des"
+            | "du"
+            | "à"
+            | "au"
+            | "aux"
+            | "en"
+            | "dans"
+            | "sur"
+            | "entre"
+            | "par"
+            | "pour"
+            | "avec"
+            | "sans"
+            | "contre"
+            | "comme"
     )
 }
 
@@ -144,7 +189,12 @@ impl Apparitions {
 
 /// `updateJValue`: "deux ou plus" is stepped over.
 fn update_j(tokens: &[&Readings], i: usize, j: usize) -> usize {
-    if is_coordination(&tokens[i - j].token) && i > j + 1 && i - j + 1 < tokens.len() && det().matches(tokens[i - j - 1]) && &*tokens[i - j + 1].token == "plus" {
+    if is_coordination(&tokens[i - j].token)
+        && i > j + 1
+        && i - j + 1 < tokens.len()
+        && det().matches(tokens[i - j - 1])
+        && &*tokens[i - j + 1].token == "plus"
+    {
         return j + 1;
     }
     j
@@ -171,7 +221,8 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
         let adjective = tokens[i];
         let mut is_plural = true;
         let mut is_prev_noun = false;
-        let (mut can_be_ms, mut can_be_fs, mut can_be_mp, mut can_be_fp, mut can_be_p) = (false, false, false, false, false);
+        let (mut can_be_ms, mut can_be_fs, mut can_be_mp, mut can_be_fp, mut can_be_p) =
+            (false, false, false, false, false);
         // Counts per level: nouns in all, nouns by gender and number,
         // determiners by gender and number.
         let mut c_nt = [0i32; MAX_LEVELS];
@@ -193,7 +244,12 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
             let t = tokens[i - j];
             let next = tokens[i - j + 1];
             if !is_prev_noun {
-                if nom().matches(t) || (i > j + 1 && !nom().matches(t) && adjectif().matches(t) && det().matches(tokens[i - j - 1])) {
+                if nom().matches(t)
+                    || (i > j + 1
+                        && !nom().matches(t)
+                        && adjectif().matches(t)
+                        && det().matches(tokens[i - j - 1]))
+                {
                     if gn_tag_ms().matches(t) {
                         c_nms[level] += 1;
                         can_be_ms = true;
@@ -294,7 +350,8 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
                     && !conjonction().matches(t)
                     && !is_coordination(&tokens[i - j - 1].token)
                     && !adverbe().matches(next))
-                    || (strtools::equals_ignore_case(&t.token, "d'") && strtools::equals_ignore_case(&next.token, "environ")))
+                    || (strtools::equals_ignore_case(&t.token, "d'")
+                        && strtools::equals_ignore_case(&next.token, "environ")))
             {
                 level += 1;
             }
@@ -322,7 +379,8 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
             // Adjective in the feminine plural: are all the nouns feminine?
             if adjectif_fp().matches(adjective)
                 && (c_n > 1 || c_d > 1)
-                && ((c_nms[l] + c_nmp[l] + c_nmn[l] + c_dms[l] + c_dmp[l]) == 0 || (c_nt[l] > 0 && c_nfs[l] + c_nfp[l] >= c_nt[l]))
+                && ((c_nms[l] + c_nmp[l] + c_nmn[l] + c_dms[l] + c_dmp[l]) == 0
+                    || (c_nt[l] > 0 && c_nfs[l] + c_nfp[l] >= c_nt[l]))
             {
                 return None;
             }
@@ -331,7 +389,8 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
                 can_be_p = can_be_p || c_n > 1;
             }
         }
-        is_plural = is_plural || (i > 2 && c_nmp[0] + c_nfp[0] + c_ncp[0] > 0 && &*tokens[i - 2].token == ",");
+        is_plural = is_plural
+            || (i > 2 && c_nmp[0] + c_nfp[0] + c_ncp[0] > 0 && &*tokens[i - 2].token == ",");
         // There is neither noun nor determiner: the adjective is on its own.
         if c_n_total == 0 && c_d_total == 0 {
             return None;
@@ -339,32 +398,34 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
 
         // What the adjective would agree with: (noun or determiner, nominal
         // group tag, adjective).
-        let (subst, gn, adj): (&TagPattern, &TagPattern, &TagPattern) = if adjectif_cs().matches(adjective) {
-            (gn_cs(), gn_tag_cs(), adjectif_s())
-        } else if adjectif_cp().matches(adjective) {
-            (gn_cp(), gn_tag_cp(), adjectif_p())
-        } else if adjectif_mn().matches(adjective) {
-            (gn_mn(), gn_tag_mn(), adjectif_m())
-        } else if adjectif_fn().matches(adjective) {
-            (gn_fn(), gn_tag_fn(), adjectif_fn())
-        } else if adjectif_ms().matches(adjective) {
-            (gn_ms(), gn_tag_ms(), adjectif_ms())
-        } else if adjectif_fs().matches(adjective) {
-            (gn_fs(), gn_tag_fs(), adjectif_fs())
-        } else if adjectif_mp().matches(adjective) {
-            (gn_mp(), gn_tag_mp(), adjectif_mp())
-        } else if adjectif_fp().matches(adjective) {
-            (gn_fp(), gn_tag_fp(), adjectif_fp())
-        } else {
-            return None;
-        };
+        let (subst, gn, adj): (&TagPattern, &TagPattern, &TagPattern) =
+            if adjectif_cs().matches(adjective) {
+                (gn_cs(), gn_tag_cs(), adjectif_s())
+            } else if adjectif_cp().matches(adjective) {
+                (gn_cp(), gn_tag_cp(), adjectif_p())
+            } else if adjectif_mn().matches(adjective) {
+                (gn_mn(), gn_tag_mn(), adjectif_m())
+            } else if adjectif_fn().matches(adjective) {
+                (gn_fn(), gn_tag_fn(), adjectif_fn())
+            } else if adjectif_ms().matches(adjective) {
+                (gn_ms(), gn_tag_ms(), adjectif_ms())
+            } else if adjectif_fs().matches(adjective) {
+                (gn_fs(), gn_tag_fs(), adjectif_fs())
+            } else if adjectif_mp().matches(adjective) {
+                (gn_mp(), gn_tag_mp(), adjectif_mp())
+            } else if adjectif_fp().matches(adjective) {
+                (gn_fp(), gn_tag_fp(), adjectif_fp())
+            } else {
+                return None;
+            };
 
         // Combinations noun (+ adjectives) + adjective that agree.
         j = 1;
         let mut keep_count = true;
         while i > j && keep_count {
             let t = tokens[i - j];
-            if (nom_det().matches(t) && gn.matches(t)) || (!gn_any().matches(t) && subst.matches(t)) {
+            if (nom_det().matches(t) && gn.matches(t)) || (!gn_any().matches(t) && subst.matches(t))
+            {
                 return None;
             }
             keep_count = !nom_det().matches(t);
@@ -376,8 +437,15 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
         let no_agreement = (nom().matches(prev) && !subst.matches(prev))
             || (gn_any().matches(prev) && !gn.matches(prev))
             || (adjectif().matches(prev) && !adj.matches(prev))
-            || (i > 2 && adverbe().matches(prev) && !verbe().matches(tokens[i - 2]) && !prepositions().matches(tokens[i - 2]))
-            || (i > 3 && adverbe().matches(prev) && adverbe().matches(tokens[i - 2]) && !verbe().matches(tokens[i - 3]) && !prepositions().matches(tokens[i - 3]));
+            || (i > 2
+                && adverbe().matches(prev)
+                && !verbe().matches(tokens[i - 2])
+                && !prepositions().matches(tokens[i - 2]))
+            || (i > 3
+                && adverbe().matches(prev)
+                && adverbe().matches(tokens[i - 2])
+                && !verbe().matches(tokens[i - 3])
+                && !prepositions().matches(tokens[i - 3]));
         if !no_agreement {
             return None;
         }
@@ -389,7 +457,9 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
             seen = Apparitions::default();
             while i > j && seen.keep_counting(tokens[i - j]) && (level > 1 || j < 4) {
                 let t = tokens[i - j];
-                if (!gn_any().matches(t) && nom_det().matches(t) && subst.matches(t)) || gn.matches(t) {
+                if (!gn_any().matches(t) && nom_det().matches(t) && subst.matches(t))
+                    || gn.matches(t)
+                {
                     return None;
                 }
                 j = update_j(&tokens, i, j);
@@ -414,7 +484,10 @@ impl RuleFilter for PostponedAdjectiveConcordanceFilter {
                 suggestions.extend(synth.synthesize_regexp(at, "J . p|V ppa . p", true));
             }
         }
-        if let Some(at) = adjectif().find(adjective).filter(|_| suggestions.is_empty()) {
+        if let Some(at) = adjectif()
+            .find(adjective)
+            .filter(|_| suggestions.is_empty())
+        {
             if can_be_ms && !is_plural {
                 suggestions.extend(synth.synthesize_regexp(at, "J [me] sp?|V ppa m s", true));
             }
@@ -465,7 +538,15 @@ mod tests {
         let m = match_over(&s, adjective, adjective, "");
         Some(
             PostponedAdjectiveConcordanceFilter
-                .accept(m, &args(&[("key", "value")]), adjective, &tokens[adjective..=adjective], &[1], &s, &ctx)
+                .accept(
+                    m,
+                    &args(&[("key", "value")]),
+                    adjective,
+                    &tokens[adjective..=adjective],
+                    &[1],
+                    &s,
+                    &ctx,
+                )
                 .map(|m| m.suggestions)
                 .unwrap_or_default(),
         )
@@ -478,13 +559,17 @@ mod tests {
 
     #[test]
     fn a_disagreeing_adjective_gets_the_agreeing_forms() {
-        let Some(found) = run(&[UNE, MAISON, BLANC], 3) else { return };
+        let Some(found) = run(&[UNE, MAISON, BLANC], 3) else {
+            return;
+        };
         assert_eq!(found, ["blanche"]);
     }
 
     #[test]
     fn an_agreeing_adjective_is_accepted() {
-        let Some(found) = run(&[UNE, MAISON, BLANCHE], 3) else { return };
+        let Some(found) = run(&[UNE, MAISON, BLANCHE], 3) else {
+            return;
+        };
         assert!(found.is_empty());
     }
 
@@ -496,18 +581,24 @@ mod tests {
         let mur: Word = ("mur", &[("N m s", "mur")]);
         let de: Word = ("de", &[("P", "de")]);
         let la: Word = ("la", &[("D f s", "le")]);
-        let Some(found) = run(&[le, mur, de, la, MAISON, BLANC], 6) else { return };
+        let Some(found) = run(&[le, mur, de, la, MAISON, BLANC], 6) else {
+            return;
+        };
         assert!(found.is_empty(), "{found:?}");
         // "le mur de la maison blanches" agrees with nothing.
         let blanches: Word = ("blanches", &[("J f p", "blanc")]);
-        let Some(found) = run(&[le, mur, de, la, MAISON, blanches], 6) else { return };
+        let Some(found) = run(&[le, mur, de, la, MAISON, blanches], 6) else {
+            return;
+        };
         assert_eq!(found, ["blanc", "blanche"]);
     }
 
     #[test]
     fn nothing_to_agree_with_means_no_match() {
         let il: Word = ("il", &[("R pers suj 3 m s", "il")]);
-        let Some(found) = run(&[il, BLANC], 2) else { return };
+        let Some(found) = run(&[il, BLANC], 2) else {
+            return;
+        };
         assert!(found.is_empty());
     }
 }

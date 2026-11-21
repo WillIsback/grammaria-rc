@@ -78,35 +78,84 @@ impl StringMatcher {
     /// `StringMatcher.create`.
     pub fn create(pattern: &str, is_regexp: bool, case_sensitive: bool) -> StringMatcher {
         if !is_regexp || pattern == "\\0" {
-            return StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp, kind: Kind::Equals };
+            return StringMatcher {
+                pattern: Arc::from(pattern),
+                case_sensitive,
+                is_regexp,
+                kind: Kind::Equals,
+            };
         }
         // Rule files repeat the same expressions thousands of times: one
         // matcher is shared by all its users.
-        static SHARED: std::sync::OnceLock<std::sync::Mutex<crate::engine::fx::FxMap<(Box<str>, bool), StringMatcher>>> = std::sync::OnceLock::new();
+        static SHARED: std::sync::OnceLock<
+            std::sync::Mutex<crate::engine::fx::FxMap<(Box<str>, bool), StringMatcher>>,
+        > = std::sync::OnceLock::new();
         let shared = SHARED.get_or_init(Default::default);
-        if let Some(found) = shared.lock().unwrap().get(&(Box::from(pattern), case_sensitive)) {
+        if let Some(found) = shared
+            .lock()
+            .unwrap()
+            .get(&(Box::from(pattern), case_sensitive))
+        {
             return found.clone();
         }
         let matcher = StringMatcher::build_regexp(pattern, case_sensitive);
-        shared.lock().unwrap().entry((Box::from(pattern), case_sensitive)).or_insert(matcher).clone()
+        shared
+            .lock()
+            .unwrap()
+            .entry((Box::from(pattern), case_sensitive))
+            .or_insert(matcher)
+            .clone()
     }
 
     fn build_regexp(pattern: &str, case_sensitive: bool) -> StringMatcher {
-        let flags = if case_sensitive { Flags::default() } else { Flags::IGNORE_CASE };
+        let flags = if case_sensitive {
+            Flags::default()
+        } else {
+            Flags::IGNORE_CASE
+        };
         match Regex::new(pattern, flags) {
             Ok(r) => {
                 // A regex that can only match a few given strings is replaced
                 // by those strings (one: a plain comparison), and dropped.
                 if let Some(values) = r.possible_values() {
                     if values.len() == 1 {
-                        return StringMatcher { pattern: Arc::from(values[0].as_str()), case_sensitive, is_regexp: true, kind: Kind::Equals };
+                        return StringMatcher {
+                            pattern: Arc::from(values[0].as_str()),
+                            case_sensitive,
+                            is_regexp: true,
+                            kind: Kind::Equals,
+                        };
                     }
-                    let set = values.iter().map(|v| if case_sensitive { Box::from(v.as_str()) } else { fold_str(v).into_boxed_str() }).collect();
-                    return StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Set(Arc::new(set)) };
+                    let set = values
+                        .iter()
+                        .map(|v| {
+                            if case_sensitive {
+                                Box::from(v.as_str())
+                            } else {
+                                fold_str(v).into_boxed_str()
+                            }
+                        })
+                        .collect();
+                    return StringMatcher {
+                        pattern: Arc::from(pattern),
+                        case_sensitive,
+                        is_regexp: true,
+                        kind: Kind::Set(Arc::new(set)),
+                    };
                 }
-                StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Regex(re::share(pattern, flags, r)) }
+                StringMatcher {
+                    pattern: Arc::from(pattern),
+                    case_sensitive,
+                    is_regexp: true,
+                    kind: Kind::Regex(re::share(pattern, flags, r)),
+                }
             }
-            Err(_) => StringMatcher { pattern: Arc::from(pattern), case_sensitive, is_regexp: true, kind: Kind::Never },
+            Err(_) => StringMatcher {
+                pattern: Arc::from(pattern),
+                case_sensitive,
+                is_regexp: true,
+                kind: Kind::Never,
+            },
         }
     }
 
@@ -132,7 +181,8 @@ impl StringMatcher {
                 }
             }
             Kind::Set(set) => {
-                if self.case_sensitive || s.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
+                if self.case_sensitive || s.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase())
+                {
                     set.contains(s)
                 } else {
                     set.contains(fold_str(s).as_str())
@@ -181,11 +231,18 @@ impl PosToken {
             (None, Some(t)) => t == UNKNOWN_TAG,
             (None, None) => false,
         };
-        let cache = pos_pattern
-            .as_ref()
-            .map(|_| (0..TAG_CACHE).map(|_| AtomicU8::new(0)).collect::<Vec<_>>().into_boxed_slice());
+        let cache = pos_pattern.as_ref().map(|_| {
+            (0..TAG_CACHE)
+                .map(|_| AtomicU8::new(0))
+                .collect::<Vec<_>>()
+                .into_boxed_slice()
+        });
         PosToken {
-            exact: if pos_pattern.is_none() { pos_tag.map(Tag::new) } else { None },
+            exact: if pos_pattern.is_none() {
+                pos_tag.map(Tag::new)
+            } else {
+                None
+            },
             pos_tag: pos_tag.map(Arc::from),
             negation,
             pos_pattern,
@@ -229,7 +286,11 @@ impl ChunkTagPattern {
     pub fn new(tag: &str, is_regexp: bool) -> ChunkTagPattern {
         ChunkTagPattern {
             tag: Arc::from(tag),
-            regexp: if is_regexp { re::compile(tag, Flags::default()).ok() } else { None },
+            regexp: if is_regexp {
+                re::compile(tag, Flags::default()).ok()
+            } else {
+                None
+            },
         }
     }
 
@@ -282,7 +343,12 @@ impl PatternToken {
     }
 
     fn trim(&mut self) {
-        for list in [&mut self.current_and_next_exceptions, &mut self.previous_exceptions, &mut self.and_group, &mut self.or_group] {
+        for list in [
+            &mut self.current_and_next_exceptions,
+            &mut self.previous_exceptions,
+            &mut self.and_group,
+            &mut self.or_group,
+        ] {
             list.iter_mut().for_each(PatternToken::trim);
             list.shrink_to_fit();
         }
@@ -319,8 +385,16 @@ impl PatternToken {
     }
 
     /// `new PatternToken(token, caseSensitive, regExp, inflected)`.
-    pub fn from_text(token: &str, case_sensitive: bool, regexp: bool, inflected: bool) -> PatternToken {
-        PatternToken::new(inflected, StringMatcher::create(&normalize_text_pattern(token), regexp, case_sensitive))
+    pub fn from_text(
+        token: &str,
+        case_sensitive: bool,
+        regexp: bool,
+        inflected: bool,
+    ) -> PatternToken {
+        PatternToken::new(
+            inflected,
+            StringMatcher::create(&normalize_text_pattern(token), regexp, case_sensitive),
+        )
     }
 
     pub fn set_text_matcher(&mut self, m: StringMatcher) {
@@ -330,7 +404,11 @@ impl PatternToken {
 
     /// `setStringElement`.
     pub fn set_string_element(&mut self, token: &str) {
-        let m = StringMatcher::create(&normalize_text_pattern(token), self.text.is_regexp, self.text.case_sensitive);
+        let m = StringMatcher::create(
+            &normalize_text_pattern(token),
+            self.text.is_regexp,
+            self.text.case_sensitive,
+        );
         self.set_text_matcher(m);
     }
 
@@ -375,7 +453,12 @@ impl PatternToken {
         }
     }
 
-    pub fn add_exception(&mut self, scope_next: bool, scope_previous: bool, mut exception: PatternToken) {
+    pub fn add_exception(
+        &mut self,
+        scope_next: bool,
+        scope_previous: bool,
+        mut exception: PatternToken,
+    ) {
         exception.exception_valid_next = scope_next;
         if scope_previous {
             self.previous_exceptions.push(exception);
@@ -414,7 +497,9 @@ impl PatternToken {
 
     /// `isSentenceStart`: the element is `postag="SENT_START"`.
     pub fn is_sentence_start(&self) -> bool {
-        self.pos.as_ref().is_some_and(|p| p.pos_tag.as_deref() == Some(SENTENCE_START) && !p.negation)
+        self.pos
+            .as_ref()
+            .is_some_and(|p| p.pos_tag.as_deref() == Some(SENTENCE_START) && !p.negation)
     }
 
     fn is_pos_token_matched(&self, token: &Reading) -> bool {
@@ -454,7 +539,9 @@ impl PatternToken {
 
     /// `isExceptionMatched`: a current-scope exception matches the reading.
     pub fn is_exception_matched(&self, token: &Reading) -> bool {
-        self.current_and_next_exceptions.iter().any(|e| !e.exception_valid_next && e.is_matched(token))
+        self.current_and_next_exceptions
+            .iter()
+            .any(|e| !e.exception_valid_next && e.is_matched(token))
     }
 
     pub fn is_and_exception_group_matched(&self, token: &Reading) -> bool {
@@ -466,28 +553,42 @@ impl PatternToken {
     }
 
     pub fn is_matched_by_scope_next_exception(&self, token: &Reading) -> bool {
-        self.current_and_next_exceptions.iter().any(|e| e.exception_valid_next && e.is_matched(token))
+        self.current_and_next_exceptions
+            .iter()
+            .any(|e| e.exception_valid_next && e.is_matched(token))
     }
 
     pub fn is_matched_by_previous_exception_reading(&self, token: &Reading) -> bool {
-        self.previous_exceptions.iter().any(|e| !e.exception_valid_next && e.is_matched(token))
+        self.previous_exceptions
+            .iter()
+            .any(|e| !e.exception_valid_next && e.is_matched(token))
     }
 
     pub fn is_matched_by_previous_exception(&self, prev: &Readings) -> bool {
-        self.has_previous_exception() && prev.readings.iter().any(|r| self.is_matched_by_previous_exception_reading(r))
+        self.has_previous_exception()
+            && prev
+                .readings
+                .iter()
+                .any(|r| self.is_matched_by_previous_exception_reading(r))
     }
 
     /// `compile`: resolve a `<match no="N"/>` inside this token against the
     /// token it refers to, giving the concrete element to test.
     pub fn compile(&self, token: &Readings, lang: &Lang) -> PatternToken {
         let mut compiled = self.clone();
-        let Some(reference) = &self.token_reference else { return compiled };
+        let Some(reference) = &self.token_reference else {
+            return compiled;
+        };
         let mut state = MatchState::new(reference, lang);
         state.set_token(token);
         let marker = format!("\\{}", reference.token_ref);
         if reference.set_pos {
             if let Some(pos_reference) = state.target_pos_tag() {
-                compiled.pos = Some(Arc::new(PosToken::new(Some(&pos_reference), reference.postag_regexp, self.negation)));
+                compiled.pos = Some(Arc::new(PosToken::new(
+                    Some(&pos_reference),
+                    reference.postag_regexp,
+                    self.negation,
+                )));
             }
             let s = self.string().replace(&marker, "");
             compiled.set_string_element(&s);
@@ -549,7 +650,10 @@ pub fn trim_whitespace(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut i = 0;
     while i < n {
-        while chars[i] <= ' ' && i < n && (i + 1 < n && chars[i + 1] <= ' ' || i > 1 && chars[i - 1] <= ' ') {
+        while chars[i] <= ' '
+            && i < n
+            && (i + 1 < n && chars[i + 1] <= ' ' || i > 1 && chars[i - 1] <= ' ')
+        {
             i += 1;
             if i >= n {
                 break;
@@ -721,7 +825,12 @@ pub trait Synthesizer: Send + Sync {
     fn synthesize(&self, token: &Reading, pos_tag: &str) -> Vec<String>;
 
     /// Same, `pos_tag` being a regular expression when `pos_tag_regexp`.
-    fn synthesize_regexp(&self, token: &Reading, pos_tag: &str, pos_tag_regexp: bool) -> Vec<String>;
+    fn synthesize_regexp(
+        &self,
+        token: &Reading,
+        pos_tag: &str,
+        pos_tag_regexp: bool,
+    ) -> Vec<String>;
 
     /// `getTargetPosTag`: the tag to synthesize, given the tags found on the
     /// token (`BaseSynthesizer`: the last one, or the requested tag).
@@ -772,12 +881,19 @@ pub struct MatchState<'a> {
 impl<'a> MatchState<'a> {
     pub fn new(m: &'a Match, lang: &'a Lang) -> MatchState<'a> {
         let formatted_token = match &m.lemma {
-            Some(lemma) if !lemma.is_empty() => {
-                Some(Readings::new(vec![Reading::from_strs(lemma, m.pos_tag.as_deref(), Some(lemma))], 0))
-            }
+            Some(lemma) if !lemma.is_empty() => Some(Readings::new(
+                vec![Reading::from_strs(lemma, m.pos_tag.as_deref(), Some(lemma))],
+                0,
+            )),
             _ => None,
         };
-        MatchState { m, lang, formatted_token, matched_token: None, skipped_tokens: None }
+        MatchState {
+            m,
+            lang,
+            formatted_token,
+            matched_token: None,
+            skipped_tokens: None,
+        }
     }
 
     /// `setToken(AnalyzedTokenReadings)`.
@@ -802,7 +918,9 @@ impl<'a> MatchState<'a> {
             let mut sb = String::new();
             let end = (index as i64 + next) as usize;
             for k in index + 1..end.min(tokens.len()) {
-                if tokens[k].whitespace_before && !(k == index + 1 && include == IncludeRange::Following) {
+                if tokens[k].whitespace_before
+                    && !(k == index + 1 && include == IncludeRange::Following)
+                {
                     sb.push(' ');
                 }
                 sb.push_str(&tokens[k].token);
@@ -845,7 +963,11 @@ impl<'a> MatchState<'a> {
             if self.m.static_lemma {
                 if let Some(mut matched) = self.matched_token.take() {
                     let lemma_token = self.formatted_token.as_ref().unwrap().token.clone();
-                    let wanted = Reading::new(matched.readings[0].token.clone(), self.m.pos_tag.as_deref().map(Tag::new), Some(lemma_token));
+                    let wanted = Reading::new(
+                        matched.readings[0].token.clone(),
+                        self.m.pos_tag.as_deref().map(Tag::new),
+                        Some(lemma_token),
+                    );
                     matched.leave_reading(&wanted);
                     self.matched_token = Some(matched.clone());
                     self.formatted_token = Some(matched);
@@ -867,7 +989,11 @@ impl<'a> MatchState<'a> {
                                         Some(repl) => pre.replace_all(test_tag, repl),
                                         None => test_tag.to_string(),
                                     };
-                                    let mut n = Reading::new(Arc::from(token.as_str()), Some(Tag::new(&target)), r.lemma.clone());
+                                    let mut n = Reading::new(
+                                        Arc::from(token.as_str()),
+                                        Some(Tag::new(&target)),
+                                        r.lemma.clone(),
+                                    );
                                     n.whitespace_before = formatted.whitespace_before;
                                     l.push(n);
                                 }
@@ -883,10 +1009,18 @@ impl<'a> MatchState<'a> {
                 let _ = pos_tag;
                 let lemma = formatted.readings[0].lemma.clone();
                 if formatted.is_sent_end {
-                    l.push(Reading::new(formatted.token.clone(), Some(Tag::new(SENTENCE_END)), lemma.clone()));
+                    l.push(Reading::new(
+                        formatted.token.clone(),
+                        Some(Tag::new(SENTENCE_END)),
+                        lemma.clone(),
+                    ));
                 }
                 if formatted.is_para_end {
-                    l.push(Reading::new(formatted.token.clone(), Some(Tag::new(PARAGRAPH_END)), lemma));
+                    l.push(Reading::new(
+                        formatted.token.clone(),
+                        Some(Tag::new(PARAGRAPH_END)),
+                        lemma,
+                    ));
                 }
             }
         }
@@ -910,7 +1044,11 @@ impl<'a> MatchState<'a> {
         let mut target = self.m.pos_tag.as_deref().map(str::to_string);
         let synth = self.lang.synthesizer.as_deref();
         let mut pos_tags: Vec<String> = Vec::new();
-        let source = if self.m.static_lemma { self.matched_token.as_ref() } else { self.formatted_token.as_ref() };
+        let source = if self.m.static_lemma {
+            self.matched_token.as_ref()
+        } else {
+            self.formatted_token.as_ref()
+        };
         if let (Some(tok), Some(pre)) = (source, &self.m.pos_regex_match) {
             for r in &tok.readings {
                 if let Some(t) = r.pos() {
@@ -979,7 +1117,8 @@ impl<'a> MatchState<'a> {
                                         word_forms.insert(formatted.token.to_string());
                                         one_form = true;
                                     }
-                                    Some(SENTENCE_START) | Some(SENTENCE_END) | Some(PARAGRAPH_END) => {
+                                    Some(SENTENCE_START) | Some(SENTENCE_END)
+                                    | Some(PARAGRAPH_END) => {
                                         if !one_form {
                                             word_forms.insert(formatted.token.to_string());
                                         }
@@ -1014,9 +1153,15 @@ impl<'a> MatchState<'a> {
             }
         }
         let original: String = if self.m.static_lemma {
-            self.matched_token.as_ref().map(|t| t.token.to_string()).unwrap_or_default()
+            self.matched_token
+                .as_ref()
+                .map(|t| t.token.to_string())
+                .unwrap_or_default()
         } else {
-            self.formatted_token.as_ref().map(|t| t.token.to_string()).unwrap_or_default()
+            self.formatted_token
+                .as_ref()
+                .map(|t| t.token.to_string())
+                .unwrap_or_default()
         };
         for s in formatted_string.iter_mut() {
             *s = self.convert(s, &original);
@@ -1065,7 +1210,10 @@ mod tests {
         assert!(!StringMatcher::create("Tout", false, true).matches("tout"));
         let m = StringMatcher::create("tout|toute|toutes", true, false);
         assert!(m.matches("Toutes"));
-        assert!(!m.matches("toutou"), "a token regex must match the whole token");
+        assert!(
+            !m.matches("toutou"),
+            "a token regex must match the whole token"
+        );
         assert_eq!(m.possible_values().map(|v| v.len()), Some(3));
         // A regex with one possible value is a plain comparison.
         let m = StringMatcher::create("(?:être)", true, false);
@@ -1092,7 +1240,10 @@ mod tests {
         let mut t = PatternToken::from_text("", false, false, false);
         t.pos = Some(Arc::new(PosToken::new(Some("V .* ppa.*"), true, false)));
         assert!(t.is_matched(&rd("mangé", Some("V etre ppa m s"), Some("manger"))));
-        assert!(!t.is_matched(&rd("mangé", Some("V ppa m s"), Some("manger"))), "whole-tag match");
+        assert!(
+            !t.is_matched(&rd("mangé", Some("V ppa m s"), Some("manger"))),
+            "whole-tag match"
+        );
         assert!(!t.is_matched(&rd("xyz", None, None)));
         // negate_pos
         t.pos = Some(Arc::new(PosToken::new(Some("N.*"), true, true)));
@@ -1126,33 +1277,75 @@ mod tests {
             e.pos = Some(Arc::new(PosToken::new(Some("N.*"), true, false)));
             e
         });
-        t.add_exception(true, false, PatternToken::from_text("beau", false, false, false));
-        t.add_exception(false, true, PatternToken::from_text("il", false, false, false));
+        t.add_exception(
+            true,
+            false,
+            PatternToken::from_text("beau", false, false, false),
+        );
+        t.add_exception(
+            false,
+            true,
+            PatternToken::from_text("il", false, false, false),
+        );
         assert!(t.is_exception_matched(&rd("a", Some("N m sp"), Some("a"))));
         assert!(!t.is_exception_matched(&rd("a", Some("V avoir ind pres 3 s"), Some("avoir"))));
         assert!(t.is_matched_by_scope_next_exception(&rd("beau", None, None)));
-        assert!(!t.is_exception_matched(&rd("beau", None, None)), "a next-scope exception is not a current one");
+        assert!(
+            !t.is_exception_matched(&rd("beau", None, None)),
+            "a next-scope exception is not a current one"
+        );
         let prev = Readings::new(vec![rd("Il", None, None)], 0);
         assert!(t.is_matched_by_previous_exception(&prev));
     }
 
     #[test]
     fn case_conversion() {
-        assert_eq!(convert_case(CaseConversion::Preserve, "chat", "Chien"), "Chat");
-        assert_eq!(convert_case(CaseConversion::Preserve, "chat", "CHIEN"), "CHAT");
-        assert_eq!(convert_case(CaseConversion::Preserve, "chat", "chien"), "chat");
-        assert_eq!(convert_case(CaseConversion::StartLower, "École", ""), "école");
-        assert_eq!(convert_case(CaseConversion::StartUpper, "école", ""), "École");
-        assert_eq!(convert_case(CaseConversion::FirstUpper, "éCOLE", ""), "École");
+        assert_eq!(
+            convert_case(CaseConversion::Preserve, "chat", "Chien"),
+            "Chat"
+        );
+        assert_eq!(
+            convert_case(CaseConversion::Preserve, "chat", "CHIEN"),
+            "CHAT"
+        );
+        assert_eq!(
+            convert_case(CaseConversion::Preserve, "chat", "chien"),
+            "chat"
+        );
+        assert_eq!(
+            convert_case(CaseConversion::StartLower, "École", ""),
+            "école"
+        );
+        assert_eq!(
+            convert_case(CaseConversion::StartUpper, "école", ""),
+            "École"
+        );
+        assert_eq!(
+            convert_case(CaseConversion::FirstUpper, "éCOLE", ""),
+            "École"
+        );
         assert_eq!(convert_case(CaseConversion::AllUpper, "école", ""), "ÉCOLE");
     }
 
     #[test]
     fn match_regex_replacement_without_synthesis() {
-        let m = Match::new(None, None, false, Some("(.*)s$"), Some("$1"), CaseConversion::None, false, false, IncludeRange::None);
+        let m = Match::new(
+            None,
+            None,
+            false,
+            Some("(.*)s$"),
+            Some("$1"),
+            CaseConversion::None,
+            false,
+            false,
+            IncludeRange::None,
+        );
         let lang = Lang::default();
         let mut st = MatchState::new(&m, &lang);
-        st.set_token(&Readings::new(vec![rd("chats", Some("N m p"), Some("chat"))], 0));
+        st.set_token(&Readings::new(
+            vec![rd("chats", Some("N m p"), Some("chat"))],
+            0,
+        ));
         assert_eq!(st.to_final_string(false), vec!["chat".to_string()]);
     }
 
@@ -1162,10 +1355,18 @@ mod tests {
         assert_eq!(t.calc_string_hints(false).map(|s| s.len()), Some(2));
         assert_eq!(t.calc_string_hints(true), None);
         let t = PatternToken::from_text("être", false, false, true);
-        assert_eq!(t.calc_string_hints(true).map(|s| s.into_iter().collect::<Vec<_>>()), Some(vec!["être".to_string()]));
+        assert_eq!(
+            t.calc_string_hints(true)
+                .map(|s| s.into_iter().collect::<Vec<_>>()),
+            Some(vec!["être".to_string()])
+        );
         let mut t = PatternToken::from_text("le", false, false, false);
         t.may_be_omitted = true;
-        assert_eq!(t.calc_string_hints(false), None, "an optional token gives no hint");
+        assert_eq!(
+            t.calc_string_hints(false),
+            None,
+            "an optional token gives no hint"
+        );
     }
 
     #[test]

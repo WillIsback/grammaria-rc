@@ -41,7 +41,10 @@ impl Manual {
             if !tags.iter().any(|t| t == parts[2]) {
                 tags.push(parts[2].to_string());
             }
-            forms.entry((parts[1].to_string(), parts[2].to_string())).or_default().push(parts[0].to_string());
+            forms
+                .entry((parts[1].to_string(), parts[2].to_string()))
+                .or_default()
+                .push(parts[0].to_string());
         }
         Manual { forms, tags }
     }
@@ -71,8 +74,12 @@ impl FrenchSynthesizer {
     /// `removed.txt` from LanguageTool's French resource directory.
     pub fn load(dir: &Path) -> std::io::Result<FrenchSynthesizer> {
         let dict = Dictionary::load(dir.join("french_synth.dict"), dir.join("french_synth.info"))?;
-        let manual = std::fs::read_to_string(dir.join("added.txt")).ok().map(|c| Manual::parse(&c));
-        let removal = std::fs::read_to_string(dir.join("removed.txt")).ok().map(|c| Manual::parse(&c));
+        let manual = std::fs::read_to_string(dir.join("added.txt"))
+            .ok()
+            .map(|c| Manual::parse(&c));
+        let removal = std::fs::read_to_string(dir.join("removed.txt"))
+            .ok()
+            .map(|c| Manual::parse(&c));
         let mut tags: Vec<String> = std::fs::read_to_string(dir.join("french_tags.txt"))?
             .lines()
             .map(str::trim)
@@ -86,9 +93,21 @@ impl FrenchSynthesizer {
                 }
             }
         }
-        let number_speller = std::fs::read_to_string(dir.join("fr.sor")).ok().map(|source| Soros::new(&source, "fr"));
-        let roman_numberer = std::fs::read_to_string(dir.join("Roman.sor")).ok().map(|source| Soros::new(&source, "Roman"));
-        Ok(FrenchSynthesizer { dict, manual, removal, tags, by_regex: Mutex::new(HashMap::new()), number_speller, roman_numberer })
+        let number_speller = std::fs::read_to_string(dir.join("fr.sor"))
+            .ok()
+            .map(|source| Soros::new(&source, "fr"));
+        let roman_numberer = std::fs::read_to_string(dir.join("Roman.sor"))
+            .ok()
+            .map(|source| Soros::new(&source, "Roman"));
+        Ok(FrenchSynthesizer {
+            dict,
+            manual,
+            removal,
+            tags,
+            by_regex: Mutex::new(HashMap::new()),
+            number_speller,
+            roman_numberer,
+        })
     }
 
     /// `BaseSynthesizer.lookup`.
@@ -124,7 +143,9 @@ impl FrenchSynthesizer {
                 Some(a) => a.clone(),
                 None => {
                     let list: Vec<usize> = match re::Regex::new(tag_regex, re::Flags::default()) {
-                        Ok(regex) => (0..self.tags.len()).filter(|&i| regex.is_full_match(&self.tags[i])).collect(),
+                        Ok(regex) => (0..self.tags.len())
+                            .filter(|&i| regex.is_full_match(&self.tags[i]))
+                            .collect(),
                         Err(_) => Vec::new(),
                     };
                     let list = Arc::new(list);
@@ -156,20 +177,34 @@ impl Synthesizer for FrenchSynthesizer {
         };
         match pos_tag {
             "_spell_number_" => return vec![spell(&self.number_speller, &token.token)],
-            "_spell_number_:feminine" => return vec![spell(&self.number_speller, &format!("feminine {}", token.token))],
+            "_spell_number_:feminine" => {
+                return vec![spell(
+                    &self.number_speller,
+                    &format!("feminine {}", token.token),
+                )]
+            }
             "_spell_number_:Roman" => return vec![spell(&self.roman_numberer, &token.token)],
             _ => {}
         }
-        let Some(lemma) = token.lemma.as_deref() else { return Vec::new() };
+        let Some(lemma) = token.lemma.as_deref() else {
+            return Vec::new();
+        };
         let mut results: Vec<String> = Vec::new();
         self.lookup(lemma, pos_tag, &mut results);
         results.retain(|w| !Self::is_exception(w));
         results
     }
 
-    fn synthesize_regexp(&self, token: &Reading, pos_tag: &str, pos_tag_regexp: bool) -> Vec<String> {
+    fn synthesize_regexp(
+        &self,
+        token: &Reading,
+        pos_tag: &str,
+        pos_tag_regexp: bool,
+    ) -> Vec<String> {
         if pos_tag_regexp {
-            let Some(lemma) = token.lemma.as_deref() else { return Vec::new() };
+            let Some(lemma) = token.lemma.as_deref() else {
+                return Vec::new();
+            };
             return self.synthesize_for_tag_regex(lemma, pos_tag);
         }
         self.synthesize(token, pos_tag)
@@ -190,10 +225,16 @@ mod tests {
         let chanter = Reading::from_strs("chante", Some("V ind pres 3 s"), Some("chanter"));
         assert_eq!(synth.synthesize(&chanter, "V ind pres 1 p"), ["chantons"]);
         let cheval = Reading::from_strs("cheval", Some("N m s"), Some("cheval"));
-        assert_eq!(synth.synthesize_regexp(&cheval, "N m p", false), ["chevaux"]);
+        assert_eq!(
+            synth.synthesize_regexp(&cheval, "N m p", false),
+            ["chevaux"]
+        );
         let seven = Reading::from_strs("7", None, None);
         assert_eq!(synth.synthesize(&seven, "_spell_number_"), ["sept"]);
         let forms = synth.synthesize_regexp(&cheval, "N m .", true);
-        assert!(forms.contains(&"cheval".to_string()) && forms.contains(&"chevaux".to_string()), "{forms:?}");
+        assert!(
+            forms.contains(&"cheval".to_string()) && forms.contains(&"chevaux".to_string()),
+            "{forms:?}"
+        );
     }
 }

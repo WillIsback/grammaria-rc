@@ -93,8 +93,15 @@ impl RuleFilter for InterrogativeVerbFilter {
             Some(verb_imperative())
         } else if first_s().matches_tagged(pronoun) {
             // "trompé-je", "trompè-je" for a verb in -er.
-            if let (Some(reading), Some(synth)) = (verb.readings.iter().find(|r| any_verb().matches_tag(r)), &ctx.lang.synthesizer) {
-                if let Some(base) = synth.synthesize_regexp(reading, "V ppa [me] sp?", true).first().and_then(|p| p.strip_suffix('é')) {
+            if let (Some(reading), Some(synth)) = (
+                verb.readings.iter().find(|r| any_verb().matches_tag(r)),
+                &ctx.lang.synthesizer,
+            ) {
+                if let Some(base) = synth
+                    .synthesize_regexp(reading, "V ppa [me] sp?", true)
+                    .first()
+                    .and_then(|p| p.strip_suffix('é'))
+                {
                     extra_suggestions.push(format!("{base}é"));
                     extra_suggestions.push(format!("{base}è"));
                 }
@@ -113,7 +120,11 @@ impl RuleFilter for InterrogativeVerbFilter {
         } else {
             None
         };
-        let separator = if pronoun.token.starts_with('-') { "" } else { "-" };
+        let separator = if pronoun.token.starts_with('-') {
+            ""
+        } else {
+            "-"
+        };
         if !extra_suggestions.is_empty() {
             for extra in &extra_suggestions {
                 let complete = format!("{extra}{separator}{}", pronoun.token);
@@ -121,7 +132,9 @@ impl RuleFilter for InterrogativeVerbFilter {
                     replacements.push(complete);
                 }
             }
-        } else if let (Some(desired), Some(speller), Some(tagger)) = (desired, &ctx.lang.speller, &ctx.lang.tagger) {
+        } else if let (Some(desired), Some(speller), Some(tagger)) =
+            (desired, &ctx.lang.speller, &ctx.lang.tagger)
+        {
             // `morfologikRule.match` on the verb alone: a known verb is
             // misspelt on purpose, an unknown one is checked as written
             // (unless the speller is told to leave it alone).
@@ -190,40 +203,86 @@ mod tests {
     #[test]
     fn keeps_the_suggestions_that_fit_the_pronoun() {
         let Some(mut ctx) = context() else { return };
-        ctx.lang.speller = Some(Arc::new(FixedSpeller(&["manges", "mange", "manger", "mangez"])));
-        let s = sentence(&[("Mange", &[("V ind pres 3 s", "manger")]), ("-tu", &[("R pers suj 2 s", "tu")])]);
+        ctx.lang.speller = Some(Arc::new(FixedSpeller(&[
+            "manges", "mange", "manger", "mangez",
+        ])));
+        let s = sentence(&[
+            ("Mange", &[("V ind pres 3 s", "manger")]),
+            ("-tu", &[("R pers suj 2 s", "tu")]),
+        ]);
         let tokens = s.non_ws_tokens();
         let a = args(&[("PronounFrom", "2"), ("VerbFrom", "1")]);
-        let out = InterrogativeVerbFilter.accept(match_over(&s, 1, 2, ""), &a, 1, &tokens[1..], &[1, 1], &s, &ctx).unwrap();
+        let out = InterrogativeVerbFilter
+            .accept(
+                match_over(&s, 1, 2, ""),
+                &a,
+                1,
+                &tokens[1..],
+                &[1, 1],
+                &s,
+                &ctx,
+            )
+            .unwrap();
         assert_eq!(out.suggestions, ["manges-tu"]);
 
         // Object pronoun of the second person plural: only the "vous" form
         // fits ("mange" is tagged "V imp pres 2 s", which the filter's
         // imperative pattern does not cover).
-        let s = sentence(&[("Mange", &[("V ind pres 3 s", "manger")]), ("-vous", &[("R pers obj 2 p", "vous")])]);
+        let s = sentence(&[
+            ("Mange", &[("V ind pres 3 s", "manger")]),
+            ("-vous", &[("R pers obj 2 p", "vous")]),
+        ]);
         let tokens = s.non_ws_tokens();
-        let out = InterrogativeVerbFilter.accept(match_over(&s, 1, 2, ""), &a, 1, &tokens[1..], &[1, 1], &s, &ctx).unwrap();
+        let out = InterrogativeVerbFilter
+            .accept(
+                match_over(&s, 1, 2, ""),
+                &a,
+                1,
+                &tokens[1..],
+                &[1, 1],
+                &s,
+                &ctx,
+            )
+            .unwrap();
         assert_eq!(out.suggestions, ["mangez-vous"]);
     }
 
     #[test]
     fn first_person_of_a_verb_in_er() {
         let Some(ctx) = context() else { return };
-        let s = sentence(&[("trompe", &[("V ind pres 1 s", "tromper")]), ("-je", &[("R pers suj 1 s", "je")])]);
+        let s = sentence(&[
+            ("trompe", &[("V ind pres 1 s", "tromper")]),
+            ("-je", &[("R pers suj 1 s", "je")]),
+        ]);
         let tokens = s.non_ws_tokens();
         let a = args(&[("PronounFrom", "2"), ("VerbFrom", "1")]);
-        let out = InterrogativeVerbFilter.accept(match_over(&s, 1, 2, ""), &a, 1, &tokens[1..], &[1, 1], &s, &ctx).unwrap();
+        let out = InterrogativeVerbFilter
+            .accept(
+                match_over(&s, 1, 2, ""),
+                &a,
+                1,
+                &tokens[1..],
+                &[1, 1],
+                &s,
+                &ctx,
+            )
+            .unwrap();
         assert_eq!(out.suggestions, ["trompé-je", "trompè-je"]);
     }
 
     #[test]
     fn without_a_speller_the_match_keeps_the_suggestions_of_its_message() {
         let Some(ctx) = context() else { return };
-        let s = sentence(&[("Mange", &[("V ind pres 3 s", "manger")]), ("-tu", &[("R pers suj 2 s", "tu")])]);
+        let s = sentence(&[
+            ("Mange", &[("V ind pres 3 s", "manger")]),
+            ("-tu", &[("R pers suj 2 s", "tu")]),
+        ]);
         let tokens = s.non_ws_tokens();
         let a = args(&[("PronounFrom", "2"), ("VerbFrom", "1")]);
         let m = match_over(&s, 1, 2, "Écrivez <suggestion>manges-tu</suggestion>.");
-        let out = InterrogativeVerbFilter.accept(m, &a, 1, &tokens[1..], &[1, 1], &s, &ctx).unwrap();
+        let out = InterrogativeVerbFilter
+            .accept(m, &a, 1, &tokens[1..], &[1, 1], &s, &ctx)
+            .unwrap();
         assert_eq!(out.suggestions, ["manges-tu"]);
     }
 }

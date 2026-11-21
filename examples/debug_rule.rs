@@ -27,7 +27,11 @@ fn main() {
     }
     let mut lang = Lang::default();
     lang.synthesizer = FrenchSynthesizer::load(dir).ok().map(|s| Arc::new(s) as _);
-    let ctx = RuleContext { lang, unifier, disambig_unifier: UnifierConfiguration::default() };
+    let ctx = RuleContext {
+        lang,
+        unifier,
+        disambig_unifier: UnifierConfiguration::default(),
+    };
     for s in sentences_from_dump(line) {
         println!("sentence: {:?}", &*s.text);
         for (i, rule) in rules.iter().enumerate() {
@@ -35,22 +39,40 @@ fn main() {
             if info.full_id() != *wanted && info.id != *wanted {
                 continue;
             }
-            let GrammarRule::Pattern(p) = rule else { continue };
+            let GrammarRule::Pattern(p) = rule else {
+                continue;
+            };
             let raw = p.rule.match_sentence(i, &s, &ctx, &ctx.unifier);
             if raw.is_empty() {
                 continue;
             }
-            println!("{} raw: {:?}", info.full_id(), raw.iter().map(|m| (&s.text[m.from_pos..m.to_pos], &m.suggestions)).collect::<Vec<_>>());
+            println!(
+                "{} raw: {:?}",
+                info.full_id(),
+                raw.iter()
+                    .map(|m| (&s.text[m.from_pos..m.to_pos], &m.suggestions))
+                    .collect::<Vec<_>>()
+            );
             for (k, ap) in p.anti_patterns.iter().enumerate() {
                 if let Some(next) = ap.replace(&s, &ctx) {
-                    let imm: Vec<&str> = next.tokens.iter().filter(|t| t.immunized).map(|t| &*t.token).collect();
+                    let imm: Vec<&str> = next
+                        .tokens
+                        .iter()
+                        .filter(|t| t.immunized)
+                        .map(|t| &*t.token)
+                        .collect();
                     if !imm.is_empty() {
                         println!("  antipattern #{k} immunizes {imm:?}");
                     }
                 }
             }
             let fin = p.match_sentence(i, &s, &ctx);
-            println!("  final: {:?}", fin.iter().map(|m| &s.text[m.from_pos..m.to_pos]).collect::<Vec<_>>());
+            println!(
+                "  final: {:?}",
+                fin.iter()
+                    .map(|m| &s.text[m.from_pos..m.to_pos])
+                    .collect::<Vec<_>>()
+            );
         }
     }
 }

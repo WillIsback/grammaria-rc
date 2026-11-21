@@ -62,18 +62,28 @@ impl FrenchSpelling {
     /// `dictionary` is `french.dict` (the dictionary the French speller rule
     /// names, which is also the tagger's), `tagger` the French tagger and
     /// `tokenize` the French word tokenizer.
-    pub fn load(assets: &Path, dictionary: Arc<Dictionary>, tagger: Arc<dyn WordTagger>, tokenize: Tokenize) -> std::io::Result<FrenchSpelling> {
+    pub fn load(
+        assets: &Path,
+        dictionary: Arc<Dictionary>,
+        tagger: Arc<dyn WordTagger>,
+        tokenize: Tokenize,
+    ) -> std::io::Result<FrenchSpelling> {
         // The multi-word entries are indexed while the rule loads.
         let (rule, entries) = std::thread::scope(|scope| {
             let entries = scope.spawn(|| MultitokenEntries::french(assets));
-            let rule = FrenchSpellerRule::load(assets, dictionary, tagger.clone(), tokenize.clone());
+            let rule =
+                FrenchSpellerRule::load(assets, dictionary, tagger.clone(), tokenize.clone());
             (rule, entries.join().expect("multi-word thread panicked"))
         });
         let rule = Arc::new(rule?);
         let multitoken_speller = Arc::new(MultitokenSpeller::new(rule.clone(), entries));
         Ok(FrenchSpelling {
             find_suggestions: Arc::new(FindSuggestionsFilter::new(rule.clone(), tagger.clone())),
-            suppress_misspelled: Arc::new(SuppressMisspelledSuggestionsFilter::new(rule.clone(), tagger.clone(), tokenize)),
+            suppress_misspelled: Arc::new(SuppressMisspelledSuggestionsFilter::new(
+                rule.clone(),
+                tagger.clone(),
+                tokenize,
+            )),
             multitoken: Arc::new(MultitokenSpellerFilter::new(multitoken_speller)),
             rule,
             tagger,
@@ -83,7 +93,10 @@ impl FrenchSpelling {
     /// [`FrenchSpelling::load`] with the provisional tagger and tokenizer of
     /// [`stopgap`], until the engine's own are available.
     pub fn load_with_stopgaps(assets: &Path) -> std::io::Result<FrenchSpelling> {
-        let dictionary = Arc::new(Dictionary::load(assets.join("french.dict"), assets.join("french.info"))?);
+        let dictionary = Arc::new(Dictionary::load(
+            assets.join("french.dict"),
+            assets.join("french.info"),
+        )?);
         let tagger = Arc::new(stopgap::StopgapTagger::new(dictionary.clone(), assets));
         let tokenizer = stopgap::StopgapTokenizer::new(tagger.clone());
         let tokenize: Tokenize = Arc::new(move |text: &str| tokenizer.tokenize(text));
@@ -139,7 +152,10 @@ pub(crate) mod testing {
         TOOLS
             .get_or_init(|| {
                 let assets = std::path::Path::new("assets/fr/lt");
-                let dictionary = Arc::new(Dictionary::load(assets.join("french.dict"), assets.join("french.info")).ok()?);
+                let dictionary = Arc::new(
+                    Dictionary::load(assets.join("french.dict"), assets.join("french.info"))
+                        .ok()?,
+                );
                 let tagger = Arc::new(StopgapTagger::new(dictionary, assets));
                 Some(Tools {
                     spelling: FrenchSpelling::load_with_stopgaps(assets).ok()?,
@@ -154,7 +170,10 @@ pub(crate) mod testing {
         /// One sentence: `SENT_START`, then the tokens of `text` with the
         /// readings the tagger gives them.
         pub fn analyse(&self, text: &str) -> Sentence {
-            let mut tokens = vec![Readings::new(vec![Reading::from_strs("", Some(SENTENCE_START), None)], 0)];
+            let mut tokens = vec![Readings::new(
+                vec![Reading::from_strs("", Some(SENTENCE_START), None)],
+                0,
+            )];
             let mut pos = 0;
             let mut previous: Arc<str> = Arc::from("");
             for token in self.tokenizer.tokenize(text) {

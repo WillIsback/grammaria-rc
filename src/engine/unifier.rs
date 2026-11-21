@@ -33,7 +33,10 @@ impl UnifierConfiguration {
             return;
         }
         self.types.insert(key, Arc::new(elem));
-        self.features.entry(feature.to_string()).or_default().push(type_name.to_string());
+        self.features
+            .entry(feature.to_string())
+            .or_default()
+            .push(type_name.to_string());
     }
 
     pub fn is_empty(&self) -> bool {
@@ -86,7 +89,11 @@ impl<'c> Unifier<'c> {
 
     fn types_of<'a>(&'a self, feature: &str, listed: &'a [String]) -> &'a [String] {
         if listed.is_empty() {
-            self.config.features.get(feature).map(Vec::as_slice).unwrap_or(&[])
+            self.config
+                .features
+                .get(feature)
+                .map(Vec::as_slice)
+                .unwrap_or(&[])
         } else {
             listed
         }
@@ -102,12 +109,15 @@ impl<'c> Unifier<'c> {
             unified = self.check_next(token, features);
         } else {
             while self.equivalences_matched.len() <= self.tok_cnt {
-                self.equivalences_matched.push(Rc::new(RefCell::new(HashMap::new())));
+                self.equivalences_matched
+                    .push(Rc::new(RefCell::new(HashMap::new())));
             }
             for (feature, listed) in features.iter() {
                 let types: Vec<String> = self.types_of(feature, listed).to_vec();
                 for type_name in &types {
-                    let Some(test_elem) = self.config.types.get(&(feature.clone(), type_name.clone())) else {
+                    let Some(test_elem) =
+                        self.config.types.get(&(feature.clone(), type_name.clone()))
+                    else {
                         return false;
                     };
                     if test_elem.is_matched(token) {
@@ -118,7 +128,9 @@ impl<'c> Unifier<'c> {
                             .insert(type_name.clone());
                     }
                 }
-                unified = self.equivalences_matched[self.tok_cnt].borrow().contains_key(feature);
+                unified = self.equivalences_matched[self.tok_cnt]
+                    .borrow()
+                    .contains_key(feature);
                 if !unified {
                     self.equivalences_matched.remove(self.tok_cnt);
                     break;
@@ -127,7 +139,8 @@ impl<'c> Unifier<'c> {
             if unified {
                 let equiv = self.equivalences_matched[self.tok_cnt].clone();
                 if self.tok_cnt == 0 || self.tok_sequence.is_empty() {
-                    self.tok_sequence.push(Readings::new(vec![token.clone()], 0));
+                    self.tok_sequence
+                        .push(Readings::new(vec![token.clone()], 0));
                     self.tok_sequence_equivalences.push(vec![equiv]);
                 } else {
                     self.tok_sequence[0].add_reading(token.clone());
@@ -150,10 +163,11 @@ impl<'c> Unifier<'c> {
                     let mut feat_unified = false;
                     let types: Vec<String> = self.types_of(feature, listed).to_vec();
                     for type_name in &types {
-                        let present = self
-                            .equivalences_matched
-                            .get(i)
-                            .is_some_and(|m| m.borrow().get(feature).is_some_and(|s| s.contains(type_name)));
+                        let present = self.equivalences_matched.get(i).is_some_and(|m| {
+                            m.borrow()
+                                .get(feature)
+                                .is_some_and(|s| s.contains(type_name))
+                        });
                         if present {
                             let matched = self
                                 .config
@@ -162,8 +176,14 @@ impl<'c> Unifier<'c> {
                                 .is_some_and(|e| e.is_matched(token));
                             feat_unified = feat_unified || matched;
                             if matched {
-                                self.equivalences_to_be_kept.entry(feature.clone()).or_default().insert(type_name.clone());
-                                here.borrow_mut().entry(feature.clone()).or_default().insert(type_name.clone());
+                                self.equivalences_to_be_kept
+                                    .entry(feature.clone())
+                                    .or_default()
+                                    .insert(type_name.clone());
+                                here.borrow_mut()
+                                    .entry(feature.clone())
+                                    .or_default()
+                                    .insert(type_name.clone());
                             }
                         }
                     }
@@ -176,7 +196,8 @@ impl<'c> Unifier<'c> {
             }
             if any_feat_unified {
                 if self.tok_sequence.len() == self.readings_counter {
-                    self.tok_sequence.push(Readings::new(vec![token.clone()], 0));
+                    self.tok_sequence
+                        .push(Readings::new(vec![token.clone()], 0));
                     self.tok_sequence_equivalences.push(vec![here]);
                 } else if self.readings_counter < self.tok_sequence.len() {
                     self.tok_sequence[self.readings_counter].add_reading(token.clone());
@@ -231,7 +252,11 @@ impl<'c> Unifier<'c> {
     }
 
     pub fn final_unification_value(&self, features: &UniFeatures) -> bool {
-        let wanted = self.unification_feats.as_ref().map(|f| f.len()).unwrap_or(0);
+        let wanted = self
+            .unification_feats
+            .as_ref()
+            .map(|f| f.len())
+            .unwrap_or(0);
         let mut tok_unified = 0usize;
         for j in 0..self.tok_sequence.len() {
             let mut unified_tokens_found = false;
@@ -292,7 +317,9 @@ impl<'c> Unifier<'c> {
                 let map = equiv.borrow();
                 let mut feat_unified = 0usize;
                 let add = |out: &mut Vec<Readings>| {
-                    let Some(reading) = self.tok_sequence[j].readings.get(i) else { return };
+                    let Some(reading) = self.tok_sequence[j].readings.get(i) else {
+                        return;
+                    };
                     if out.len() <= j || out.is_empty() {
                         out.push(Readings::new(vec![reading.clone()], 0));
                     } else {
@@ -325,7 +352,12 @@ impl<'c> Unifier<'c> {
 
     /// `isUnified(matchToken, uFeatures, lastReading)`: feed one reading of
     /// the current token; `last_reading` closes the token.
-    pub fn is_unified(&mut self, token: &Reading, features: &Arc<UniFeatures>, last_reading: bool) -> bool {
+    pub fn is_unified(
+        &mut self,
+        token: &Reading,
+        features: &Arc<UniFeatures>,
+        last_reading: bool,
+    ) -> bool {
         if self.in_unification {
             let sat = self.is_satisfied(token, features);
             self.uni_matched |= sat;
@@ -350,8 +382,10 @@ impl<'c> Unifier<'c> {
     pub fn add_neutral_element(&mut self, token: &Readings) {
         self.tok_sequence.push(token.clone());
         let map: Equiv = Rc::new(RefCell::new(HashMap::new()));
-        map.borrow_mut().insert(UNIFY_IGNORE.to_string(), HashSet::new());
-        self.tok_sequence_equivalences.push(token.readings.iter().map(|_| map.clone()).collect());
+        map.borrow_mut()
+            .insert(UNIFY_IGNORE.to_string(), HashSet::new());
+        self.tok_sequence_equivalences
+            .push(token.readings.iter().map(|_| map.clone()).collect());
         self.readings_counter += 1;
     }
 
@@ -410,14 +444,29 @@ mod tests {
         assert!(unify(&[&["D m s"], &["N m s"]], &["number", "gender"]));
         assert!(!unify(&[&["D m s"], &["N m p"]], &["number", "gender"]));
         assert!(!unify(&[&["D f s"], &["N m s"]], &["number", "gender"]));
-        assert!(unify(&[&["D f s"], &["N m s"]], &["number"]), "only the listed features count");
+        assert!(
+            unify(&[&["D f s"], &["N m s"]], &["number"]),
+            "only the listed features count"
+        );
     }
 
     #[test]
     fn one_agreeing_reading_is_enough() {
-        assert!(unify(&[&["D m s"], &["N m p", "N m s"]], &["number", "gender"]));
-        assert!(unify(&[&["D m s", "D f s"], &["N f s"]], &["number", "gender"]));
-        assert!(unify(&[&["D m s"], &["J m s"], &["N m s"]], &["number", "gender"]));
-        assert!(!unify(&[&["D m s"], &["J m s"], &["N f s"]], &["number", "gender"]));
+        assert!(unify(
+            &[&["D m s"], &["N m p", "N m s"]],
+            &["number", "gender"]
+        ));
+        assert!(unify(
+            &[&["D m s", "D f s"], &["N f s"]],
+            &["number", "gender"]
+        ));
+        assert!(unify(
+            &[&["D m s"], &["J m s"], &["N m s"]],
+            &["number", "gender"]
+        ));
+        assert!(!unify(
+            &[&["D m s"], &["J m s"], &["N f s"]],
+            &["number", "gender"]
+        ));
     }
 }

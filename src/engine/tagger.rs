@@ -94,7 +94,10 @@ impl TextDictionary {
                 entry => {
                     let offset = entry as usize - 1;
                     let rest = &self.data.as_bytes()[offset..];
-                    if rest.len() > word.len() && rest[word.len()] == b'\t' && &rest[..word.len()] == word.as_bytes() {
+                    if rest.len() > word.len()
+                        && rest[word.len()] == b'\t'
+                        && &rest[..word.len()] == word.as_bytes()
+                    {
                         return Some(offset);
                     }
                 }
@@ -109,7 +112,9 @@ impl WordDictionary for TextDictionary {
         if word.is_empty() || word.contains(['\t', '\n']) {
             return;
         }
-        let Some(offset) = self.find(word) else { return };
+        let Some(offset) = self.find(word) else {
+            return;
+        };
         for line in self.data[offset..].lines() {
             let mut fields = line.split('\t');
             if fields.next() != Some(word) {
@@ -148,7 +153,10 @@ impl ManualTagger {
                 continue;
             }
             if line.contains('\u{a0}') {
-                return Err(format!("Non-breaking space found in line #{}: '{line}', please remove it", index + 1));
+                return Err(format!(
+                    "Non-breaking space found in line #{}: '{line}', please remove it",
+                    index + 1
+                ));
             }
             let line = java_trim(line.split('#').next().unwrap_or(""));
             // String.split(regex): the separators LanguageTool's files use
@@ -163,7 +171,9 @@ impl ManualTagger {
                     index + 1
                 ));
             }
-            map.entry(parts[0].to_string()).or_default().push((parts[1].to_string(), java_trim(parts[2]).to_string()));
+            map.entry(parts[0].to_string())
+                .or_default()
+                .push((parts[1].to_string(), java_trim(parts[2]).to_string()));
         }
         Ok(ManualTagger { map })
     }
@@ -188,7 +198,9 @@ fn java_trim(s: &str) -> &str {
 // ---------------------------------------------------------------------------
 
 /// `FrenchTagger.ambigousTokens`.
-const AMBIGUOUS_TOKENS: [&str; 11] = ["-Le", "-Les", "-La", "-Elle", "-Elles", "-On", "-Tu", "-Vous", "-Il", "-Ils", "-Ce"];
+const AMBIGUOUS_TOKENS: [&str; 11] = [
+    "-Le", "-Les", "-La", "-Elle", "-Elles", "-On", "-Tu", "-Vous", "-Il", "-Ils", "-Ce",
+];
 
 const CONTAINS_TYPEWRITER_APOSTROPHE: &str = "containsTypewriterApostrophe";
 const CONTAINS_TYPOGRAPHIC_APOSTROPHE: &str = "containsTypographicApostrophe";
@@ -202,7 +214,11 @@ impl Hasher for Fnv {
     }
 
     fn write(&mut self, bytes: &[u8]) {
-        let mut h = if self.0 == 0 { 0xcbf2_9ce4_8422_2325 } else { self.0 };
+        let mut h = if self.0 == 0 {
+            0xcbf2_9ce4_8422_2325
+        } else {
+            self.0
+        };
         for &b in bytes {
             h ^= b as u64;
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
@@ -272,7 +288,11 @@ impl FrenchTagger {
         ))
     }
 
-    pub fn with_manual_data(dictionary: Arc<dyn WordDictionary>, manual: ManualTagger, removal: ManualTagger) -> FrenchTagger {
+    pub fn with_manual_data(
+        dictionary: Arc<dyn WordDictionary>,
+        manual: ManualTagger,
+        removal: ManualTagger,
+    ) -> FrenchTagger {
         let re = |src: &str| Regex::new(src, Flags::IGNORE_CASE).expect("valid pattern");
         FrenchTagger {
             dictionary,
@@ -330,7 +350,9 @@ impl FrenchTagger {
     fn cached(&self, word: &str) -> Arc<Readings> {
         // Any spread will do for the shard; the map hashes the word itself.
         let bytes = word.as_bytes();
-        let spread = bytes.len() * 31 + bytes.first().map_or(0, |&b| b as usize) * 7 + bytes.last().map_or(0, |&b| b as usize);
+        let spread = bytes.len() * 31
+            + bytes.first().map_or(0, |&b| b as usize) * 7
+            + bytes.last().map_or(0, |&b| b as usize);
         let shard = &self.cache[spread % SHARDS];
         if let Some(hit) = shard.read().unwrap_or_else(|e| e.into_inner()).get(word) {
             return hit.clone();
@@ -387,8 +409,16 @@ impl FrenchTagger {
     /// `asAnalyzedTokenListForTaggedWords` and `addTokens`.
     fn add_tokens(token: &Arc<str>, tagged: Vec<(String, String)>, l: &mut Vec<Reading>) {
         for (lemma, tag) in tagged {
-            let lemma: Arc<str> = if *lemma == **token { token.clone() } else { Arc::from(lemma) };
-            l.push(Reading::new(token.clone(), Some(Tag::new(&tag)), Some(lemma)));
+            let lemma: Arc<str> = if *lemma == **token {
+                token.clone()
+            } else {
+                Arc::from(lemma)
+            };
+            l.push(Reading::new(
+                token.clone(),
+                Some(Tag::new(&tag)),
+                Some(lemma),
+            ));
         }
     }
 
@@ -425,11 +455,22 @@ impl FrenchTagger {
 
     /// The readings of `candidate` whose tag `keep` accepts, as readings of
     /// `word` with the prefix put back on the lemma.
-    fn prefixed(&self, word: &Arc<str>, prefix: &str, candidate: &str, keep: fn(&str) -> bool, out: &mut Vec<Reading>) {
+    fn prefixed(
+        &self,
+        word: &Arc<str>,
+        prefix: &str,
+        candidate: &str,
+        keep: fn(&str) -> bool,
+        out: &mut Vec<Reading>,
+    ) {
         for (lemma, tag) in self.word_tagger(candidate) {
             if keep(&tag) {
                 let lemma = format!("{}{lemma}", prefix.to_lowercase());
-                out.push(Reading::new(word.clone(), Some(Tag::new(&tag)), Some(Arc::from(lemma))));
+                out.push(Reading::new(
+                    word.clone(),
+                    Some(Tag::new(&tag)),
+                    Some(Arc::from(lemma)),
+                ));
             }
         }
     }
@@ -443,7 +484,8 @@ impl FrenchTagger {
         }
         // `[NJ] .+|V ppa.*`
         fn noun_adj(tag: &str) -> bool {
-            (tag.len() > 2 && (tag.starts_with("N ") || tag.starts_with("J "))) || tag.starts_with("V ppa")
+            (tag.len() > 2 && (tag.starts_with("N ") || tag.starts_with("J ")))
+                || tag.starts_with("V ppa")
         }
         let chars: Vec<char> = word.chars().collect();
         let groups = |re: &Regex| -> Option<(String, String)> {
@@ -460,7 +502,13 @@ impl FrenchTagger {
             }
         }
         if let Some((prefix, rest)) = groups(&self.patterns.prefixes_for_noun_adj) {
-            self.prefixed(&token, &prefix, &rest.to_lowercase(), noun_adj, &mut additional);
+            self.prefixed(
+                &token,
+                &prefix,
+                &rest.to_lowercase(),
+                noun_adj,
+                &mut additional,
+            );
             if !additional.is_empty() {
                 return Some(additional);
             }
@@ -470,7 +518,13 @@ impl FrenchTagger {
             self.prefixed(&token, &prefix, &possible_noun, noun_adj, &mut additional);
             // with lower case
             if additional.is_empty() {
-                self.prefixed(&token, &prefix, &possible_noun.to_lowercase(), noun_adj, &mut additional);
+                self.prefixed(
+                    &token,
+                    &prefix,
+                    &possible_noun.to_lowercase(),
+                    noun_adj,
+                    &mut additional,
+                );
             }
             return Some(additional);
         }
@@ -502,13 +556,26 @@ sœur\tsœur\tN f s
 
     fn tagger() -> FrenchTagger {
         let dict = Arc::new(TextDictionary::from_text(DUMP.to_string()));
-        let manual = ManualTagger::parse("#separatorRegExp=;\nOuigo;Ouigo;Z m sp\nchat;chat;Z m s # comment\n").unwrap();
+        let manual = ManualTagger::parse(
+            "#separatorRegExp=;\nOuigo;Ouigo;Z m sp\nchat;chat;Z m s # comment\n",
+        )
+        .unwrap();
         let removal = ManualTagger::parse("a\ta\tN m sp\n").unwrap();
         FrenchTagger::with_manual_data(dict, manual, removal)
     }
 
     fn show(t: &Readings) -> String {
-        t.readings.iter().map(|r| format!("{}/{}", r.lemma.as_deref().unwrap_or("-"), r.pos().unwrap_or("-"))).collect::<Vec<_>>().join(" ")
+        t.readings
+            .iter()
+            .map(|r| {
+                format!(
+                    "{}/{}",
+                    r.lemma.as_deref().unwrap_or("-"),
+                    r.pos().unwrap_or("-")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     fn tag(word: &str) -> String {
@@ -520,7 +587,13 @@ sœur\tsœur\tN f s
         let d = TextDictionary::from_text(DUMP.to_string());
         let mut out = Vec::new();
         d.lookup("marché", &mut out);
-        assert_eq!(out, [("marché".to_string(), "N m s".to_string()), ("marcher".to_string(), "V ppa m s".to_string())]);
+        assert_eq!(
+            out,
+            [
+                ("marché".to_string(), "N m s".to_string()),
+                ("marcher".to_string(), "V ppa m s".to_string())
+            ]
+        );
         out.clear();
         d.lookup("Marché", &mut out);
         d.lookup("march", &mut out);
@@ -533,7 +606,10 @@ sœur\tsœur\tN f s
 
     #[test]
     fn manual_tagger_reads_separators_and_comments() {
-        let m = ManualTagger::parse("# c\n\nun\tun\tD m s\n#separatorRegExp=;\ndeux;deux;K;\n  trois;trois; K  \n").unwrap();
+        let m = ManualTagger::parse(
+            "# c\n\nun\tun\tD m s\n#separatorRegExp=;\ndeux;deux;K;\n  trois;trois; K  \n",
+        )
+        .unwrap();
         assert_eq!(m.tag("un"), [("un".to_string(), "D m s".to_string())]);
         assert_eq!(m.tag("deux"), [("deux".to_string(), "K".to_string())]);
         assert_eq!(m.tag("trois"), [("trois".to_string(), "K".to_string())]);
@@ -545,9 +621,18 @@ sœur\tsœur\tN f s
     fn combines_manual_dictionary_and_removals() {
         let t = tagger();
         // manual readings come first
-        assert_eq!(t.word_tagger("chat"), [("chat".to_string(), "Z m s".to_string()), ("chat".to_string(), "N m s".to_string())]);
+        assert_eq!(
+            t.word_tagger("chat"),
+            [
+                ("chat".to_string(), "Z m s".to_string()),
+                ("chat".to_string(), "N m s".to_string())
+            ]
+        );
         // removed.txt takes a reading out
-        assert_eq!(t.word_tagger("a"), [("avoir".to_string(), "V avoir ind pres 3 s".to_string())]);
+        assert_eq!(
+            t.word_tagger("a"),
+            [("avoir".to_string(), "V avoir ind pres 3 s".to_string())]
+        );
     }
 
     #[test]
@@ -581,7 +666,10 @@ sœur\tsœur\tN f s
         let b = t.tag_token("L'");
         assert_eq!(show(&b), "le/D e s");
         assert_eq!(b.chunk_tags, [Arc::from(CONTAINS_TYPEWRITER_APOSTROPHE)]);
-        assert!(t.tag_token("'").chunk_tags.is_empty(), "a lone apostrophe is not a word with one");
+        assert!(
+            t.tag_token("'").chunk_tags.is_empty(),
+            "a lone apostrophe is not a word with one"
+        );
     }
 
     #[test]
@@ -600,21 +688,38 @@ sœur\tsœur\tN f s
     #[test]
     fn tags_a_sentence_with_positions() {
         let t = tagger();
-        let tokens: Vec<String> = ["l’", "chat", " ", "a"].iter().map(|s| s.to_string()).collect();
+        let tokens: Vec<String> = ["l’", "chat", " ", "a"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let tagged = t.tag(&tokens);
-        assert_eq!(tagged.iter().map(|r| r.start_pos).collect::<Vec<_>>(), [0, 4, 8, 9]);
+        assert_eq!(
+            tagged.iter().map(|r| r.start_pos).collect::<Vec<_>>(),
+            [0, 4, 8, 9]
+        );
         assert!(t.is_tagged("peut-être") && !t.is_tagged("peut-etre"));
         assert!(tagged[2].is_whitespace && !tagged[2].is_tagged());
         // cached or not, the same answer
         let long = "x".repeat(LONGEST_CACHED + 1);
-        for word in ["chat", "chat", "Marché", "Marché", long.as_str(), long.as_str()] {
+        for word in [
+            "chat",
+            "chat",
+            "Marché",
+            "Marché",
+            long.as_str(),
+            long.as_str(),
+        ] {
             assert_eq!(show(&t.tag_token(word)), show(&t.tag_uncached(word)));
         }
         // these all fall in one shard, which is emptied when full
         for i in 0..SHARD_CAPACITY + 500 {
             t.tag_token(&format!("w{i:05}x"));
         }
-        let sizes: Vec<usize> = t.cache.iter().map(|shard| shard.read().unwrap().len()).collect();
+        let sizes: Vec<usize> = t
+            .cache
+            .iter()
+            .map(|shard| shard.read().unwrap().len())
+            .collect();
         assert!(sizes.iter().all(|&n| n <= SHARD_CAPACITY) && sizes.contains(&500));
         assert_eq!(show(&t.tag_token("chat")), "chat/Z m s chat/N m s");
     }

@@ -44,7 +44,10 @@ pub struct MorfologikSpeller {
 
 impl MorfologikSpeller {
     pub fn new(dictionary: Arc<Dictionary>, max_edit_distance: usize) -> MorfologikSpeller {
-        assert!(max_edit_distance > 0, "maxEditDistance must be > 0: {max_edit_distance}");
+        assert!(
+            max_edit_distance > 0,
+            "maxEditDistance must be > 0: {max_edit_distance}"
+        );
         MorfologikSpeller {
             dictionary,
             max_edit_distance,
@@ -69,12 +72,16 @@ impl MorfologikSpeller {
         let mut contains_separators = self.contains_separators.load(Ordering::Relaxed);
         if contains_separators && m.kind == MatchKind::ExactMatch {
             contains_separators = bytes.contains(&separator);
-            self.contains_separators.store(contains_separators, Ordering::Relaxed);
+            self.contains_separators
+                .store(contains_separators, Ordering::Relaxed);
         }
         if m.kind == MatchKind::ExactMatch && !contains_separators {
             return true;
         }
-        contains_separators && m.kind == MatchKind::SequenceIsAPrefix && !bytes.is_empty() && self.dictionary.fsa.arc(m.node, separator) != 0
+        contains_separators
+            && m.kind == MatchKind::SequenceIsAPrefix
+            && !bytes.is_empty()
+            && self.dictionary.fsa.arc(m.node, separator) != 0
     }
 
     /// `morfologik.speller.Speller.isMisspelled`.
@@ -98,7 +105,8 @@ impl MorfologikSpeller {
             && (!meta.convert_case
                 || !(!is_mixed_case(&units)
                     && (self.is_in_dictionary(&unicode::lower_string(word_to_check))
-                        || is_all_uppercase(&units) && self.is_in_dictionary(&initial_uppercase(&units)))))
+                        || is_all_uppercase(&units)
+                            && self.is_in_dictionary(&initial_uppercase(&units)))))
     }
 
     /// `getSuggestions`: replacement candidates, then run-on word splits,
@@ -180,7 +188,10 @@ fn recase(suggestions: &mut Vec<WeightedSuggestion>, word: &str, convert: impl F
             }
             _ => {
                 let weight = suggestions[at].weight;
-                suggestions[at] = WeightedSuggestion { word: converted, weight };
+                suggestions[at] = WeightedSuggestion {
+                    word: converted,
+                    weight,
+                };
             }
         }
         i += 1;
@@ -190,16 +201,20 @@ fn recase(suggestions: &mut Vec<WeightedSuggestion>, word: &str, convert: impl F
 // The character tests of `morfologik.speller.Speller`, on UTF-16 units.
 
 fn is_all_uppercase(s: &[u16]) -> bool {
-    !s.iter().any(|&c| unicode::is_letter(c) && unicode::is_lower_case(c))
+    !s.iter()
+        .any(|&c| unicode::is_letter(c) && unicode::is_lower_case(c))
 }
 
 fn is_not_all_lowercase(s: &[u16]) -> bool {
-    s.iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c))
+    s.iter()
+        .any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c))
 }
 
 fn is_not_capitalized_word(s: &[u16]) -> bool {
     if !s.is_empty() && unicode::is_upper_case(s[0]) {
-        return s[1..].iter().any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
+        return s[1..]
+            .iter()
+            .any(|&c| unicode::is_letter(c) && !unicode::is_lower_case(c));
     }
     true
 }
@@ -243,7 +258,11 @@ pub struct MorfologikMultiSpeller {
 impl MorfologikMultiSpeller {
     /// `binary` is the `.dict` dictionary, `plain_text` the dictionary built
     /// from the word lists (`None` when they are empty).
-    pub fn new(binary: Arc<Dictionary>, plain_text: Option<Arc<Dictionary>>, max_edit_distance: usize) -> MorfologikMultiSpeller {
+    pub fn new(
+        binary: Arc<Dictionary>,
+        plain_text: Option<Arc<Dictionary>>,
+        max_edit_distance: usize,
+    ) -> MorfologikMultiSpeller {
         let speller = MorfologikSpeller::new(binary, max_edit_distance);
         let converts_case = speller.converts_case();
         let mut spellers = vec![speller];
@@ -260,7 +279,12 @@ impl MorfologikMultiSpeller {
 
     /// `isMisspelled`: no dictionary knows the word.
     pub fn is_misspelled(&self, word: &str) -> bool {
-        if let Some(&known) = self.misspelled.read().unwrap_or_else(|e| e.into_inner()).get(word) {
+        if let Some(&known) = self
+            .misspelled
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(word)
+        {
             return known;
         }
         let verdict = self.spellers.iter().all(|s| s.is_misspelled(word));
@@ -274,7 +298,11 @@ impl MorfologikMultiSpeller {
 
     /// `getFrequency`: the first non-zero frequency.
     pub fn frequency(&self, word: &str) -> i32 {
-        self.spellers.iter().map(|s| s.frequency(word)).find(|&f| f > 0).unwrap_or(0)
+        self.spellers
+            .iter()
+            .map(|s| s.frequency(word))
+            .find(|&f| f > 0)
+            .unwrap_or(0)
     }
 
     /// `getSuggestionsFromSpellers`: the suggestions of every speller, without
@@ -297,17 +325,31 @@ impl MorfologikMultiSpeller {
     /// `getSuggestions`: all spellers, words only. Without a user dictionary
     /// this is the list of the default dictionaries, which is kept.
     pub fn suggestions(&self, word: &str) -> Vec<String> {
-        self.weighted_suggestions_from_default_dicts(word).iter().map(|s| s.word.clone()).collect()
+        self.weighted_suggestions_from_default_dicts(word)
+            .iter()
+            .map(|s| s.word.clone())
+            .collect()
     }
 
     /// `getWeightedSuggestionsFromDefaultDicts` (cached). Without a user
     /// dictionary the default dictionaries are all the dictionaries.
-    pub fn weighted_suggestions_from_default_dicts(&self, word: &str) -> Arc<Vec<WeightedSuggestion>> {
-        if let Some(found) = self.default_dict_suggestions.lock().unwrap_or_else(|e| e.into_inner()).get(word) {
+    pub fn weighted_suggestions_from_default_dicts(
+        &self,
+        word: &str,
+    ) -> Arc<Vec<WeightedSuggestion>> {
+        if let Some(found) = self
+            .default_dict_suggestions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(word)
+        {
             return found.clone();
         }
         let computed = Arc::new(self.suggestions_from_spellers(word));
-        let mut cache = self.default_dict_suggestions.lock().unwrap_or_else(|e| e.into_inner());
+        let mut cache = self
+            .default_dict_suggestions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if cache.len() >= SUGGESTION_CACHE_SIZE {
             cache.clear();
         }
@@ -350,7 +392,11 @@ mod tests {
     #[test]
     fn speller_character_classes() {
         let u = |s: &str| s.encode_utf16().collect::<Vec<u16>>();
-        assert!(is_mixed_case(&u("iPhone")) && !is_mixed_case(&u("Paris")) && !is_mixed_case(&u("PARIS")));
+        assert!(
+            is_mixed_case(&u("iPhone"))
+                && !is_mixed_case(&u("Paris"))
+                && !is_mixed_case(&u("PARIS"))
+        );
         assert!(is_camel_case(&u("HelloWorld")) && !is_camel_case(&u("Hello")));
         assert_eq!(initial_uppercase(&u("PARIS")), "Paris");
     }

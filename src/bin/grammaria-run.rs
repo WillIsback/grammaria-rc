@@ -90,7 +90,11 @@ fn main() {
     let threads = std::env::var("GRAMMARIA_THREADS")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or_else(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1));
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(1)
+        });
     let chunk = texts.len().div_ceil(threads).max(1);
     let french: &French = &french;
     // Extra passes over the same texts, timed one by one: the first pays for
@@ -105,7 +109,11 @@ fn main() {
         for text in texts.iter().skip(1) {
             line(french, mode, text);
         }
-        eprintln!("pass {pass}: {:?} (first text {:?})", started.elapsed(), first_text.unwrap_or_default());
+        eprintln!(
+            "pass {pass}: {:?} (first text {:?})",
+            started.elapsed(),
+            first_text.unwrap_or_default()
+        );
     }
     let started = std::time::Instant::now();
     let out: Vec<String> = std::thread::scope(|scope| {
@@ -119,7 +127,14 @@ fn main() {
                             let out = line(french, mode, text);
                             let ms = started.elapsed().as_millis();
                             if slow.is_some_and(|limit| ms >= limit) {
-                                eprintln!("slow: {ms} ms, {} words: {}", text.split_whitespace().count(), text.chars().take(100).collect::<String>().replace('\n', " "));
+                                eprintln!(
+                                    "slow: {ms} ms, {} words: {}",
+                                    text.split_whitespace().count(),
+                                    text.chars()
+                                        .take(100)
+                                        .collect::<String>()
+                                        .replace('\n', " ")
+                                );
                             }
                             out
                         })
@@ -127,7 +142,10 @@ fn main() {
                 })
             })
             .collect();
-        handles.into_iter().flat_map(|h| h.join().expect("worker panicked")).collect()
+        handles
+            .into_iter()
+            .flat_map(|h| h.join().expect("worker panicked"))
+            .collect()
     });
     let ran = started.elapsed();
     let mut buf = String::new();
@@ -138,7 +156,11 @@ fn main() {
     print!("{buf}");
     if time {
         let words: usize = texts.iter().map(|t| t.split_whitespace().count()).sum();
-        eprintln!("memory: {} MiB after load, {} MiB at the end", loaded_rss / 1024, rss_kb() / 1024);
+        eprintln!(
+            "memory: {} MiB after load, {} MiB at the end",
+            loaded_rss / 1024,
+            rss_kb() / 1024
+        );
         eprintln!("load {loaded:?}; {} texts, {words} words in {ran:?} on {threads} thread(s): {:.0} words/s", texts.len(), words as f64 / ran.as_secs_f64());
     }
 }
@@ -147,7 +169,11 @@ fn main() {
 fn rss_kb() -> usize {
     std::fs::read_to_string("/proc/self/status")
         .ok()
-        .and_then(|s| s.lines().find(|l| l.starts_with("VmRSS:")).and_then(|l| l.split_whitespace().nth(1)?.parse().ok()))
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmRSS:"))
+                .and_then(|l| l.split_whitespace().nth(1)?.parse().ok())
+        })
         .unwrap_or(0)
 }
 
@@ -168,7 +194,12 @@ fn line(french: &French, mode: &str, text: &str) -> String {
                         json_escape(&info.id),
                         from,
                         len,
-                        m.suggestions.iter().take(5).map(|x| format!("\"{}\"", json_escape(x))).collect::<Vec<_>>().join(","),
+                        m.suggestions
+                            .iter()
+                            .take(5)
+                            .map(|x| format!("\"{}\"", json_escape(x)))
+                            .collect::<Vec<_>>()
+                            .join(","),
                         json_escape(&info.category_id),
                         json_escape(&info.full_id()),
                         json_escape(&info.issue_type),

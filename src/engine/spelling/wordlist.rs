@@ -31,7 +31,9 @@ pub fn read_resource(path: &Path) -> Option<String> {
 /// `CachingWordListLoader.loadWords` on the text of a file: one entry per
 /// line, without comments (`#`); a missing file gives no words.
 pub fn load_words(content: Option<&str>) -> Vec<String> {
-    let Some(content) = content else { return Vec::new() };
+    let Some(content) = content else {
+        return Vec::new();
+    };
     let mut result = Vec::new();
     for line in java_lines(content) {
         if line.is_empty() || line.starts_with('#') {
@@ -127,7 +129,8 @@ mod tests {
         assert_eq!(prepare_line_for_speller("Ho Chi Minh"), "");
         assert_eq!(prepare_line_for_speller("Gilberto #name"), "Gilberto #name");
         // Two files chained without a line break in between.
-        let lines = speller_lines("# header\nAlexi\nJoe Biden #name\nShabak# Add terms here\n\nb2\n");
+        let lines =
+            speller_lines("# header\nAlexi\nJoe Biden #name\nShabak# Add terms here\n\nb2\n");
         assert_eq!(lines, ["Alexi", "Joe Biden", "Shabak", "b2"]);
     }
 
