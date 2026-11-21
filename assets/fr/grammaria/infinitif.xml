@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 Règles propres à Grammaria, au format des règles de LanguageTool.
-Licence : MPL-2.0 (comme le reste de la bibliothèque).
+Licence : LGPL-2.1-or-later (comme le reste de la bibliothèque).
 
 Infinitif attendu là où le texte porte un participe passé (« afin de la
 trouvée ») ou une forme conjuguée (« capable de la trouvait ») : après une
